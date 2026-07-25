@@ -1,0 +1,147 @@
+"""Ingestion CLI.
+
+Subcommands:
+  check    Verify Neon connectivity + schema (Phase 0).
+  unzip    Expand raw_zips/*.zip into raw_materials/ (nested, dedup, junk-skip).
+  build    Extract -> tag -> chunk -> de-dup -> build the SQLite FTS index.
+  ingest   unzip + build in one go.
+  stats    Print current knowledge-base stats + on-disk index size.
+
+Examples:
+  python -m nls_ingest.main unzip
+  python -m nls_ingest.main build            # text only (fast); flags scanned PDFs
+  python -m nls_ingest.main build --ocr      # also OCR scanned PDFs (slow)
+  python -m nls_ingest.main build --limit 50 # sample run
+  python -m nls_ingest.main stats
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+
+from . import config
+
+
+def cmd_check(_: argparse.Namespace) -> int:
+    from . import db
+    try:
+        counts = db.check_connection()
+    except Exception as exc:  # noqa: BLE001
+        print(f"✗ Neon connection failed: {exc}", file=sys.stderr)
+        return 1
+    print("✓ Connected to Neon and schema present.")
+    print(f"  users:     {counts['users']}")
+    print(f"  questions: {counts['questions']}")
+    return 0
+
+
+def cmd_unzip(_: argparse.Namespace) -> int:
+    from . import unzip
+    print(f"Expanding {config.RAW_ZIPS_DIR} -> {config.RAW_MATERIALS_DIR} …")
+    stats = unzip.expand_all()
+    print(f"✓ Expanded {stats['archives']} archives "
+          f"({stats['nested_zips']} nested), {stats['files']} files extracted.")
+    return 0
+
+
+def cmd_build(args: argparse.Namespace) -> int:
+    from . import pipeline
+    print(f"Building knowledge base (ocr={args.ocr}, limit={args.limit}) …")
+    counts = pipeline.build(ocr=args.ocr, limit=args.limit)
+    kb = counts.pop("kb_stats")
+    print("\n✓ Build complete.")
+    for k, v in counts.items():
+        print(f"  {k:20} {v}")
+    print("  ── knowledge base ──")
+    for k, v in kb.items():
+        print(f"  {k:20} {v}")
+    _print_size()
+    return 0
+
+
+def cmd_ingest(args: argparse.Namespace) -> int:
+    rc = cmd_unzip(args)
+    if rc != 0:
+        return rc
+    return cmd_build(args)
+
+
+def cmd_chunks(_: argparse.Namespace) -> int:
+    from . import build_chunks
+    print("Building provider-neutral chunk artifact from the Codex corpus …")
+    s = build_chunks.build()
+    print("\n✓ Chunk artifact built.")
+    for k in ("documents", "past_question_docs", "no_page_docs", "chunks_total",
+              "chunks_kept", "chunks_deduped", "dedup_reduction_pct",
+              "pages_located", "content_mb_kept", "est_neon_mb"):
+        print(f"  {k:22} {s[k]}")
+    fit = "FITS free Neon (0.5 GB)" if s["est_neon_mb"] < 500 else "EXCEEDS free Neon 0.5 GB"
+    print(f"  {'gate':22} {fit}")
+    return 0
+
+
+def cmd_load(_: argparse.Namespace) -> int:
+    from . import load_neon
+    print("Loading chunk artifact into Neon (idempotent) …")
+    c = load_neon.load()
+    print("\n✓ Loaded.")
+    print(f"  sources            {c['sources']}")
+    print(f"  chunks             {c['chunks']}")
+    print(f"  chunks table size  {c['chunks_table_size']} (real gate measurement)")
+    print(f"  database size      {c['database_size']} / 512 MB free tier")
+    return 0
+
+
+def cmd_stats(_: argparse.Namespace) -> int:
+    from .kbindex import KnowledgeBase
+    if not config.KB_INDEX_PATH.exists():
+        print("No knowledge base built yet.")
+        return 0
+    kb = KnowledgeBase()
+    for k, v in kb.stats().items():
+        print(f"  {k:20} {v}")
+    kb.close()
+    _print_size()
+    return 0
+
+
+def _print_size() -> None:
+    if config.KB_INDEX_PATH.exists():
+        mb = config.KB_INDEX_PATH.stat().st_size / (1024 * 1024)
+        print(f"  {'index_size_mb':20} {mb:.1f}")
+        threshold = "bundle with app (< 50 MB)" if mb < 50 else "serve from Vercel Blob"
+        print(f"  {'hosting':20} {threshold}")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="nls_ingest", description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("check", help="Verify Neon connectivity.").set_defaults(func=cmd_check)
+    sub.add_parser("unzip", help="Expand raw_zips into raw_materials.").set_defaults(func=cmd_unzip)
+    sub.add_parser("stats", help="Show KB stats + index size.").set_defaults(func=cmd_stats)
+    sub.add_parser("chunks", help="Build chunk artifact from Codex corpus + measure size.").set_defaults(func=cmd_chunks)
+    sub.add_parser("load", help="Load chunk artifact into Neon (needs DATABASE_URL).").set_defaults(func=cmd_load)
+
+    pb = sub.add_parser("build", help="Build the SQLite FTS index.")
+    pb.add_argument("--ocr", action="store_true", help="OCR scanned PDFs (slow).")
+    pb.add_argument("--limit", type=int, default=None, help="Process at most N docs.")
+    pb.set_defaults(func=cmd_build)
+
+    pi = sub.add_parser("ingest", help="unzip + build.")
+    pi.add_argument("--ocr", action="store_true")
+    pi.add_argument("--limit", type=int, default=None)
+    pi.set_defaults(func=cmd_ingest)
+
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,65 @@
+/* Monochrome design system — black & white, thin outlines, no color accents. */
+:root {
+  --bg: #ffffff;
+  --fg: #111111;
+  --muted: #666666;
+  --line: #111111;          /* outline / border color */
+  --line-soft: #d8d8d8;     /* hairline dividers */
+  --radius: 0px;            /* crisp, simple outlines */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a0a0a;
+    --fg: #f2f2f2;
+    --muted: #9a9a9a;
+    --line: #f2f2f2;
+    --line-soft: #2a2a2a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.55;
+}
+
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+
+a {
+  color: var(--fg);
+  text-underline-offset: 2px;
+}
+
+/* Simple outlined surface — the core visual motif. */
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  background: var(--bg);
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--line-soft);
+  margin: 1.5rem 0;
+}
