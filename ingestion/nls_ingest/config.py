@@ -31,6 +31,8 @@ FAILURES_PATH: Path = CORPUS_ROOT / "failures.jsonl"
 CHUNK_ARTIFACT_PATH: Path = BUILD_DIR / "chunks.jsonl"
 SOURCE_ARTIFACT_PATH: Path = BUILD_DIR / "source_documents.jsonl"
 
+MIGRATIONS_DIR: Path = INGESTION_ROOT.parent / "db" / "migrations"
+
 # ── Secrets / connections ─────────────────────────────────────
 DATABASE_URL: str | None = os.environ.get("DATABASE_URL")
 ANTHROPIC_API_KEY: str | None = os.environ.get("ANTHROPIC_API_KEY")

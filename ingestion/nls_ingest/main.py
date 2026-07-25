@@ -81,6 +81,26 @@ def cmd_chunks(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_migrate(_: argparse.Namespace) -> int:
+    from . import db
+    files = sorted(config.MIGRATIONS_DIR.glob("*.sql"))
+    if not files:
+        print("No migration files found.")
+        return 1
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            import re
+            for f in files:
+                sql = f.read_text(encoding="utf-8")
+                # Strip line comments first (they may contain ';'), then split.
+                sql = re.sub(r"--[^\n]*", "", sql)
+                stmts = [s.strip() for s in sql.split(";") if s.strip()]
+                for s in stmts:
+                    cur.execute(s)
+                print(f"✓ applied {f.name} ({len(stmts)} statements)")
+    return 0
+
+
 def cmd_load(_: argparse.Namespace) -> int:
     from . import load_neon
     print("Loading chunk artifact into Neon (idempotent) …")
@@ -123,6 +143,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("unzip", help="Expand raw_zips into raw_materials.").set_defaults(func=cmd_unzip)
     sub.add_parser("stats", help="Show KB stats + index size.").set_defaults(func=cmd_stats)
     sub.add_parser("chunks", help="Build chunk artifact from Codex corpus + measure size.").set_defaults(func=cmd_chunks)
+    sub.add_parser("migrate", help="Apply db/migrations/*.sql to Neon.").set_defaults(func=cmd_migrate)
     sub.add_parser("load", help="Load chunk artifact into Neon (needs DATABASE_URL).").set_defaults(func=cmd_load)
 
     pb = sub.add_parser("build", help="Build the SQLite FTS index.")
