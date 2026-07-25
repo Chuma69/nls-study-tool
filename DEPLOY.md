@@ -40,13 +40,18 @@ vercel env ls
 
 Pull the connection string locally, then run the ordered migration:
 
+The Neon/Vercel integration injects `POSTGRES_*` vars (not `DATABASE_URL`). For
+local migration/load, use the **non-pooling** (direct) connection string —
+copy `POSTGRES_URL_NON_POOLING` from the Neon dashboard (Quickstart → .env.local
+→ Show secret), then:
+
 ```bash
-# Pulls Vercel env (incl. DATABASE_URL) into app/.env.local
-vercel env pull .env.local
+# In ingestion/.env set:  DATABASE_URL=<POSTGRES_URL_NON_POOLING value>
+export $(grep -E '^DATABASE_URL=' ../ingestion/.env | xargs)
 
 # Apply migration 0001 (idempotent — safe to re-run)
-export $(grep -E '^DATABASE_URL=' .env.local | xargs)
 psql "$DATABASE_URL" -f ../db/migrations/0001_init.sql
+# …or paste db/migrations/0001_init.sql into Neon's SQL Editor and Run.
 ```
 
 You should see `CREATE TABLE` / `CREATE INDEX` lines with no errors.

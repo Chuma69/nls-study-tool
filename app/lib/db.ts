@@ -11,9 +11,11 @@ let _sql: NeonQueryFunction<false, false> | null = null;
 
 export function getSql(): NeonQueryFunction<false, false> {
   if (_sql) return _sql;
-  const url = process.env.DATABASE_URL;
+  // The Neon/Vercel Marketplace integration injects the pooled connection as
+  // POSTGRES_URL; accept DATABASE_URL too for local/psql setups.
+  const url = process.env.POSTGRES_URL || process.env.DATABASE_URL;
   if (!url) {
-    throw new Error("DATABASE_URL is not set. See .env.example.");
+    throw new Error("POSTGRES_URL / DATABASE_URL is not set. See .env.example.");
   }
   // `neon(...)` returns a tagged-template query function; interpolated values
   // are sent as bound parameters (not string-concatenated), so it is
