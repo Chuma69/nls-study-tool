@@ -36,45 +36,68 @@ Vercel env vars. Confirm it landed:
 vercel env ls
 ```
 
-## 4. Apply the schema to Neon
+## 4. Apply the v3 migration to Neon
 
-Pull the connection string locally, then run the schema:
+Pull the connection string locally, then run the ordered migration:
 
 ```bash
 # Pulls Vercel env (incl. DATABASE_URL) into app/.env.local
 vercel env pull .env.local
 
-# Apply the schema (idempotent — safe to re-run)
+# Apply migration 0001 (idempotent — safe to re-run)
 export $(grep -E '^DATABASE_URL=' .env.local | xargs)
-psql "$DATABASE_URL" -f ../db/schema.sql
+psql "$DATABASE_URL" -f ../db/migrations/0001_init.sql
 ```
 
 You should see `CREATE TABLE` / `CREATE INDEX` lines with no errors.
 
-## 5. Set the remaining env vars on Vercel
+## 5. Load the retrieval corpus into Neon (real index-size measurement)
+
+The chunk artifact was built locally from the read-only Codex corpus
+(`nls_ingest chunks`). Load it into Neon and confirm the real on-disk size
+against the free-tier limit (retrieval decision gate, PRD §2):
 
 ```bash
-# Anthropic key (used from Phase 3/4 onward, but set it now)
-vercel env add ANTHROPIC_API_KEY production
+cd ../ingestion
+source .venv/bin/activate
+# reuse the same DATABASE_URL exported above (or put it in ingestion/.env)
+python -m nls_ingest.main load
+```
 
-# Session signing secret — generate a random value:
+Expected tail:
+```
+  chunks             118518
+  chunks table size  <REAL SIZE>   (real gate measurement)
+  database size      <REAL SIZE> / 512 MB free tier
+```
+If `database size` is comfortably under 512 MB, the SQLite-free Neon FTS
+decision is confirmed. If it's over, tell me — we curate further or approve a
+paid tier before proceeding.
+
+## 6. Set the remaining env vars on Vercel
+
+```bash
+vercel env add ANTHROPIC_API_KEY production      # used from the MCQ/tutor phases
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 vercel env add SESSION_SECRET production
-# (repeat for `preview` and `development` targets if you want them there too)
+# PRD v3 cost/admin controls:
+vercel env add LLM_DAILY_GLOBAL_LIMIT production
+vercel env add LLM_DAILY_SESSION_LIMIT production
+vercel env add ADMIN_EMAIL_ALLOWLIST production
 ```
 
-## 6. Deploy
+## 7. Deploy
 
 ```bash
-vercel --prod
+cd ../app && vercel --prod
 ```
 
-## 7. Verify Phase 0 acceptance criteria
+## 8. Verify Phase 0 acceptance criteria
 
 Open the deployed URL:
 
 - `/` renders the placeholder home page.
-- `/api/health` returns `{"ok":true,"db":"connected","counts":{"users":0,"questions":0}}`
+- `/api/health` returns `{"ok":true,"db":"connected",...}`
   — this proves the app reaches Neon **and** the schema is applied.
 
 Then verify the ingestion project connects to the same Neon DB:
