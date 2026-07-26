@@ -68,9 +68,11 @@ EXTRACTION_OUTPUT_USD_PER_MTOK = float(
 # Question-extraction controls. The hard cap is enforced for every paid run;
 # --approve-dry-run binds a run to the exact preceding dry-run report.
 QUESTION_EXTRACTION_MAX_INPUT_TOKENS = int(
-    os.environ.get("QUESTION_EXTRACTION_MAX_INPUT_TOKENS", "120000"))
+    os.environ.get("QUESTION_EXTRACTION_MAX_INPUT_TOKENS", "30000"))
 QUESTION_EXTRACTION_MAX_OUTPUT_TOKENS = int(
     os.environ.get("QUESTION_EXTRACTION_MAX_OUTPUT_TOKENS", "16000"))
+QUESTION_EXTRACTION_WORKERS = int(
+    os.environ.get("QUESTION_EXTRACTION_WORKERS", "2"))
 QUESTION_EXTRACTION_DEFAULT_CAP_USD = float(
     os.environ.get("QUESTION_EXTRACTION_DEFAULT_CAP_USD", "10.00"))
 QUESTION_DRY_RUN_PATH: Path = BUILD_DIR / "question_extraction_dry_run.json"

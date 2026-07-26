@@ -11,10 +11,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+
+import psycopg
 
 from . import config, db, locators
 
@@ -380,6 +384,62 @@ def _require_audit_tables(cur: Any) -> None:
         raise RuntimeError("Question audit migration is missing. Run `python -m nls_ingest.main migrate` first.")
 
 
+def _retry_neon(operation: Any) -> Any:
+    """Retry short, idempotent Neon writes after transient socket drops."""
+    for attempt in range(5):
+        try:
+            return operation()
+        except psycopg.OperationalError:
+            if attempt == 4:
+                raise
+            delay = 2 ** attempt
+            print(f"  Neon connection reset; retrying save in {delay}s", flush=True)
+            time.sleep(delay)
+
+
+def _extract_one(paper: Paper) -> tuple[Paper, list[dict[str, Any]], int, int, str | None]:
+    """Call OpenAI for one paper; database work stays in the coordinating thread."""
+    from openai import OpenAI, RateLimitError
+    client = OpenAI(api_key=config.require_openai_key())
+    text = paper.text_path.read_text(encoding="utf-8", errors="replace")
+    _, allowed = _labelled_source(text)
+    raw_items: list[dict[str, Any]] = []
+    in_tokens = out_tokens = 0
+    try:
+        for segment in _request_segments(text):
+            for attempt in range(6):
+                try:
+                    response = client.chat.completions.create(
+                        model=config.MODEL_EXTRACTION,
+                        max_tokens=config.QUESTION_EXTRACTION_MAX_OUTPUT_TOKENS,
+                        temperature=0,
+                        response_format={"type": "json_schema", "json_schema": {
+                            "name": "past_question_extraction", "strict": True, "schema": _SCHEMA}},
+                        messages=[
+                            {"role": "system", "content": _SYSTEM},
+                            {"role": "user", "content": (
+                                f"Source path: {paper.rel_source_path}\n"
+                                f"Exam years copied verbatim from source catalog: {json.dumps(paper.years)}\n"
+                                f"Heuristic classification: {paper.classification}\n<source_paper>\n"
+                                + segment + "\n</source_paper>")},
+                        ])
+                    break
+                except RateLimitError as exc:
+                    if attempt == 5:
+                        raise
+                    retry_after = getattr(exc, "response", None)
+                    header = retry_after.headers.get("retry-after") if retry_after else None
+                    delay = float(header) if header and header.replace(".", "", 1).isdigit() else min(60, 5 * (2 ** attempt))
+                    print(f"  rate limited; waiting {delay:.0f}s before retry", flush=True)
+                    time.sleep(delay)
+            raw_items.extend(_response_items(response))
+            in_tokens += int(response.usage.prompt_tokens)
+            out_tokens += int(response.usage.completion_tokens)
+        return paper, _validated_items(raw_items, allowed, paper.sha256), in_tokens, out_tokens, None
+    except Exception as exc:  # individual failures remain resumable
+        return paper, [], in_tokens, out_tokens, type(exc).__name__
+
+
 def run(approved_report_id: str, max_cost_usd: float) -> dict[str, Any]:
     """Run paid extraction only after a matching, reviewed dry-run report."""
     report = json.loads(config.QUESTION_DRY_RUN_PATH.read_text(encoding="utf-8"))
@@ -398,91 +458,84 @@ def run(approved_report_id: str, max_cost_usd: float) -> dict[str, Any]:
     if not planned:
         return {"papers_processed": 0, "questions_upserted": 0, "actual_cost_usd": 0.0}
 
-    from openai import OpenAI
-    client = OpenAI(api_key=config.OPENAI_API_KEY)
+    # Reserve a 15% safety margin before any concurrent request is dispatched.
+    # This is the same margin surfaced as the dry-run's recommended hard cap.
+    reserved = sum(_cost(p.input_tokens_est, p.output_tokens_est) * 1.15 for p in planned)
+    if reserved > max_cost_usd:
+        raise RuntimeError(
+            f"Cap ${max_cost_usd:.2f} is below the concurrency-safe reserve ${reserved:.2f}. "
+            "Run and approve a fresh dry run.")
     total_in = total_out = upserted = processed = 0
     actual_cost = 0.0
-    with db.connect() as conn:
-        with conn.cursor() as cur:
-            _require_audit_tables(cur)
-            # A local process can be interrupted after opening an audit run but
-            # before its first API response. Close that empty/stale record so
-            # the next approved invocation has an honest audit trail.
-            cur.execute("""UPDATE question_extraction_runs
-                SET status='stopped', completed_at=now()
-                WHERE report_id=%s AND status='running'""", (approved_report_id,))
-            cur.execute("""INSERT INTO question_extraction_runs
-                (report_id, model_id, dry_run, requested_cap_usd, estimated_input_tokens,
-                 estimated_output_tokens, estimated_cost_usd, papers_planned, status)
-                VALUES (%s,%s,false,%s,%s,%s,%s,%s,'running') RETURNING id""",
-                (approved_report_id, config.MODEL_EXTRACTION, max_cost_usd,
-                 report["estimated_input_tokens"], report["estimated_output_tokens"], estimated, len(planned)))
-            run_id = cur.fetchone()[0]
-            conn.commit()
-            for paper in planned:
-                sid = source_ids.get(paper.sha256)
-                if sid is None:
-                    continue
-                if actual_cost + _cost(paper.input_tokens_est, paper.output_tokens_est) > max_cost_usd:
-                    break
-                text = paper.text_path.read_text(encoding="utf-8", errors="replace")
-                _, allowed = _labelled_source(text)
-                try:
-                    raw_items: list[dict[str, Any]] = []
-                    in_tokens = out_tokens = 0
-                    for segment in _request_segments(text):
-                        response = client.chat.completions.create(
-                            model=config.MODEL_EXTRACTION,
-                            max_tokens=config.QUESTION_EXTRACTION_MAX_OUTPUT_TOKENS,
-                            temperature=0,
-                            response_format={"type": "json_schema", "json_schema": {
-                                "name": "past_question_extraction", "strict": True, "schema": _SCHEMA}},
-                            messages=[
-                                {"role": "system", "content": _SYSTEM},
-                                {"role": "user", "content": (
-                                    f"Source path: {paper.rel_source_path}\n"
-                                    f"Exam years copied verbatim from source catalog: {json.dumps(paper.years)}\n"
-                                    f"Heuristic classification: {paper.classification}\n<source_paper>\n"
-                                    + segment + "\n</source_paper>")},
-                            ])
-                        raw_items.extend(_response_items(response))
-                        in_tokens += int(response.usage.prompt_tokens)
-                        out_tokens += int(response.usage.completion_tokens)
-                    items = _validated_items(raw_items, allowed, paper.sha256)
-                    paper_cost = _cost(in_tokens, out_tokens)
-                    inserted = 0
-                    for item in items:
-                        cur.execute("""INSERT INTO questions
-                            (source_document_id, source_locator, question_fingerprint, question_type, course,
-                             exam_years, stem, options, marked_answer_key, model_answer, verification_status)
-                           VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s,%s::jsonb,%s,%s,'unreviewed')
-                           ON CONFLICT (question_fingerprint) DO NOTHING""",
-                            (sid, item["source_locator"], item["question_fingerprint"], item["question_type"],
-                             paper.course, json.dumps(paper.years), item["stem"],
-                             json.dumps(item["options"]) if item["options"] is not None else None,
-                             item["marked_answer_key"], item["model_answer"]))
-                        inserted += cur.rowcount
-                    cur.execute("""INSERT INTO question_extraction_papers
+
+    # Create a run using a short-lived DB connection. API calls deliberately do
+    # not hold a transatlantic Neon connection open.
+    def create_run() -> int:
+        with db.connect() as conn:
+            with conn.cursor() as cur:
+                _require_audit_tables(cur)
+                cur.execute("""UPDATE question_extraction_runs
+                    SET status='stopped', completed_at=now()
+                    WHERE report_id=%s AND status='running'""", (approved_report_id,))
+                cur.execute("""INSERT INTO question_extraction_runs
+                    (report_id, model_id, dry_run, requested_cap_usd, estimated_input_tokens,
+                     estimated_output_tokens, estimated_cost_usd, papers_planned, status)
+                    VALUES (%s,%s,false,%s,%s,%s,%s,%s,'running') RETURNING id""",
+                    (approved_report_id, config.MODEL_EXTRACTION, max_cost_usd,
+                     report["estimated_input_tokens"], report["estimated_output_tokens"], estimated, len(planned)))
+                return cur.fetchone()[0]
+    run_id = _retry_neon(create_run)
+    with ThreadPoolExecutor(max_workers=max(1, config.QUESTION_EXTRACTION_WORKERS)) as pool:
+        futures = [pool.submit(_extract_one, paper) for paper in planned]
+        for future in as_completed(futures):
+            paper, items, in_tokens, out_tokens, error = future.result()
+            sid = source_ids.get(paper.sha256)
+            if sid is None:
+                continue
+            paper_cost = _cost(in_tokens, out_tokens)
+            def persist_result() -> int:
+                inserted = 0
+                with db.connect() as conn:
+                    with conn.cursor() as cur:
+                        if error is None:
+                            for item in items:
+                                cur.execute("""INSERT INTO questions
+                                (source_document_id, source_locator, question_fingerprint, question_type, course,
+                                 exam_years, stem, options, marked_answer_key, model_answer, verification_status)
+                               VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s,%s::jsonb,%s,%s,'unreviewed')
+                               ON CONFLICT (question_fingerprint) DO NOTHING""",
+                                (sid, item["source_locator"], item["question_fingerprint"], item["question_type"],
+                                 paper.course, json.dumps(paper.years), item["stem"],
+                                 json.dumps(item["options"]) if item["options"] is not None else None,
+                                 item["marked_answer_key"], item["model_answer"]))
+                                inserted += cur.rowcount
+                        cur.execute("""INSERT INTO question_extraction_papers
                         (run_id, source_document_id, classification, status, input_tokens, output_tokens,
-                         estimated_cost_usd, actual_cost_usd, questions_upserted)
-                        VALUES (%s,%s,%s,'completed',%s,%s,%s,%s,%s)""",
-                        (run_id, sid, paper.classification, in_tokens, out_tokens,
-                         _cost(paper.input_tokens_est, paper.output_tokens_est), paper_cost, inserted))
-                    conn.commit()
-                    total_in += in_tokens; total_out += out_tokens; actual_cost += paper_cost
-                    upserted += inserted; processed += 1
-                except Exception as exc:
-                    cur.execute("""INSERT INTO question_extraction_papers
-                        (run_id, source_document_id, classification, status, estimated_cost_usd, error_code)
-                        VALUES (%s,%s,%s,'failed',%s,%s)
-                        ON CONFLICT (run_id, source_document_id) DO UPDATE SET status='failed', error_code=EXCLUDED.error_code""",
-                        (run_id, sid, paper.classification, _cost(paper.input_tokens_est, paper.output_tokens_est), type(exc).__name__))
-                    conn.commit()
-            status = "completed" if processed == len(planned) else "stopped"
-            cur.execute("""UPDATE question_extraction_runs SET status=%s, papers_processed=%s,
-                questions_upserted=%s, actual_input_tokens=%s, actual_output_tokens=%s,
-                actual_cost_usd=%s, completed_at=now() WHERE id=%s""",
-                (status, processed, upserted, total_in, total_out, actual_cost, run_id))
+                         estimated_cost_usd, actual_cost_usd, questions_upserted, error_code)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                            (run_id, sid, paper.classification, 'failed' if error else 'completed',
+                             in_tokens, out_tokens, _cost(paper.input_tokens_est, paper.output_tokens_est),
+                             paper_cost, inserted, error))
+                return inserted
+            inserted = _retry_neon(persist_result)
+            total_in += in_tokens; total_out += out_tokens; actual_cost += paper_cost
+            upserted += inserted
+            if error is None:
+                processed += 1
+                print(f"  completed {processed}/{len(planned)} papers; {upserted} questions; ${actual_cost:.4f}", flush=True)
+            else:
+                print(f"  failed {paper.rel_source_path} ({error}); will retry on the next run", flush=True)
+
+    status = "completed" if processed == len(planned) else "stopped"
+    def close_run() -> None:
+        with db.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE question_extraction_runs SET status=%s, papers_processed=%s,
+                    questions_upserted=%s, actual_input_tokens=%s, actual_output_tokens=%s,
+                    actual_cost_usd=%s, completed_at=now() WHERE id=%s""",
+                    (status, processed, upserted, total_in, total_out, actual_cost, run_id))
+    _retry_neon(close_run)
+    print(f"  run {status}: {processed}/{len(planned)} papers; ${actual_cost:.4f}", flush=True)
     return {"papers_processed": processed, "questions_upserted": upserted,
             "actual_input_tokens": total_in, "actual_output_tokens": total_out,
             "actual_cost_usd": round(actual_cost, 6)}
