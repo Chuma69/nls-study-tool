@@ -58,6 +58,99 @@ a {
   background: var(--bg);
 }
 
+h1 {
+  font-size: clamp(2rem, 8vw, 3rem);
+  letter-spacing: -0.08em;
+  line-height: 1;
+  margin: 0.35rem 0 0.8rem;
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+}
+
+.eyebrow {
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.muted,
+.hint {
+  color: var(--muted);
+}
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  margin: 1rem 0 0.35rem;
+}
+
+input,
+button {
+  border: 1px solid var(--line);
+  border-radius: 0;
+  font: inherit;
+  min-height: 2.75rem;
+  width: 100%;
+}
+
+input {
+  background: var(--bg);
+  color: var(--fg);
+  padding: 0.65rem 0.75rem;
+}
+
+button {
+  background: var(--fg);
+  color: var(--bg);
+  cursor: pointer;
+  margin-top: 1.25rem;
+  padding: 0.65rem 0.75rem;
+}
+
+button:hover:not(:disabled) { opacity: 0.82; }
+button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+button.secondary,
+button.text-button {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+button.text-button {
+  border: 0;
+  margin-top: 0.5rem;
+  text-align: left;
+  text-decoration: underline;
+}
+
+.divider {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 1.25rem 0 0;
+  text-align: center;
+}
+
+.hint,
+.error {
+  font-size: 0.8rem;
+  margin: 0.75rem 0 0;
+}
+
+.error { font-weight: 700; }
+
+footer {
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 3rem;
+  padding-top: 1rem;
+}
+
 hr {
   border: none;
   border-top: 1px solid var(--line-soft);
