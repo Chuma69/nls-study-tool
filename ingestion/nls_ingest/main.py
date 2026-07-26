@@ -134,6 +134,32 @@ def _print_size() -> None:
         print(f"  {'hosting':20} {threshold}")
 
 
+def cmd_extract_questions(args: argparse.Namespace) -> int:
+    from . import question_extract
+    if args.dry_run:
+        report = question_extract.dry_run()
+        print("✓ Dry-run complete — no OpenAI API calls were made.")
+        print(f"  report_id                 {report['report_id']}")
+        print(f"  model                     {report['model_id']}")
+        print(f"  papers planned            {report['papers_planned']}")
+        print(f"  classifications           {report['by_classification']}")
+        print(f"  estimated input tokens    {report['estimated_input_tokens']:,}")
+        print(f"  estimated output tokens   {report['estimated_output_tokens']:,}")
+        print(f"  estimated cost (USD)      ${report['estimated_cost_usd']:.4f}")
+        print(f"  recommended hard cap      ${report['recommended_cap_usd']:.2f}")
+        print(f"  report                    {config.QUESTION_DRY_RUN_PATH}")
+        return 0
+    if not args.approve_dry_run or args.max_cost_usd is None:
+        print("Paid extraction is blocked. First run --dry-run, then use "
+              "--approve-dry-run REPORT_ID --max-cost-usd CAP after owner approval.", file=sys.stderr)
+        return 2
+    result = question_extract.run(args.approve_dry_run, args.max_cost_usd)
+    print("✓ Question extraction run finished.")
+    for key, value in result.items():
+        print(f"  {key:24} {value}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="nls_ingest", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -145,6 +171,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("chunks", help="Build chunk artifact from Codex corpus + measure size.").set_defaults(func=cmd_chunks)
     sub.add_parser("migrate", help="Apply db/migrations/*.sql to Neon.").set_defaults(func=cmd_migrate)
     sub.add_parser("load", help="Load chunk artifact into Neon (needs DATABASE_URL).").set_defaults(func=cmd_load)
+
+    pq = sub.add_parser("extract-questions", help="Extract structured MCQ + theory prompts from past papers.")
+    pq.add_argument("--dry-run", action="store_true", help="Estimate cost and write a review report; never calls OpenAI.")
+    pq.add_argument("--approve-dry-run", help="Exact report ID approved by the owner for a paid run.")
+    pq.add_argument("--max-cost-usd", type=float, help="Hard spend ceiling for the paid run.")
+    pq.set_defaults(func=cmd_extract_questions)
 
     pb = sub.add_parser("build", help="Build the SQLite FTS index.")
     pb.add_argument("--ocr", action="store_true", help="OCR scanned PDFs (slow).")

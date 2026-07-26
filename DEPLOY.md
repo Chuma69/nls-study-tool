@@ -82,7 +82,7 @@ paid tier before proceeding.
 ## 6. Set the remaining env vars on Vercel
 
 ```bash
-vercel env add ANTHROPIC_API_KEY production      # used from the MCQ/tutor phases
+vercel env add OPENAI_API_KEY production         # used from the MCQ/tutor phases
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 vercel env add SESSION_SECRET production
 # PRD v3 cost/admin controls:
@@ -123,5 +123,5 @@ python -m nls_ingest.main check
   which aren't created yet (they 404 harmlessly). Real icons + service worker
   land in Phase 6 (Polish). Deploy is unaffected.
 - **Model IDs** in `ingestion/nls_ingest/config.py` are placeholders; I'll
-  verify current IDs/pricing against docs.claude.com before wiring Claude calls
+  verify current IDs/pricing against developers.openai.com before wiring OpenAI calls
   in Phase 1/3.

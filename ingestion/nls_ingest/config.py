@@ -35,7 +35,7 @@ MIGRATIONS_DIR: Path = INGESTION_ROOT.parent / "db" / "migrations"
 
 # ── Secrets / connections ─────────────────────────────────────
 DATABASE_URL: str | None = os.environ.get("DATABASE_URL")
-ANTHROPIC_API_KEY: str | None = os.environ.get("ANTHROPIC_API_KEY")
+OPENAI_API_KEY: str | None = os.environ.get("OPENAI_API_KEY")
 
 # ── Domain constants ──────────────────────────────────────────
 # The five Bar Finals courses, plus 'general' for cross-cutting material.
@@ -51,12 +51,29 @@ COURSES = (
 DOC_TYPES = ("notes", "draft", "past_questions", "other")
 
 # ── Model IDs ─────────────────────────────────────────────────
-# PRD §2 / §12: VERIFY current model IDs + pricing at
-# https://docs.claude.com/en/docs/about-claude/models before relying on these.
-# Haiku for bulk MCQ extraction, Sonnet reserved for higher-stakes reasoning.
-# These are placeholders confirmed in Phase 1/3 when Claude calls are wired up.
-MODEL_EXTRACTION = os.environ.get("MODEL_EXTRACTION", "claude-haiku-4-5-20251001")
-MODEL_REASONING = os.environ.get("MODEL_REASONING", "claude-sonnet-5")
+# Keep model IDs in configuration rather than app logic. GPT-4o mini handles
+# bulk document-to-JSON extraction; GPT-5.6 Terra is reserved for later
+# grounded tutor/explanation reasoning.
+MODEL_EXTRACTION = os.environ.get("MODEL_EXTRACTION", "gpt-4o-mini")
+MODEL_REASONING = os.environ.get("MODEL_REASONING", "gpt-5.6-terra")
+
+# GPT-4o mini list pricing, verified against OpenAI's model documentation on
+# 2026-07-25. Kept in configuration so a pricing/model revision does not
+# require changing extraction logic. Values are USD per million tokens.
+EXTRACTION_INPUT_USD_PER_MTOK = float(
+    os.environ.get("EXTRACTION_INPUT_USD_PER_MTOK", "0.15"))
+EXTRACTION_OUTPUT_USD_PER_MTOK = float(
+    os.environ.get("EXTRACTION_OUTPUT_USD_PER_MTOK", "0.60"))
+
+# Question-extraction controls. The hard cap is enforced for every paid run;
+# --approve-dry-run binds a run to the exact preceding dry-run report.
+QUESTION_EXTRACTION_MAX_INPUT_TOKENS = int(
+    os.environ.get("QUESTION_EXTRACTION_MAX_INPUT_TOKENS", "120000"))
+QUESTION_EXTRACTION_MAX_OUTPUT_TOKENS = int(
+    os.environ.get("QUESTION_EXTRACTION_MAX_OUTPUT_TOKENS", "16000"))
+QUESTION_EXTRACTION_DEFAULT_CAP_USD = float(
+    os.environ.get("QUESTION_EXTRACTION_DEFAULT_CAP_USD", "10.00"))
+QUESTION_DRY_RUN_PATH: Path = BUILD_DIR / "question_extraction_dry_run.json"
 
 # ── Chunking (PRD §5.4) ───────────────────────────────────────
 CHUNK_TARGET_TOKENS = 650      # ~500–800 range
@@ -105,10 +122,9 @@ def require_database_url() -> str:
     return DATABASE_URL
 
 
-def require_anthropic_key() -> str:
-    if not ANTHROPIC_API_KEY:
+def require_openai_key() -> str:
+    if not OPENAI_API_KEY:
         raise SystemExit(
-            "ANTHROPIC_API_KEY is not set. Copy .env.example to ingestion/.env "
-            "and paste your Anthropic API key."
+            "OPENAI_API_KEY is not set. Add it to ingestion/.env before running extraction."
         )
-    return ANTHROPIC_API_KEY
+    return OPENAI_API_KEY

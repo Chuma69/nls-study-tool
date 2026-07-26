@@ -11,8 +11,8 @@ Spec is **PRD v3**: `/Users/raymondchuma-onwuoku/Claude/nls-study-tool-prd-v3.md
 1. **Grounding:** tutor answers & MCQ explanations come only from retrieved corpus material, always cited `[document, p./s. locator]`. If uncovered, reply exactly: **“This isn't covered in the loaded materials.”** Never answer from model knowledge.
 2. **Past-question integrity:** preserve every question, its options, source locator, and exam year(s). Never merge/summarize/repair. Every imported answer key is `verification_status='unreviewed'` and `marked_answer_key` is never overwritten.
 3. **No fabricated metadata:** if a year/key/course/jurisdiction can't be reliably identified, store `unknown` / `not identified` / empty — never guess. Years shown to users must be verbatim from source or "Exam year not identified in source".
-4. **Infra discipline:** stay within Vercel + Neon (via Vercel) + Anthropic. New service/paid tier needs the owner's approval.
-5. **Model IDs:** do NOT hardcode in app logic; keep in config. Verify current Claude model IDs/pricing before use. Haiku-class for bulk extraction, Sonnet-class for reasoning/tutor.
+4. **Infra discipline:** stay within Vercel + Neon (via Vercel) + OpenAI. New service/paid tier needs the owner's approval.
+5. **Model IDs:** do NOT hardcode in app logic; keep in config. Verify current OpenAI model IDs/pricing before use. GPT-4o mini for bulk extraction; GPT-5.6 Terra for reasoning/tutor.
 
 ## What already exists (do not redo)
 - **Repo:** `/Users/raymondchuma-onwuoku/Claude/nls-study-tool` → github.com/Chuma69/nls-study-tool (`main`).
@@ -31,7 +31,7 @@ Spec is **PRD v3**: `/Users/raymondchuma-onwuoku/Claude/nls-study-tool-prd-v3.md
 `/Users/raymondchuma-onwuoku/Claude/output/` — extraction by a prior Codex run:
 - `extracted/**/*.txt` — 4,507 UTF-8 docs mirroring source paths. Page markers: form-feed `\f` (embedded PDFs), `[[page N]]` (OCR); docx/pptx have none.
 - `manifest.jsonl` — provenance per doc: `rel_source_path, sha256, ext, method, pages, ocr_used, duplicate_of`.
-- `past_questions.jsonl` — **869 papers, SOURCE OF TRUTH for past questions + `detected_years`.** Papers are a MIX of MCQ and essay/theory.
+- `past_questions.jsonl` — **869 papers, SOURCE OF TRUTwalk me for past questions + `detected_years`.** Papers are a MIX of MCQ and essay/theory.
 - `failures.jsonl` (77, mostly slides; `CRL 2020.pdf` is password-protected).
 
 ## YOUR TASK — Stage: MCQ + theory extraction → structured `questions`
@@ -39,8 +39,8 @@ Owner decision: support **both** an MCQ trainer **and** a user-selectable **theo
 
 1. Iterate `past_questions.jsonl`. For each paper, read its `extracted/<rel_source_path>.txt`.
 2. Map to its `source_documents.id` via `content_sha256` (join manifest sha → source_documents).
-3. **Classify MCQ vs theory** with a cheap heuristic first (lettered options `A.`/`B.`, "which of the following", high question density) — this **caps Claude spend** to true MCQ papers.
-4. **MCQ papers →** extract structured items with a Claude call (grounded, low temp): `stem`, `options[{key,text}]`, `marked_answer_key` (if the paper states one; else null), `question_type='mcq'`. Set `exam_years` from `detected_years` (verbatim), `verification_status='unreviewed'`, `material_supported_key=null`, `source_locator` = page marker where present, `question_fingerprint` = stable hash of normalized stem+options+source. **Upsert idempotently by `question_fingerprint`.**
+3. **Classify MCQ vs theory** with a cheap heuristic first (lettered options `A.`/`B.`, "which of the following", high question density) — this caps model spend to true past-question sources.
+4. **MCQ papers →** extract structured items with OpenAI structured output (grounded, low temperature): `stem`, `options[{key,text}]`, `marked_answer_key` (if the paper states one; else null), `question_type='mcq'`. Set `exam_years` from `detected_years` (verbatim), `verification_status='unreviewed'`, `material_supported_key=null`, `source_locator` = page marker where present, `question_fingerprint` = stable hash of normalized stem+options+source. **Upsert idempotently by `question_fingerprint`.**
 5. **Theory papers →** extract essay prompts as `question_type='theory'` rows: `stem`, `exam_years`, `model_answer` only if the paper actually contains one, no `options`/`marked_answer_key`. Same provenance + fingerprint rules.
 6. **Cost controls (PRD §2):** implement a **`--dry-run` that estimates token cost + item counts before spending**, a per-run cap, and log model id / tokens / cost. Get owner approval on the projected spend before the real run. Make it resumable (skip papers already extracted).
 7. **Never** infer a missing year from neighbours or invent a key. Unclear → empty/unknown.
@@ -66,3 +66,16 @@ Footer (required, all pages): *“Answers are limited to the loaded study materi
 - Confirm `/api/health` is green on the Vercel deployment (needs the redeploy that reads `POSTGRES_URL`).
 - Old `ingestion/raw_zips/*.zip` (8.7 GB) + `ingestion/raw_materials/` (18 GB) are dead weight (extraction now comes from `output/`) — safe to delete to reclaim ~27 GB.
 - The Neon DB password was shared in plaintext during setup; owner may rotate it.
+
+## Extraction stage update — 2026-07-25
+
+- Added `python -m nls_ingest.main extract-questions --dry-run` and a paid
+  extraction command guarded by both `--approve-dry-run REPORT_ID` and
+  `--max-cost-usd CAP`. The dry run never calls OpenAI.
+- Current report: `ingestion/build/question_extraction_dry_run.json`
+  (`report_id=b0377f777c45249eae79`). GPT-4o mini page-splitting covers 465
+  canonical source papers: 149 MCQ, 140 theory, 176 mixed; conservative
+  estimate `$3.5951`, recommended cap `$4.13`. No OpenAI API call has started.
+- Added migration `db/migrations/0002_question_extraction_audit.sql` for
+  per-run/per-paper token and cost audit records. Apply it with `migrate` only
+  after the owner approves the spend.

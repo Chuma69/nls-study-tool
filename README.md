@@ -23,8 +23,8 @@ DEPLOY.md    Exact commands to deploy + provision infrastructure (run by you)
   users, questions, attempts, conversations, messages.
 - **Knowledge base:** prebuilt read-only SQLite FTS5 index (bundled if < ~50 MB,
   else Vercel Blob).
-- **LLM:** Anthropic Claude API (Sonnet for tutor/explanations, Haiku for bulk
-  MCQ extraction).
+- **LLM:** OpenAI API (GPT-5.6 Terra reserved for grounded tutor/explanations;
+  GPT-4o mini for bulk MCQ/theory extraction).
 
 ## Build status
 

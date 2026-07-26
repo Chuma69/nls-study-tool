@@ -15,8 +15,8 @@ pytesseract>=0.3.13
 pdf2image>=1.17
 Pillow>=10.4
 
-# LLM (course classification + MCQ extraction)
-anthropic>=0.40
+# LLM (course classification + MCQ/theory extraction)
+openai>=1.0
 
 # Utilities
 python-dotenv>=1.0
