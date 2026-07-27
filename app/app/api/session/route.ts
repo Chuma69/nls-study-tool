@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getSql } from "@/lib/db";
 import { currentUser, guestEmail, hashSessionToken, makeSessionToken, SESSION_COOKIE, sessionExpiry } from "@/lib/session";
+import { allowRequest } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -15,6 +16,12 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Please try again." }, { status: 400 }); }
 
   const isGuest = body.mode === "guest";
+  const clientAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    ?? request.headers.get("x-real-ip")
+    ?? "unknown";
+  if (!(await allowRequest("session-create", clientAddress, 12, 60 * 60))) {
+    return NextResponse.json({ error: "Too many session requests. Please try again in an hour." }, { status: 429 });
+  }
   const username = isGuest ? "Guest" : body.username?.trim();
   const email = isGuest ? guestEmail() : body.email?.trim().toLowerCase();
   if (!username || username.length < 2 || username.length > 40) {

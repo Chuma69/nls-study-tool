@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
 type User = { id: number; username: string; identityType: "registered" | "guest" };
@@ -57,7 +58,8 @@ export default function Home() {
               ? "Your guest progress stays private on this device. It cannot be restored on another device."
               : "Your progress stays private and will be restored on this device."}
           </p>
-          <button type="button" disabled>Start practice — coming next</button>
+          <Link className="button-link" href="/practice">Start MCQ practice</Link>
+          <Link className="text-link" href="/account">Privacy & data</Link>
           <button className="text-button" type="button" onClick={() => { void fetch("/api/session", { method: "DELETE" }).then(() => setUser(null)); }}>
             End this session
           </button>

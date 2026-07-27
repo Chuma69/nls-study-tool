@@ -121,6 +121,28 @@ button.text-button {
   color: var(--fg);
 }
 
+.button-link {
+  background: var(--fg);
+  border: 1px solid var(--line);
+  color: var(--bg);
+  display: block;
+  margin-top: 1.25rem;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.text-link,
+.back-link {
+  color: var(--fg);
+  display: inline-block;
+  font-size: 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.back-link { margin: 0 0 2rem; }
+
 button.text-button {
   border: 0;
   margin-top: 0.5rem;
@@ -142,6 +164,33 @@ button.text-button {
 }
 
 .error { font-weight: 700; }
+
+.question-meta,
+.source {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.stem {
+  font-size: 1.05rem;
+  white-space: pre-wrap;
+}
+
+.options { margin-top: 1rem; }
+
+button.option {
+  background: var(--bg);
+  color: var(--fg);
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  text-align: left;
+}
+
+button.option.selected { background: var(--fg); color: var(--bg); }
+button.option strong { flex: 0 0 1.25rem; }
+.result { border-top: 1px solid var(--line-soft); margin-top: 1.25rem; padding-top: 0.25rem; }
+.danger-panel { margin-top: 1rem; }
 
 footer {
   border-top: 1px solid var(--line-soft);
