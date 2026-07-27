@@ -28,7 +28,9 @@ export async function GET() {
     FROM questions q
     LEFT JOIN attempts a ON a.question_id = q.id AND a.user_id = ${user.id}
     LEFT JOIN source_documents s ON s.id = q.source_document_id
-    WHERE q.question_type = 'mcq' AND q.marked_answer_key IS NOT NULL
+    WHERE q.question_type = 'mcq'
+      AND q.material_supported_key IS NOT NULL
+      AND q.verification_status IN ('material_supported', 'staff_corrected')
     GROUP BY q.id, s.display_name, s.rel_source_path
     HAVING NOT COALESCE(bool_or(a.is_correct), false)
     ORDER BY COALESCE(bool_or(a.is_correct = false), false) DESC, random()

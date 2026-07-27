@@ -14,7 +14,7 @@ type Question = {
   display_name: string | null;
   rel_source_path: string | null;
 };
-type Result = { matchesMarkedKey: boolean; markedAnswerKey: string; verificationStatus: string };
+type Result = { matchesMaterialKey: boolean; materialSupportedKey: string; verificationStatus: string };
 
 function yearsLabel(years: string[]) {
   return years.length ? `Exam year${years.length === 1 ? "" : "s"}: ${years.join(", ")}` : "Exam year: not identified in source";
@@ -49,7 +49,7 @@ export default function PracticePage() {
       <Link className="back-link" href="/">← Home</Link>
       <p className="eyebrow">MCQ practice</p>
       <h1>One question at a time.</h1>
-      {question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>You have completed the available marked-answer pool. Review mastered questions will be added next.</p> : (
+      {question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>Question verification is in progress. We will only reopen practice when answers are supported by the loaded study materials, not by source answer sheets.</p> : (
         <section className="panel question-panel">
           <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)} · {question.verification_status.replaceAll("_", " ")}</p>
           <p className="stem">{question.stem}</p>
@@ -68,11 +68,11 @@ export default function PracticePage() {
           </div>
           {error && <p className="error" role="alert">{error}</p>}
           {!result ? <button type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
-            {chosenKey ? "Check against source-marked answer" : "Choose an option above first"}
+            {chosenKey ? "Check against materials-supported answer" : "Choose an option above first"}
           </button> : (
             <div className="result" role="status">
-              <p><strong>{result.matchesMarkedKey ? "Your choice matches" : "Your choice differs from"} the source-marked answer: {result.markedAnswerKey}.</strong></p>
-              <p>This imported answer key is <strong>{result.verificationStatus.replaceAll("_", " ")}</strong>; it has not yet been independently confirmed against the materials.</p>
+              <p><strong>{result.matchesMaterialKey ? "Your choice matches" : "Your choice differs from"} the materials-supported answer: {result.materialSupportedKey}.</strong></p>
+              <p>This answer is <strong>{result.verificationStatus.replaceAll("_", " ")}</strong> and will be accompanied by source citations in the next verification update.</p>
               <button type="button" onClick={() => { void loadQuestion(); }}>Next question</button>
             </div>
           )}

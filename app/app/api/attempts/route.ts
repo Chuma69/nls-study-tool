@@ -6,7 +6,7 @@ import { currentUser } from "@/lib/session";
 export const runtime = "nodejs";
 
 type AnswerRow = {
-  marked_answer_key: string;
+  material_supported_key: string;
   verification_status: string;
   options: { key: string; text: string }[];
 };
@@ -26,9 +26,12 @@ export async function POST(request: Request) {
   }
 
   const rows = await getSql()`
-    SELECT marked_answer_key, verification_status, options
+    SELECT material_supported_key, verification_status, options
     FROM questions
-    WHERE id = ${questionId} AND question_type = 'mcq' AND marked_answer_key IS NOT NULL
+    WHERE id = ${questionId}
+      AND question_type = 'mcq'
+      AND material_supported_key IS NOT NULL
+      AND verification_status IN ('material_supported', 'staff_corrected')
     LIMIT 1
   ` as AnswerRow[];
   const question = rows[0];
@@ -36,14 +39,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That question or option is not available." }, { status: 404 });
   }
 
-  const matchesMarkedKey = question.marked_answer_key === body.chosenKey;
+  const matchesMaterialKey = question.material_supported_key === body.chosenKey;
   await getSql()`
     INSERT INTO attempts (user_id, question_id, chosen_key, is_correct)
-    VALUES (${user.id}, ${questionId}, ${body.chosenKey}, ${matchesMarkedKey})
+    VALUES (${user.id}, ${questionId}, ${body.chosenKey}, ${matchesMaterialKey})
   `;
   return NextResponse.json({
-    matchesMarkedKey,
-    markedAnswerKey: question.marked_answer_key,
+    matchesMaterialKey,
+    materialSupportedKey: question.material_supported_key,
     verificationStatus: question.verification_status,
   });
 }
