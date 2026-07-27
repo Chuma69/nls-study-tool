@@ -18,16 +18,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Study limit reached. Please try again in an hour." }, { status: 429 });
   }
 
-  let body: { questionId?: number; chosenKey?: string };
+  let body: { questionId?: number | string; chosenKey?: string };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Please try again." }, { status: 400 }); }
-  if (!Number.isInteger(body.questionId) || !body.chosenKey) {
-    return NextResponse.json({ error: "Choose an answer first." }, { status: 400 });
+  const questionId = Number(body.questionId);
+  if (!Number.isSafeInteger(questionId) || !body.chosenKey) {
+    return NextResponse.json({ error: "Choose a valid answer before checking it." }, { status: 400 });
   }
 
   const rows = await getSql()`
     SELECT marked_answer_key, verification_status, options
     FROM questions
-    WHERE id = ${body.questionId} AND question_type = 'mcq' AND marked_answer_key IS NOT NULL
+    WHERE id = ${questionId} AND question_type = 'mcq' AND marked_answer_key IS NOT NULL
     LIMIT 1
   ` as AnswerRow[];
   const question = rows[0];
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
   const matchesMarkedKey = question.marked_answer_key === body.chosenKey;
   await getSql()`
     INSERT INTO attempts (user_id, question_id, chosen_key, is_correct)
-    VALUES (${user.id}, ${body.questionId}, ${body.chosenKey}, ${matchesMarkedKey})
+    VALUES (${user.id}, ${questionId}, ${body.chosenKey}, ${matchesMarkedKey})
   `;
   return NextResponse.json({
     matchesMarkedKey,
