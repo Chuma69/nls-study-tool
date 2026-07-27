@@ -15,6 +15,12 @@ PROMPT_TOKENS = 600
 EXPLANATION_TOKENS = 350
 ANSWER_SHEET_RE = r"answer"
 EMBEDDED_KEY_RE = r"^\s*[0-9]+\.\s*[A-D]\s*\("
+QUERY_WORD_RE = re.compile(r"[A-Za-z][A-Za-z'-]{2,}")
+QUERY_STOPWORDS = {
+    "the", "and", "that", "with", "from", "this", "which", "what", "when", "where", "were", "will",
+    "shall", "would", "should", "could", "under", "into", "upon", "than", "then", "have", "been",
+    "does", "doesn", "being", "about", "only", "each", "following", "correct", "answer", "question",
+}
 
 SCHEMA = {"type":"object","additionalProperties":False,"required":["status","material_supported_key","explanation","citation_chunk_ids"],"properties":{
     "status":{"type":"string","enum":["material_supported","material_conflicted","insufficient_material"]},
@@ -66,19 +72,68 @@ def dry_run():
     config.BUILD_DIR.mkdir(parents=True,exist_ok=True); config.QUESTION_VERIFICATION_DRY_RUN_PATH.write_text(json.dumps(report,indent=2)+"\n")
     return report
 
+def _search_terms(question):
+    """Build a forgiving OR query from the stem *and* option wording.
+
+    The old full-sentence plainto_tsquery used AND semantics, which discarded
+    otherwise relevant chunks when a question contained several uncommon facts.
+    """
+    text = question['stem'] + " " + " ".join(str(o.get('text', '')) for o in question['options'])
+    terms, seen = [], set()
+    for word in QUERY_WORD_RE.findall(text.casefold()):
+        word = word.replace("'", "")
+        if len(word) < 4 or word in QUERY_STOPWORDS or word in seen:
+            continue
+        terms.append(word); seen.add(word)
+        if len(terms) == 24:
+            break
+    return " | ".join(terms)
+
 def _evidence(question):
     # FTS returns only the immutable study corpus; past papers were never loaded into chunks.
+    terms = _search_terms(question)
+    if not terms:
+        return []
     with db.connect() as conn:
       with conn.cursor() as cur:
-        cur.execute("""SELECT c.id,c.content,c.page_locator,COALESCE(s.display_name,s.rel_source_path),c.token_est
+        # Fetch a wider lexical candidate set. Course is a ranking preference,
+        # not a hard filter, because the source tagging is intentionally allowed
+        # to be unknown or imperfect.
+        cur.execute("""SELECT c.id,c.source_document_id,c.chunk_index,c.content,c.page_locator,
+          COALESCE(s.display_name,s.rel_source_path),c.token_est,
+          ts_rank_cd(c.tsv,to_tsquery('english',%s),32) +
+            CASE WHEN %s <> 'unknown' AND c.course=%s THEN .25 ELSE 0 END AS rank
         FROM chunks c JOIN source_documents s ON s.id=c.source_document_id
-        WHERE c.tsv @@ plainto_tsquery('english',%s)
-        ORDER BY ts_rank_cd(c.tsv,plainto_tsquery('english',%s)) DESC LIMIT 6""",(question['stem'],question['stem']))
+        WHERE c.tsv @@ to_tsquery('english',%s)
+        ORDER BY rank DESC LIMIT 20""", (terms, question.get('course') or 'unknown', question.get('course') or 'unknown', terms))
         rows=cur.fetchall()
-    total=0; out=[]
-    for cid,content,locator,name,tokens in rows:
-        if total+(tokens or len(content)//4)>config.QUESTION_VERIFICATION_MAX_CONTEXT_TOKENS: continue
-        total+=tokens or len(content)//4; out.append({"id":cid,"content":content,"locator":locator,"document":name})
+        # Expand the best matches by one neighbouring chunk in the same source.
+        # Rules and exceptions are often split at a page/chunk boundary.
+        seeds = [(r[1], r[2]) for r in rows[:8]]
+        if seeds:
+            cur.execute("""SELECT c.id,c.source_document_id,c.chunk_index,c.content,c.page_locator,
+              COALESCE(s.display_name,s.rel_source_path),c.token_est
+              FROM chunks c JOIN source_documents s ON s.id=c.source_document_id
+              WHERE (c.source_document_id,c.chunk_index) IN (
+                SELECT * FROM unnest(%s::bigint[],%s::int[])
+              ) OR (c.source_document_id,c.chunk_index) IN (
+                SELECT * FROM unnest(%s::bigint[],%s::int[])
+              )""",
+              ([s[0] for s in seeds], [s[1]-1 for s in seeds], [s[0] for s in seeds], [s[1]+1 for s in seeds]))
+            neighbours = cur.fetchall()
+        else:
+            neighbours = []
+    total=0; out=[]; seen=set()
+    # Use matches first, then their context. The final six/eight-thousand-token
+    # cap remains unchanged.
+    for row in rows + neighbours:
+        cid, _source_id, _chunk_index, content, locator, name, tokens, *_rank = row
+        if cid in seen: continue
+        estimate = tokens or len(content)//4
+        if total + estimate > config.QUESTION_VERIFICATION_MAX_CONTEXT_TOKENS: continue
+        total += estimate; seen.add(cid)
+        out.append({"id":cid,"content":content,"locator":locator,"document":name})
+        if len(out) == 6: break
     return out
 
 def _verify_one(question):
