@@ -59,7 +59,9 @@ export default function PracticePage() {
             </button>)}
           </div>
           {error && <p className="error" role="alert">{error}</p>}
-          {!result ? <button type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>Check against source-marked answer</button> : (
+          {!result ? <button type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
+            {chosenKey ? "Check against source-marked answer" : "Choose an option above first"}
+          </button> : (
             <div className="result" role="status">
               <p><strong>{result.matchesMarkedKey ? "Your choice matches" : "Your choice differs from"} the source-marked answer: {result.markedAnswerKey}.</strong></p>
               <p>This imported answer key is <strong>{result.verificationStatus.replaceAll("_", " ")}</strong>; it has not yet been independently confirmed against the materials.</p>
