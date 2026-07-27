@@ -26,6 +26,18 @@ SYSTEM = """You verify a Nigerian Law School MCQ using ONLY the quoted retrieved
 
 def _cost(inp:int, out:int)->float: return inp*INPUT_PRICE/1_000_000 + out*OUTPUT_PRICE/1_000_000
 
+def _retry_neon(operation):
+    """Retry short idempotent saves after the long-haul Neon connection drops."""
+    for attempt in range(5):
+        try:
+            return operation()
+        except psycopg.OperationalError:
+            if attempt == 4:
+                raise
+            delay = 2 ** attempt
+            print(f"  Neon connection reset; retrying save in {delay}s", flush=True)
+            time.sleep(delay)
+
 def _clean_rows(skip_completed=True):
     completed = "AND NOT EXISTS (SELECT 1 FROM question_verification_items vi WHERE vi.question_id=q.id AND vi.status='completed')" if skip_completed else ""
     with db.connect() as conn:
@@ -104,18 +116,22 @@ def run(report_id:str, cap:float):
        with conn.cursor() as cur:
         cur.execute("UPDATE question_verification_runs SET status='stopped',completed_at=now() WHERE report_id=%s AND status='running'",(report_id,))
         cur.execute("INSERT INTO question_verification_runs(report_id,model_id,requested_cap_usd,estimated_input_tokens,estimated_output_tokens,estimated_cost_usd,questions_planned,status) VALUES(%s,%s,%s,%s,%s,%s,%s,'running') RETURNING id",(report_id,config.QUESTION_VERIFICATION_MODEL,cap,report['estimated_input_tokens'],report['estimated_output_tokens'],estimate,len(rows))); return cur.fetchone()[0]
-    run_id=create(); total_i=total_o=done=0; spent=0.0
+    run_id=_retry_neon(create); total_i=total_o=done=0; spent=0.0
     with ThreadPoolExecutor(max_workers=max(1,config.QUESTION_VERIFICATION_WORKERS)) as pool:
       futures=[pool.submit(_verify_one,q) for q in rows]
       for fut in as_completed(futures):
        q,result,inp,out,error=fut.result(); cost=_cost(inp,out)
-       with db.connect() as conn:
-        with conn.cursor() as cur:
-         if result:
-          cur.execute("UPDATE questions SET material_supported_key=%s,verification_status=%s,explanation=%s,explanation_version=1,explanation_citations=%s::jsonb,updated_at=now() WHERE id=%s",(result['key'],result['status'],result['explanation'],json.dumps(result['citations']),q['id']))
-         cur.execute("INSERT INTO question_verification_items(run_id,question_id,status,input_tokens,output_tokens,actual_cost_usd,error_code) VALUES(%s,%s,%s,%s,%s,%s,%s)",(run_id,q['id'],'failed' if error else 'completed',inp,out,cost,error))
+       def persist():
+        with db.connect() as conn:
+         with conn.cursor() as cur:
+          if result:
+           cur.execute("UPDATE questions SET material_supported_key=%s,verification_status=%s,explanation=%s,explanation_version=1,explanation_citations=%s::jsonb,updated_at=now() WHERE id=%s",(result['key'],result['status'],result['explanation'],json.dumps(result['citations']),q['id']))
+          cur.execute("INSERT INTO question_verification_items(run_id,question_id,status,input_tokens,output_tokens,actual_cost_usd,error_code) VALUES(%s,%s,%s,%s,%s,%s,%s)",(run_id,q['id'],'failed' if error else 'completed',inp,out,cost,error))
+       _retry_neon(persist)
        total_i+=inp; total_o+=out; spent+=cost; done+=not bool(error); print(f"  verified {done}/{len(rows)}; ${spent:.4f}",flush=True)
     status='completed' if done==len(rows) else 'stopped'
-    with db.connect() as conn:
-     with conn.cursor() as cur: cur.execute("UPDATE question_verification_runs SET status=%s,questions_processed=%s,actual_input_tokens=%s,actual_output_tokens=%s,actual_cost_usd=%s,completed_at=now() WHERE id=%s",(status,done,total_i,total_o,spent,run_id))
+    def close():
+     with db.connect() as conn:
+      with conn.cursor() as cur: cur.execute("UPDATE question_verification_runs SET status=%s,questions_processed=%s,actual_input_tokens=%s,actual_output_tokens=%s,actual_cost_usd=%s,completed_at=now() WHERE id=%s",(status,done,total_i,total_o,spent,run_id))
+    _retry_neon(close)
     return {"questions_processed":done,"actual_input_tokens":total_i,"actual_output_tokens":total_o,"actual_cost_usd":round(spent,6)}
