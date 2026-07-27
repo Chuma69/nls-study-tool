@@ -178,17 +178,22 @@ button.text-button {
 
 .options { margin-top: 1rem; }
 
-button.option {
+.option {
   background: var(--bg);
+  border: 1px solid var(--line);
   color: var(--fg);
   display: flex;
   gap: 0.75rem;
+  min-height: 2.75rem;
   margin-top: 0.5rem;
+  padding: 0.65rem 0.75rem;
   text-align: left;
+  width: 100%;
 }
 
-button.option.selected { background: var(--fg); color: var(--bg); }
-button.option strong { flex: 0 0 1.25rem; }
+.option.selected { background: var(--fg); color: var(--bg); }
+.option input { accent-color: var(--fg); margin: 0.3rem 0 0; min-height: auto; width: auto; }
+.option strong { flex: 0 0 1.25rem; }
 .result { border-top: 1px solid var(--line-soft); margin-top: 1.25rem; padding-top: 0.25rem; }
 .danger-panel { margin-top: 1rem; }
 

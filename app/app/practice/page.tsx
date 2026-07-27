@@ -54,9 +54,17 @@ export default function PracticePage() {
           <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)} · {question.verification_status.replaceAll("_", " ")}</p>
           <p className="stem">{question.stem}</p>
           <div className="options" role="radiogroup" aria-label="Answer options">
-            {question.options.map((option) => <button key={option.key} type="button" className={`option ${chosenKey === option.key ? "selected" : ""}`} disabled={Boolean(result)} onClick={() => setChosenKey(option.key)}>
+            {question.options.map((option) => <label key={option.key} className={`option ${chosenKey === option.key ? "selected" : ""}`}>
+              <input
+                type="radio"
+                name="answer"
+                value={option.key}
+                checked={chosenKey === option.key}
+                disabled={Boolean(result)}
+                onChange={() => setChosenKey(option.key)}
+              />
               <strong>{option.key}</strong><span>{option.text}</span>
-            </button>)}
+            </label>)}
           </div>
           {error && <p className="error" role="alert">{error}</p>}
           {!result ? <button type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
