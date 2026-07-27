@@ -77,6 +77,14 @@ QUESTION_EXTRACTION_DEFAULT_CAP_USD = float(
     os.environ.get("QUESTION_EXTRACTION_DEFAULT_CAP_USD", "10.00"))
 QUESTION_DRY_RUN_PATH: Path = BUILD_DIR / "question_extraction_dry_run.json"
 
+# Materials-only MCQ verification controls. The source-provided key is never
+# supplied to this pass. Six retrieved chunks are capped at the PRD's 8k token
+# ceiling; the conservative estimate uses the observed p90 chunk size.
+QUESTION_VERIFICATION_MODEL = os.environ.get("QUESTION_VERIFICATION_MODEL", MODEL_EXTRACTION)
+QUESTION_VERIFICATION_WORKERS = int(os.environ.get("QUESTION_VERIFICATION_WORKERS", "2"))
+QUESTION_VERIFICATION_DRY_RUN_PATH: Path = BUILD_DIR / "question_verification_dry_run.json"
+QUESTION_VERIFICATION_MAX_CONTEXT_TOKENS = int(os.environ.get("QUESTION_VERIFICATION_MAX_CONTEXT_TOKENS", "8000"))
+
 # ── Chunking (PRD §5.4) ───────────────────────────────────────
 CHUNK_TARGET_TOKENS = 650      # ~500–800 range
 CHUNK_OVERLAP_TOKENS = 100

@@ -160,6 +160,25 @@ def cmd_extract_questions(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_verify_questions(args: argparse.Namespace) -> int:
+    from . import question_verify
+    if args.dry_run:
+        report = question_verify.dry_run()
+        print("✓ Verification dry-run complete — no OpenAI API calls were made.")
+        for key in ("report_id", "model_id", "questions_planned", "questions_excluded",
+                    "estimated_input_tokens", "estimated_output_tokens", "estimated_cost_usd",
+                    "recommended_cap_usd"):
+            print(f"  {key:26} {report[key]}")
+        return 0
+    if not args.approve_dry_run or args.max_cost_usd is None:
+        print("Paid verification is blocked. First run --dry-run, then approve its report ID and cap.", file=sys.stderr)
+        return 2
+    result = question_verify.run(args.approve_dry_run, args.max_cost_usd)
+    print("✓ Question verification run finished.")
+    for key, value in result.items(): print(f"  {key:26} {value}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="nls_ingest", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -177,6 +196,12 @@ def build_parser() -> argparse.ArgumentParser:
     pq.add_argument("--approve-dry-run", help="Exact report ID approved by the owner for a paid run.")
     pq.add_argument("--max-cost-usd", type=float, help="Hard spend ceiling for the paid run.")
     pq.set_defaults(func=cmd_extract_questions)
+
+    vq = sub.add_parser("verify-questions", help="Verify MCQs only from retrieved study materials.")
+    vq.add_argument("--dry-run", action="store_true", help="Estimate cost without calling OpenAI.")
+    vq.add_argument("--approve-dry-run", help="Exact verification report ID approved by the owner.")
+    vq.add_argument("--max-cost-usd", type=float, help="Hard spend ceiling for verification.")
+    vq.set_defaults(func=cmd_verify_questions)
 
     pb = sub.add_parser("build", help="Build the SQLite FTS index.")
     pb.add_argument("--ocr", action="store_true", help="OCR scanned PDFs (slow).")
