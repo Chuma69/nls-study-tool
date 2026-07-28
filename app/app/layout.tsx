@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { SiteNav } from "@/components/site-nav";
 
 export const metadata: Metadata = {
   title: "NLS Study Tool",
@@ -27,7 +28,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><SiteNav />{children}</body>
     </html>
   );
 }

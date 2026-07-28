@@ -10,6 +10,7 @@ type Question = {
   stem: string;
   options: { key: string; text: string }[];
   verification_status: string;
+  explanation: string | null;
   source_locator: string | null;
   display_name: string | null;
   rel_source_path: string | null;
@@ -45,16 +46,16 @@ export default function PracticePage() {
   }
 
   return (
-    <main>
-      <Link className="back-link" href="/">← Home</Link>
-      <p className="eyebrow">MCQ practice</p>
-      <h1>One question at a time.</h1>
+    <main className="narrow">
+      <Link className="back-link" href="/">← Back to home</Link>
+      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1>One question at a time.</h1></div><p className="meta">Verified materials only</p></div>
       {question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>Question verification is in progress. We will only reopen practice when answers are supported by the loaded study materials, not by source answer sheets.</p> : (
         <section className="panel question-panel">
-          <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)} · {question.verification_status.replaceAll("_", " ")}</p>
+          <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)}</p>
+          <div className="practice-progress" aria-hidden="true"><span /></div>
           <p className="stem">{question.stem}</p>
           <div className="options" role="radiogroup" aria-label="Answer options">
-            {question.options.map((option) => <label key={option.key} className={`option ${chosenKey === option.key ? "selected" : ""}`}>
+            {question.options.map((option) => <label key={option.key} className={`option ${chosenKey === option.key ? "selected" : ""} ${result ? "locked" : ""}`}>
               <input
                 type="radio"
                 name="answer"
@@ -67,13 +68,13 @@ export default function PracticePage() {
             </label>)}
           </div>
           {error && <p className="error" role="alert">{error}</p>}
-          {!result ? <button type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
-            {chosenKey ? "Check against materials-supported answer" : "Choose an option above first"}
+          {!result ? <button className="primary-button" type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
+            {chosenKey ? "Check answer" : "Choose an option above first"}
           </button> : (
-            <div className="result" role="status">
-              <p><strong>{result.matchesMaterialKey ? "Your choice matches" : "Your choice differs from"} the materials-supported answer: {result.materialSupportedKey}.</strong></p>
-              <p>This answer is <strong>{result.verificationStatus.replaceAll("_", " ")}</strong> and will be accompanied by source citations in the next verification update.</p>
-              <button type="button" onClick={() => { void loadQuestion(); }}>Next question</button>
+            <div className={`result ${result.matchesMaterialKey ? "" : "incorrect"}`} role="status">
+              <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}.`}</strong></p>
+              <p>{question.explanation ?? "This answer is supported by the loaded materials. A fuller explanation is being prepared as verification continues."}</p>
+              <button className="primary-button" type="button" onClick={() => { void loadQuestion(); }}>Next question</button>
             </div>
           )}
           <p className="source">Source: {question.display_name ?? question.rel_source_path ?? "Source retained"}{question.source_locator ? ` · ${question.source_locator}` : ""}</p>

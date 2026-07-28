@@ -11,6 +11,7 @@ type QuestionRow = {
   stem: string;
   options: { key: string; text: string }[];
   verification_status: string;
+  explanation: string | null;
   source_locator: string | null;
   display_name: string | null;
   rel_source_path: string | null;
@@ -21,7 +22,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Start a private or guest session first." }, { status: 401 });
 
   const rows = await getSql()`
-    SELECT q.id, q.course, q.exam_years, q.stem, q.options,
+    SELECT q.id, q.course, q.exam_years, q.stem, q.options, q.explanation,
            q.verification_status, q.source_locator,
            s.display_name, s.rel_source_path,
            COALESCE(bool_or(a.is_correct = false), false) AS previously_failed
