@@ -211,8 +211,12 @@ p { margin: 0; }
 .activity-courses span { background: oklch(.95 .02 235); border-radius: 99px; font-size: 11px; padding: 5px 8px; }
 .report-queue { margin-bottom: 22px; }
 .review-list { display: grid; gap: 12px; margin-top: 18px; }
-.review-row { border-top: 1px solid var(--line); padding: 16px 0; }
+.review-row { border-top: 1px solid var(--line); padding: 18px 0; }
+.review-row-top { align-items: start; display: flex; gap: 18px; justify-content: space-between; }
+.review-row-top > p { max-width: 74ch; }
 .review-row p + p { margin-top: 7px; }
+.review-row .source { margin: 9px 0 14px; }
+.review-row .outline-button { display: inline-flex; text-decoration: none; }
 .report-editor { margin-bottom: 22px; }
 .question-bank { margin-bottom: 22px; }
 .bank-controls { display: grid; gap: 10px; grid-template-columns: minmax(200px, 1fr) minmax(170px, .6fr) auto; margin: 16px 0 10px; }
