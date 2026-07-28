@@ -78,7 +78,7 @@ export default function Home() {
             <label htmlFor="email">Email</label>
             <input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
             {error && <p className="error" role="alert">{error}</p>}
-            <button type="submit" disabled={busy}>{busy ? "Starting…" : "Create private profile"}</button>
+            <button type="submit" disabled={busy}>{busy ? "Starting…" : "Create or resume private profile"}</button>
           </form>
           <div className="divider">or</div>
           <button type="button" className="secondary" disabled={busy} onClick={() => { void start("guest"); }}>

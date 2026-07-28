@@ -39,22 +39,31 @@ export async function POST(request: Request) {
         AND accepted_at IS NULL AND expires_at > now() LIMIT 1
     ` as { id: number }[] : [];
     const role = isGuest ? "learner" : isAdminEmail(email) ? "admin" : invite.length ? "expert" : "learner";
-    const users = await sql`
+    // A registered profile is deliberately resumable after the browser session
+    // has been ended. (Guests remain browser-only and always receive a new id.)
+    // This is a lightweight profile, not password-based authentication.
+    const existing = !isGuest ? await sql`
+      SELECT id, role FROM users
+      WHERE email = ${email} AND identity_type = 'registered'
+      LIMIT 1
+    ` as { id: number; role: "learner" | "expert" | "admin" }[] : [];
+    const users = existing.length ? existing : await sql`
       INSERT INTO users (username, email, identity_type, role)
       VALUES (${username}, ${email}, ${isGuest ? "guest" : "registered"}, ${role})
-      RETURNING id
-    ` as { id: number }[];
+      RETURNING id, role
+    ` as { id: number; role: "learner" | "expert" | "admin" }[];
+    const effectiveRole = isAdminEmail(email) ? "admin" : invite.length ? "expert" : existing.length ? existing[0].role : role;
+    if (existing.length) {
+      await sql`UPDATE users SET username = ${username}, role = ${effectiveRole}, last_seen_at = now() WHERE id = ${users[0].id}`;
+    }
     if (invite.length) await sql`UPDATE expert_invites SET accepted_at = now() WHERE id = ${invite[0].id}`;
     const token = makeSessionToken();
     const expiresAt = sessionExpiry();
     await sql`INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (${users[0].id}, ${hashSessionToken(token)}, ${expiresAt.toISOString()})`;
-    const response = NextResponse.json({ user: { id: users[0].id, username, identityType: isGuest ? "guest" : "registered", role } });
+    const response = NextResponse.json({ user: { id: users[0].id, username, identityType: isGuest ? "guest" : "registered", role: effectiveRole } });
     response.cookies.set(SESSION_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", expires: expiresAt, path: "/" });
     return response;
   } catch (error: unknown) {
-    if (typeof error === "object" && error && "code" in error && error.code === "23505") {
-      return NextResponse.json({ error: "That email already has a study profile on another device. Continue as a guest here instead." }, { status: 409 });
-    }
     console.error("Unable to create study session", error);
     return NextResponse.json({ error: "We could not start your study session." }, { status: 500 });
   }
