@@ -22,8 +22,16 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const body = await request.json() as { questionId?: number; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string };
+  const body = await request.json() as { questionId?: number; action?: "unpublish" | "delete"; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string };
   if (!Number.isSafeInteger(body.questionId)) return NextResponse.json({ error: "Choose a question." }, { status: 400 });
+  if (body.action === "unpublish") {
+    await getSql()`UPDATE questions SET verification_status='unreviewed',updated_at=now() WHERE id=${body.questionId}`;
+    return NextResponse.json({ ok: true });
+  }
+  if (body.action === "delete") {
+    await getSql()`DELETE FROM questions WHERE id=${body.questionId}`;
+    return NextResponse.json({ ok: true });
+  }
   const stem = (body.stem ?? "").trim(); const explanation = (body.explanation ?? "").trim(); const options = body.options ?? [];
   if (!stem || !explanation || !options.length || !body.answerKey || !options.some((option) => option.key === body.answerKey && option.text.trim())) return NextResponse.json({ error: "Keep a question, answer options, the correct answer, and an explanation." }, { status: 400 });
   await getSql()`UPDATE questions SET stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status='staff_corrected',explanation=${explanation},updated_at=now() WHERE id=${body.questionId}`;

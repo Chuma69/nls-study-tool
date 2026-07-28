@@ -217,6 +217,8 @@ p { margin: 0; }
 .review-row p + p { margin-top: 7px; }
 .review-row .source { margin: 9px 0 14px; }
 .review-row .outline-button { display: inline-flex; text-decoration: none; }
+.danger-button { background: transparent; border-color: var(--bad); color: var(--bad); }
+.danger-button:hover { background: oklch(.96 .04 25); }
 .report-editor { margin-bottom: 22px; }
 .question-bank { margin-bottom: 22px; }
 .expert-workspace { align-items: start; display: grid; gap: 22px; grid-template-columns: minmax(270px, .75fr) minmax(0, 1.25fr); }
