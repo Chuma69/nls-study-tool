@@ -556,7 +556,7 @@ export default function AdminPage() {
                 <option value="not_flagged">Not flagged</option>
               </select>
               <button
-                className="outline-button"
+                className="primary-button"
                 type="button"
                 onClick={() => {
                   applyBankFilters(1);

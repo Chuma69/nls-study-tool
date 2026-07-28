@@ -265,8 +265,9 @@ form .primary-button { margin-top: 14px; }
 .review-queue .review-row:last-child { padding-bottom: 0; }
 .bank-controls { display: grid; gap: 10px; grid-template-columns: minmax(200px, 1fr) minmax(170px, .6fr) auto; margin: 16px 0 10px; }
 .question-bank-heading { font-family: "IBM Plex Sans", sans-serif; font-size: 18px; font-weight: 700; margin: 0 0 6px; }
-.question-bank .bank-controls { grid-template-columns: minmax(260px, 1.35fr) repeat(3, minmax(150px, .62fr)) auto; }
-.question-bank .bank-controls .outline-button { align-self: stretch; margin: 0; white-space: nowrap; }
+.question-bank .bank-controls { grid-template-columns: minmax(260px, 1.35fr) repeat(4, minmax(150px, .62fr)) auto; }
+.question-bank .bank-controls .outline-button,
+.question-bank .bank-controls .primary-button { align-self: stretch; margin: 0; white-space: nowrap; }
 .clear-bank-filters { align-self: center; margin: 0; white-space: nowrap; }
 .bank-results-summary { align-items: center; display: flex; justify-content: space-between; }
 .bank-results-summary p { margin: 0; }
