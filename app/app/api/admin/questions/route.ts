@@ -29,7 +29,25 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; action?: "unpublish" | "delete" | "flag" | "unflag" | "group_scenario" | "ungroup_scenario"; scenario?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string };
+  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; action?: "unpublish" | "delete" | "flag" | "unflag" | "group_scenario" | "ungroup_scenario" | "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag"; scenario?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string };
+  if (["bulk_publish", "bulk_unpublish", "bulk_flag", "bulk_unflag"].includes(body.action ?? "")) {
+    const questionIds = [...new Set((body.questionIds ?? []).map(Number).filter(Number.isSafeInteger))].slice(0, 250);
+    if (!questionIds.length) return NextResponse.json({ error: "Select at least one question." }, { status: 400 });
+    if (body.action === "bulk_publish") {
+      const updated = await getSql()`UPDATE questions SET verification_status='staff_corrected',updated_at=now() WHERE id=ANY(${questionIds}) AND question_type='mcq' AND material_supported_key IS NOT NULL AND NULLIF(trim(explanation),'') IS NOT NULL AND course=ANY(${COURSE_IDS}) AND NULLIF(trim(topic),'') IS NOT NULL RETURNING id` as { id: number }[];
+      return NextResponse.json({ ok: true, updated: updated.length, skipped: questionIds.length - updated.length });
+    }
+    if (body.action === "bulk_unpublish") {
+      const updated = await getSql()`UPDATE questions SET verification_status='unreviewed',updated_at=now() WHERE id=ANY(${questionIds}) RETURNING id` as { id: number }[];
+      return NextResponse.json({ ok: true, updated: updated.length, skipped: questionIds.length - updated.length });
+    }
+    if (body.action === "bulk_flag") {
+      await getSql()`INSERT INTO question_flags(question_id,user_id,kind) SELECT selected.selected_id,${auth.user.id},'admin_review' FROM unnest(${questionIds}::bigint[]) AS selected(selected_id) ON CONFLICT (user_id,question_id,kind) WHERE resolved_at IS NULL DO NOTHING`;
+      return NextResponse.json({ ok: true, updated: questionIds.length, skipped: 0 });
+    }
+    const updated = await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=ANY(${questionIds}) AND user_id=${auth.user.id} AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[];
+    return NextResponse.json({ ok: true, updated: updated.length, skipped: questionIds.length - updated.length });
+  }
   if (body.action === "group_scenario") {
     const questionIds = [...new Set((body.questionIds ?? []).map(Number).filter(Number.isSafeInteger))].slice(0, 50);
     const scenario = (body.scenario ?? "").trim();

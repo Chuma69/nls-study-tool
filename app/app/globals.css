@@ -269,7 +269,8 @@ form .primary-button { margin-top: 14px; }
 .bank-question-select { display: inline-flex; align-items: center; margin-bottom: 10px; cursor: pointer; }
 .bank-question-select input { accent-color: var(--accent); border-radius: 3px; min-height: 0; padding: 0; width: 18px; height: 18px; }
 .scenario-selection-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.scenario-selection-bar .primary-button { margin: 0 0 0 auto; }
+.scenario-selection-bar .primary-button, .scenario-selection-bar .outline-button { margin: 0; min-height: 38px; padding: 8px 12px; }
+.scenario-selection-bar .selection-order-note { flex-basis: 100%; }
 .scenario-builder { margin: 18px 0; }
 .scenario-builder textarea { margin-top: 8px; min-height: 150px; }
 .student-scenario { margin: 20px 0 28px; }
