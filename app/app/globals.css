@@ -67,6 +67,7 @@ p { margin: 0; }
 .section-heading { align-items: flex-end; display: flex; justify-content: space-between; margin: 46px 0 16px; }
 .course-grid { display: grid; gap: 24px; grid-template-columns: repeat(4, 1fr); }
 .shortcut-grid { display: grid; gap: 24px; grid-template-columns: repeat(3, 1fr); }
+.exact-shortcuts { margin-top: 36px; }
 .course-card { min-height: 256px; padding: 34px; text-decoration: none; transition: transform .15s ease; }
 .course-card:hover { transform: translateY(-2px); }
 .course-code { color: var(--accent); font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .13em; text-transform: uppercase; }
@@ -120,6 +121,13 @@ p { margin: 0; }
 .result strong { font-family: Newsreader, Georgia, serif; font-size: 20px; }
 .result p + p { color: var(--muted); font-size: 14px; margin-top: 5px; }
 .result .primary-button { margin-top: 14px; }
+.session-list { display: grid; gap: 14px; margin-top: 28px; }
+.session-row { align-items: center; display: flex; justify-content: space-between; padding: 22px 24px; }
+.session-row h2 { font-size: 24px; margin: 5px 0; }
+.session-score { text-align: right; }
+.session-score strong { color: var(--accent); display: block; font-family: Newsreader, Georgia, serif; font-size: 34px; font-weight: 500; line-height: 1; }
+.session-score span { color: var(--muted); font-size: 13px; }
+.empty-state { margin-top: 28px; }
 .source { margin-top: 20px; }
 
 label { display: block; font-size: 13px; margin: 18px 0 6px; }
@@ -145,5 +153,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "I
   .hero-card, .readiness-card, .panel, .question-panel { padding: 22px; }
   .course-grid, .shortcut-grid { grid-template-columns: 1fr; }
   .practice-header { flex-direction: column; }
+  .session-row { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .session-score { text-align: left; }
   h1 { font-size: 2.5rem; }
 }

@@ -17,10 +17,12 @@ type Question = {
   rel_source_path: string | null;
 };
 type Result = { matchesMaterialKey: boolean; materialSupportedKey: string; verificationStatus: string };
+type PracticeSession = { id: number; answers_count: number; total_seconds: number; last_question_id: number | null };
 
 function yearsLabel(years: string[]) {
   return years.length ? `Exam year${years.length === 1 ? "" : "s"}: ${years.join(", ")}` : "Exam year: not identified in source";
 }
+function clock(seconds: number) { return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; }
 
 function PracticeContent() {
   const searchParams = useSearchParams();
@@ -31,20 +33,47 @@ function PracticeContent() {
   const [error, setError] = useState("");
   const [questionNumber, setQuestionNumber] = useState(1);
   const [totalQuestions, setTotalQuestions] = useState(0);
+  const [practiceSession, setPracticeSession] = useState<PracticeSession | null>(null);
+  const [questionStartedAt, setQuestionStartedAt] = useState<number | null>(null);
+  const [currentQuestionSeconds, setCurrentQuestionSeconds] = useState(0);
 
-  const loadQuestion = useCallback(async (excludeQuestionId?: number) => {
+  const loadQuestion = useCallback(async (sessionId: number, excludeQuestionId?: number) => {
     setQuestion(undefined); setChosenKey(""); setResult(null); setError("");
     const params = new URLSearchParams();
     if (course) params.set("course", course);
+    params.set("session", String(sessionId));
     if (excludeQuestionId) params.set("exclude", String(excludeQuestionId));
     const response = await fetch(`/api/questions/next${params.size ? `?${params}` : ""}`);
     const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not load a question."); setQuestion(null); return; }
     setTotalQuestions(data.totalQuestions ?? 0);
+    setQuestionNumber((data.answeredCount ?? 0) + 1);
     setQuestion(data.question);
+    setQuestionStartedAt(data.question ? Date.now() : null);
+    setCurrentQuestionSeconds(0);
   }, [course]);
 
-  useEffect(() => { setQuestionNumber(1); if (course) void loadQuestion(); else setQuestion(null); }, [course, loadQuestion]);
+  useEffect(() => {
+    if (!questionStartedAt || result) return;
+    const interval = window.setInterval(() => setCurrentQuestionSeconds(Math.round((Date.now() - questionStartedAt) / 1000)), 1000);
+    return () => window.clearInterval(interval);
+  }, [questionStartedAt, result]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!course) { setQuestion(null); setPracticeSession(null); return; }
+    setQuestion(undefined); setQuestionNumber(1); setPracticeSession(null);
+    void fetch("/api/practice-sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ course }) })
+      .then((response) => response.json().then((data) => ({ response, data })))
+      .then(({ response, data }) => {
+        if (cancelled) return;
+        if (!response.ok) { setError(data.error ?? "Could not start practice."); setQuestion(null); return; }
+        const session = data.session as PracticeSession;
+        setPracticeSession(session);
+        void loadQuestion(session.id);
+      }).catch(() => { if (!cancelled) { setError("Could not start practice."); setQuestion(null); } });
+    return () => { cancelled = true; };
+  }, [course, loadQuestion]);
 
   const courseChoices = [
     ["civil_litigation", "CIV", "Civil Litigation"],
@@ -57,16 +86,18 @@ function PracticeContent() {
 
   async function checkAnswer() {
     if (!question || !chosenKey) return;
-    const response = await fetch("/api/attempts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, chosenKey }) });
+    const secondsSpent = questionStartedAt ? Math.max(1, Math.round((Date.now() - questionStartedAt) / 1000)) : 0;
+    const response = await fetch("/api/attempts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, chosenKey, practiceSessionId: practiceSession?.id, secondsSpent }) });
     const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not save your answer."); return; }
+    setPracticeSession((session) => session ? { ...session, answers_count: session.answers_count + 1, total_seconds: session.total_seconds + secondsSpent, last_question_id: question.id } : session);
     setResult(data);
   }
 
   return (
     <main className="narrow">
       <Link className="back-link" href="/">← Back to home</Link>
-      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><p className="meta">{course ? `Question ${questionNumber} / ${totalQuestions}` : "Verified materials only"}</p></div>
+      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><p className="meta">{course ? <>Question {questionNumber} / {totalQuestions}<br />Session {clock((practiceSession?.total_seconds ?? 0) + currentQuestionSeconds)}</> : "Verified materials only"}</p></div>
       {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>Question verification is in progress for this course. We will only reopen practice when answers are supported by the loaded study materials, not by source answer sheets.</p> : (
         <section className="panel question-panel">
           <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)}</p>
@@ -92,7 +123,7 @@ function PracticeContent() {
             <div className={`result ${result.matchesMaterialKey ? "" : "incorrect"}`} role="status">
               <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}.`}</strong></p>
               <p>{question.explanation ?? "This answer is supported by the loaded materials. A fuller explanation is being prepared as verification continues."}</p>
-              <button className="primary-button" type="button" onClick={() => { setQuestionNumber((number) => Math.min(number + 1, totalQuestions || number + 1)); void loadQuestion(question.id); }}>Next question</button>
+              <button className="primary-button" type="button" onClick={() => { if (practiceSession) void loadQuestion(practiceSession.id, question.id); }}>Next question</button>
             </div>
           )}
           <p className="source">Source: {question.display_name ?? question.rel_source_path ?? "Source retained"}{question.source_locator ? ` · ${question.source_locator}` : ""}</p>

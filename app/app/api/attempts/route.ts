@@ -18,9 +18,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Study limit reached. Please try again in an hour." }, { status: 429 });
   }
 
-  let body: { questionId?: number | string; chosenKey?: string };
+  let body: { questionId?: number | string; chosenKey?: string; practiceSessionId?: number | string; secondsSpent?: number | string };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Please try again." }, { status: 400 }); }
   const questionId = Number(body.questionId);
+  const practiceSessionId = Number(body.practiceSessionId);
+  const secondsSpent = Math.max(0, Math.min(7200, Math.round(Number(body.secondsSpent) || 0)));
   if (!Number.isSafeInteger(questionId) || !body.chosenKey) {
     return NextResponse.json({ error: "Choose a valid answer before checking it." }, { status: 400 });
   }
@@ -40,9 +42,26 @@ export async function POST(request: Request) {
   }
 
   const matchesMaterialKey = question.material_supported_key === body.chosenKey;
+  let sessionId: number | null = null;
+  if (Number.isSafeInteger(practiceSessionId)) {
+    const sessions = await getSql()`
+      SELECT id FROM practice_sessions
+      WHERE id = ${practiceSessionId} AND user_id = ${user.id} AND ended_at IS NULL
+      LIMIT 1
+    ` as { id: number }[];
+    sessionId = sessions[0]?.id ?? null;
+  }
   await getSql()`
-    INSERT INTO attempts (user_id, question_id, chosen_key, is_correct)
-    VALUES (${user.id}, ${questionId}, ${body.chosenKey}, ${matchesMaterialKey})
+    INSERT INTO attempts (user_id, question_id, chosen_key, is_correct, practice_session_id, seconds_spent)
+    VALUES (${user.id}, ${questionId}, ${body.chosenKey}, ${matchesMaterialKey}, ${sessionId}, ${secondsSpent})
+  `;
+  if (sessionId) await getSql()`
+    UPDATE practice_sessions
+    SET answers_count = answers_count + 1,
+        correct_count = correct_count + ${matchesMaterialKey ? 1 : 0},
+        total_seconds = total_seconds + ${secondsSpent},
+        last_question_id = ${questionId}, last_activity_at = now()
+    WHERE id = ${sessionId}
   `;
   return NextResponse.json({
     matchesMaterialKey,
