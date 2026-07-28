@@ -9,16 +9,16 @@ export async function GET(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
   const url = new URL(request.url); const search = (url.searchParams.get("search") ?? "").trim().slice(0, 200); const course = url.searchParams.get("course") ?? ""; const status = url.searchParams.get("status") ?? ""; const page = Math.max(1, Number(url.searchParams.get("page")) || 1); const limit = 25; const offset = (page - 1) * limit;
   if (course && !courses.has(course)) return NextResponse.json({ error: "Unknown course." }, { status: 400 });
-  if (status && !["live", "not_live", "unreviewed", "insufficient_material", "material_conflicted"].includes(status)) return NextResponse.json({ error: "Unknown live status." }, { status: 400 });
+  if (status && !["live", "not_live"].includes(status)) return NextResponse.json({ error: "Unknown live status." }, { status: 400 });
   const sql = getSql(); const pattern = `%${search}%`;
   const questions = await sql`
     SELECT q.id,q.course,q.stem,q.options,q.material_supported_key,q.explanation,q.verification_status,s.display_name
     FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id
     WHERE q.question_type='mcq' AND (${course}='' OR q.course=${course}) AND (${search}='' OR q.stem ILIKE ${pattern})
-      AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')) OR (${status} IN ('unreviewed','insufficient_material','material_conflicted') AND q.verification_status=${status}))
+      AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')))
     ORDER BY q.id DESC LIMIT ${limit} OFFSET ${offset}
   `;
-  const counts = await sql`SELECT count(*)::int AS total FROM questions q WHERE q.question_type='mcq' AND (${course}='' OR q.course=${course}) AND (${search}='' OR q.stem ILIKE ${pattern}) AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')) OR (${status} IN ('unreviewed','insufficient_material','material_conflicted') AND q.verification_status=${status}))` as { total: number }[];
+  const counts = await sql`SELECT count(*)::int AS total FROM questions q WHERE q.question_type='mcq' AND (${course}='' OR q.course=${course}) AND (${search}='' OR q.stem ILIKE ${pattern}) AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')))` as { total: number }[];
   return NextResponse.json({ questions, page, total: counts[0]?.total ?? 0, hasMore: offset + questions.length < (counts[0]?.total ?? 0) });
 }
 
