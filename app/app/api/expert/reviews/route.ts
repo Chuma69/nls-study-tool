@@ -36,17 +36,17 @@ export async function POST(request: Request) {
   let body: { questionId?: number | string; selectedKey?: string; explanation?: string; citations?: string[]; confidence?: "low" | "medium" | "high" };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Please try again." }, { status: 400 }); }
   const questionId = Number(body.questionId);
-  if (!Number.isSafeInteger(questionId) || !body.selectedKey || !body.explanation?.trim() || !body.citations?.filter(Boolean).length || !body.confidence) {
-    return NextResponse.json({ error: "Choose an option, explain it, add at least one citation, and set confidence." }, { status: 400 });
+  if (!Number.isSafeInteger(questionId) || !body.selectedKey || !body.explanation?.trim() || !body.confidence) {
+    return NextResponse.json({ error: "Choose an option, explain it, and set confidence." }, { status: 400 });
   }
+  const citations = body.citations?.filter(Boolean).slice(0, 6) ?? [];
   const sql = getSql();
   const questions = await sql`SELECT options FROM questions WHERE id=${questionId} AND question_type='mcq' LIMIT 1` as { options: { key: string }[] }[];
   if (!questions[0]?.options.some((option) => option.key === body.selectedKey)) return NextResponse.json({ error: "That option is not available." }, { status: 400 });
   await sql`INSERT INTO expert_reviews(question_id,expert_id,selected_key,explanation,citations,confidence,updated_at)
-    VALUES(${questionId},${auth.user.id},${body.selectedKey},${body.explanation.trim()},${JSON.stringify(body.citations.filter(Boolean).slice(0,6))}::jsonb,${body.confidence},now())
+    VALUES(${questionId},${auth.user.id},${body.selectedKey},${body.explanation.trim()},${JSON.stringify(citations)}::jsonb,${body.confidence},now())
     ON CONFLICT(question_id,expert_id) DO UPDATE SET selected_key=EXCLUDED.selected_key,explanation=EXCLUDED.explanation,citations=EXCLUDED.citations,confidence=EXCLUDED.confidence,status='submitted',updated_at=now()`;
   if (auth.user.role === "admin") {
-    const citations = body.citations.filter(Boolean).slice(0, 6);
     const reviewCount = await sql`SELECT count(*)::int AS count FROM expert_reviews WHERE question_id=${questionId} AND status='submitted'` as { count: number }[];
     await sql`UPDATE questions SET material_supported_key=${body.selectedKey},verification_status='staff_corrected',explanation=${body.explanation.trim()},explanation_version=1,explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
     await sql`INSERT INTO question_consensus(question_id,selected_key,review_count,status,reviewed_by,reviewed_at,updated_at)
