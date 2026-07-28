@@ -35,9 +35,10 @@ export async function PATCH(request: Request) {
     await getSql()`DELETE FROM questions WHERE id=${questionId}`;
     return NextResponse.json({ ok: true });
   }
-  const stem = (body.stem ?? "").trim(); const explanation = (body.explanation ?? "").trim(); const options = body.options ?? []; const citations = (body.citations ?? []).map((citation) => citation.trim()).filter(Boolean).slice(0, 12);
+  const stem = (body.stem ?? "").trim(); const explanation = (body.explanation ?? "").trim(); const options = body.options ?? []; const citations = body.citations?.map((citation) => citation.trim()).filter(Boolean).slice(0, 12);
   if (!stem || !explanation || !options.length || !body.answerKey || !options.some((option) => option.key === body.answerKey && option.text.trim())) return NextResponse.json({ error: "Keep a question, answer options, the correct answer, and an explanation." }, { status: 400 });
   if (!body.course || !courses.has(body.course)) return NextResponse.json({ error: "Choose one of the five courses." }, { status: 400 });
-  await getSql()`UPDATE questions SET course=${body.course},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status='staff_corrected',explanation=${explanation},explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
+  if (citations) await getSql()`UPDATE questions SET course=${body.course},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status='staff_corrected',explanation=${explanation},explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
+  else await getSql()`UPDATE questions SET course=${body.course},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status='staff_corrected',explanation=${explanation},updated_at=now() WHERE id=${questionId}`;
   return NextResponse.json({ ok: true });
 }

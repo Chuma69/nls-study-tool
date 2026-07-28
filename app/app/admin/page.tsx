@@ -108,7 +108,6 @@ export default function AdminPage() {
   >([]);
   const [editAnswer, setEditAnswer] = useState("");
   const [editExplanation, setEditExplanation] = useState("");
-  const [editCitations, setEditCitations] = useState("");
   const [editCourse, setEditCourse] = useState("");
   const [bankQuestions, setBankQuestions] = useState<BankQuestion[]>([]);
   const [bankSearch, setBankSearch] = useState("");
@@ -238,19 +237,10 @@ export default function AdminPage() {
     setEditOptions(options);
     setEditAnswer(question.material_supported_key ?? options[0]?.key ?? "");
     setEditExplanation(question.explanation ?? "");
-    setEditCitations(
-      Array.isArray(question.explanation_citations)
-        ? question.explanation_citations.join("\n")
-        : "",
-    );
     setEditCourse(question.course);
   }
   async function publishBank() {
     if (!bankEditing) return;
-    const citations = editCitations
-      .split("\n")
-      .map((citation) => citation.trim())
-      .filter(Boolean);
     const response = await fetch("/api/admin/questions", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -260,7 +250,6 @@ export default function AdminPage() {
         options: editOptions,
         answerKey: editAnswer,
         explanation: editExplanation,
-        citations,
         course: editCourse,
       }),
     });
@@ -607,15 +596,6 @@ export default function AdminPage() {
               <textarea
                 value={editExplanation}
                 onChange={(event) => setEditExplanation(event.target.value)}
-              />
-              <label>
-                Supporting citations{" "}
-                <span className="muted">(optional, one per line)</span>
-              </label>
-              <textarea
-                value={editCitations}
-                onChange={(event) => setEditCitations(event.target.value)}
-                placeholder="Document, page or section"
               />
               <div className="button-row">
                 <button
