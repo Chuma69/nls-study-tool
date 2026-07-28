@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 type User = { id: number; username: string; identityType: "registered" | "guest"; role: "learner" | "expert" | "admin" };
 type CourseMetric = { course: string; total_questions: number; attempted_questions: number; total_topics: number; covered_topics: number; coverage: number };
-type ProgressData = { courses: CourseMetric[]; coverage: { questions: number; answered: number; topics: number; topicsCovered: number; percentage: number } };
+type ProgressData = { courses: CourseMetric[]; coverage: { questions: number; answered: number; topics: number; topicsCovered: number; percentage: number }; readiness: { overall: number; weakestCourse: string | null; streak: number } };
 
 export default function Home() {
   const [inviteToken, setInviteToken] = useState<string | null>(null);
@@ -68,6 +68,11 @@ export default function Home() {
   const daysToFinals = Math.round((finalsDate.getTime() - midnightToday.getTime()) / 86_400_000);
   const dateLine = new Intl.DateTimeFormat(undefined, { weekday: "long", day: "numeric", month: "long" }).format(today);
   const coverage = progress?.coverage;
+  const readiness = progress?.readiness.overall ?? 0;
+  const weakestCourse = progress?.readiness.weakestCourse;
+  const weakestName = courses.find(([id]) => id === weakestCourse)?.[2];
+  const readinessLine = !progress ? "Calculating your study position…" : readiness === 0 ? "Start answering verified questions to build your score." : readiness >= 70 ? "Strong position — keep coverage broad across every course." : readiness >= 60 ? `On track — ${weakestName ?? "your weakest course"} needs attention.` : `Build your base — begin with ${weakestName ?? "your weakest course"}.`;
+  const streak = progress?.readiness.streak ?? 0;
 
   return (
     <main>
@@ -82,8 +87,8 @@ export default function Home() {
               <div className="button-row"><Link className="button-link" href="/practice">Start practice</Link><button className="secondary" disabled title="Sprints are the next feature being built">Design a sprint</button></div>
             </section>
             <aside className="panel readiness-card">
-              <div><p className="eyebrow">Readiness</p><div className="readiness-score">68 <span>/ 100</span></div><p className="readiness-line">On track for a pass — Corporate is the drag.</p><div className="readiness-bar"><span /></div></div>
-              <div className="readiness-footer"><div><strong>9</strong><span>day streak</span></div><div><strong>{daysToFinals}</strong><span>days to finals</span></div></div>
+              <div><p className="eyebrow">Readiness</p><div className="readiness-score">{readiness} <span>/ 100</span></div><p className="readiness-line">{readinessLine}</p><div className="readiness-bar"><span style={{ width: `${readiness}%` }} /></div></div>
+              <div className="readiness-footer"><div><strong>{streak}</strong><span>day streak</span></div><div><strong>{daysToFinals}</strong><span>days to finals</span></div></div>
             </aside>
           </div>
 
