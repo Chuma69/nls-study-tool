@@ -284,6 +284,12 @@ export default function AdminPage() {
   useEffect(() => {
     if (tab === "questions" && bankFiltersReady) void loadBank();
   }, [tab, bankFiltersReady]);
+  useEffect(() => {
+    if (!bankEditing) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setBankEditing(null); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [bankEditing]);
   function beginBankEdit(question: BankQuestion) {
     const options = Array.isArray(question.options) ? question.options : [];
     setBankEditing({ ...question, options });
@@ -652,6 +658,7 @@ export default function AdminPage() {
           </section>
           {bankEditing && (
             <section id="bank-question-editor" className="panel report-editor">
+              <button className="modal-close-button" type="button" aria-label="Close question review" onClick={() => setBankEditing(null)}>×</button>
               <p className="eyebrow">Reviewing question #{bankEditing.id}</p>
               {bankEditing.shared_context && (
                 <div className="shared-context">
@@ -772,13 +779,6 @@ export default function AdminPage() {
                   }}
                 >
                   Delete permanently
-                </button>
-                <button
-                  className="text-button"
-                  type="button"
-                  onClick={() => setBankEditing(null)}
-                >
-                  Cancel
                 </button>
               </div>
             </section>

@@ -252,6 +252,8 @@ form .primary-button { margin-top: 14px; }
 .danger-button:hover { background: oklch(.96 .04 25); }
 .report-editor { margin-bottom: 22px; }
 #bank-question-editor { box-shadow: 0 18px 60px oklch(.2 .03 240 / .2); left: 50%; margin: 0; max-height: min(86vh, 760px); overflow-y: auto; position: fixed; top: 50%; transform: translate(-50%, -50%); width: min(760px, calc(100vw - 40px)); z-index: 20; }
+.modal-close-button { align-items: center; background: transparent; border: 0; border-radius: 50%; color: var(--ink); display: flex; font-size: 30px; height: 36px; justify-content: center; line-height: 1; padding: 0 0 3px; position: absolute; right: 18px; top: 16px; width: 36px; }
+.modal-close-button:hover { background: oklch(.94 .015 235); }
 .question-bank { margin-bottom: 22px; }
 .expert-workspace { align-items: start; display: grid; gap: 22px; grid-template-columns: minmax(270px, .75fr) minmax(0, 1.25fr); }
 .compact-panel { margin: 0; }
