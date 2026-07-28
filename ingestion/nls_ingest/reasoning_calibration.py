@@ -28,8 +28,22 @@ def dry_run(sample_size: int | None = None):
     selected = [rows[(i * len(rows)) // size] for i in range(size)] if size else []
     p90 = _chunk_stats()
     question_tokens = sum((len(q['stem']) + len(json.dumps(q['options'])) + 3) // 4 for q in selected)
-    input_tokens = size * (min(config.QUESTION_VERIFICATION_MAX_CONTEXT_TOKENS, 6 * p90) + PROMPT_TOKENS) + question_tokens
-    output_tokens = size * PILOT_OUTPUT_TOKENS_PER_QUESTION
+    # For full-bank estimates, use the completed pilot's observed per-question
+    # usage. The original p90/1,200-token budget remains the conservative
+    # estimate for an untested small pilot.
+    with db.connect() as conn:
+      with conn.cursor() as cur:
+        cur.execute("SELECT questions_processed,actual_input_tokens,actual_output_tokens FROM reasoning_calibration_runs WHERE status IN ('completed','stopped') AND questions_processed>0 ORDER BY id DESC LIMIT 1")
+        observed = cur.fetchone()
+    if observed and size > config.REASONING_PILOT_SIZE:
+        processed, observed_in, observed_out = observed
+        input_tokens = round(size * (observed_in / processed))
+        output_tokens = round(size * (observed_out / processed))
+        estimate_basis = "completed_pilot_observed_usage"
+    else:
+        input_tokens = size * (min(config.QUESTION_VERIFICATION_MAX_CONTEXT_TOKENS, 6 * p90) + PROMPT_TOKENS) + question_tokens
+        output_tokens = size * PILOT_OUTPUT_TOKENS_PER_QUESTION
+        estimate_basis = "conservative_p90_context"
     cost = (input_tokens * config.REASONING_INPUT_USD_PER_MTOK + output_tokens * config.REASONING_OUTPUT_USD_PER_MTOK) / 1_000_000
     signature = {"model": config.MODEL_REASONING, "ids": [q['id'] for q in selected], "input": input_tokens, "output": output_tokens}
     report = {"report_id": hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()[:20],
@@ -37,6 +51,7 @@ def dry_run(sample_size: int | None = None):
               "model_id": config.MODEL_REASONING, "questions_planned": size,
               "estimated_input_tokens": input_tokens, "estimated_output_tokens": output_tokens,
               "estimated_cost_usd": round(cost, 4), "recommended_cap_usd": round(cost * 1.15, 2),
+              "estimate_basis": estimate_basis,
               "method": "issue map + option comparison + evidence-only adjudication; source answer keys withheld"}
     config.BUILD_DIR.mkdir(parents=True, exist_ok=True)
     config.REASONING_PILOT_DRY_RUN_PATH.write_text(json.dumps(report, indent=2) + "\n")
@@ -77,7 +92,7 @@ def _one(question):
         return question, result, int(usage.input_tokens or 0), int(usage.output_tokens or 0), None
     except Exception as exc: return question, None, 0, 0, type(exc).__name__
 
-def run(approved_report_id: str, max_cost_usd: float, sample_size: int | None = None):
+def run(approved_report_id: str, max_cost_usd: float, sample_size: int | None = None, promote: bool = False):
     report = json.loads(config.REASONING_PILOT_DRY_RUN_PATH.read_text())
     if report['report_id'] != approved_report_id: raise RuntimeError('Approval ID does not match the latest reasoning-pilot dry run.')
     if max_cost_usd < float(report['recommended_cap_usd']): raise RuntimeError('Cap is below the approved pilot reserve.')
@@ -94,6 +109,8 @@ def run(approved_report_id: str, max_cost_usd: float, sample_size: int | None = 
         with db.connect() as conn:
           with conn.cursor() as cur:
             cur.execute("INSERT INTO reasoning_calibration_items(run_id,question_id,status,selected_key,explanation,citations,input_tokens,output_tokens,actual_cost_usd,error_code) VALUES(%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s)",(run_id,q['id'],result['status'] if result else 'failed',result['key'] if result else None,result['explanation'] if result else None,json.dumps(result['citations']) if result else '[]',inp,out,cost,error))
+            if promote and result:
+                cur.execute("UPDATE questions SET material_supported_key=%s,verification_status=%s,explanation=%s,explanation_version=1,explanation_citations=%s::jsonb,updated_at=now() WHERE id=%s AND verification_status<>'staff_corrected'",(result['key'],result['status'],result['explanation'],json.dumps(result['citations']),q['id']))
         total_i+=inp; total_o+=out; spent+=cost; done+=not bool(error); print(f"  calibrated {done}/{len(questions)}; ${spent:.4f}",flush=True)
     status='completed' if done==len(questions) else 'stopped'
     with db.connect() as conn:
