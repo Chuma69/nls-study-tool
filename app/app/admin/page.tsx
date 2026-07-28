@@ -106,6 +106,9 @@ export default function AdminPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [editing, setEditing] = useState<Report | null>(null);
   const [bankEditing, setBankEditing] = useState<BankQuestion | null>(null);
+  const [bankSelected, setBankSelected] = useState<number[]>([]);
+  const [scenarioDraft, setScenarioDraft] = useState("");
+  const [showScenarioBuilder, setShowScenarioBuilder] = useState(false);
   const [editStem, setEditStem] = useState("");
   const [editOptions, setEditOptions] = useState<
     { key: string; text: string }[]
@@ -360,6 +363,15 @@ export default function AdminPage() {
     setBankEditing(null);
     void loadBank();
   }
+  function toggleBankSelection(questionId: number) {
+    setBankSelected((selected) => selected.includes(questionId) ? selected.filter((id) => id !== questionId) : [...selected, questionId]);
+  }
+  async function groupSelectedQuestions() {
+    const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "group_scenario", questionIds: bankSelected, scenario: scenarioDraft }) });
+    const data = await response.json();
+    setMsg(response.ok ? `${bankSelected.length} questions grouped into one scenario set.` : (data.error ?? "Could not group these questions."));
+    if (response.ok) { setBankSelected([]); setScenarioDraft(""); setShowScenarioBuilder(false); void loadBank(); }
+  }
   async function addAdmin() {
     const response = await fetch("/api/admin/admins", {
       method: "POST",
@@ -554,6 +566,8 @@ export default function AdminPage() {
                 ? `${bankTotal.toLocaleString()} matching questions`
                 : "Opening question bank…"}
             </p>
+            {bankSelected.length > 0 && <div className="scenario-selection-bar"><strong>{bankSelected.length} selected</strong><span className="muted">Selection order becomes question order.</span><button className="primary-button" type="button" disabled={bankSelected.length < 2} onClick={() => setShowScenarioBuilder(true)}>Group into scenario</button><button className="text-button" type="button" onClick={() => setBankSelected([])}>Clear selection</button></div>}
+            {showScenarioBuilder && <div className="shared-context scenario-builder"><label htmlFor="scenario-text">Shared scenario</label><textarea id="scenario-text" value={scenarioDraft} onChange={(event) => setScenarioDraft(event.target.value)} placeholder="Paste or write the scenario students must read before answering these questions…" /><div className="button-row"><button className="primary-button" type="button" disabled={bankSelected.length < 2 || !scenarioDraft.trim()} onClick={() => void groupSelectedQuestions()}>Save scenario group</button><button className="text-button" type="button" onClick={() => setShowScenarioBuilder(false)}>Cancel</button></div></div>}
             {bankQuestions.length > 0 && (
               <div className="review-list">
                 {bankQuestions.map((question, index) => (
@@ -568,9 +582,10 @@ export default function AdminPage() {
                         </p>
                       )}
                     <article
-                      className="review-row question-bank-row"
+                      className={`review-row question-bank-row ${bankSelected.includes(question.id) ? "selected-bank-row" : ""}`}
                       onClick={() => beginBankEdit(question)}
                     >
+                      <label className="bank-question-select" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={bankSelected.includes(question.id)} onChange={() => toggleBankSelection(question.id)} /><span>Select question</span></label>
                       <p className="eyebrow">
                         #{question.id} · {courseLabel(question.course)}{question.topic ? ` · ${question.topic}` : " · Topic not assigned"} ·{" "}
                         {["material_supported", "staff_corrected"].includes(

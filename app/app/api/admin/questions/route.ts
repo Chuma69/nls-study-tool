@@ -29,7 +29,24 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const body = await request.json() as { questionId?: number | string; action?: "unpublish" | "delete" | "flag" | "unflag"; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string };
+  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; action?: "unpublish" | "delete" | "flag" | "unflag" | "group_scenario" | "ungroup_scenario"; scenario?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string };
+  if (body.action === "group_scenario") {
+    const questionIds = [...new Set((body.questionIds ?? []).map(Number).filter(Number.isSafeInteger))].slice(0, 50);
+    const scenario = (body.scenario ?? "").trim();
+    if (questionIds.length < 2 || !scenario) return NextResponse.json({ error: "Select at least two questions and enter their shared scenario." }, { status: 400 });
+    const selected = await getSql()`SELECT id,course,topic FROM questions WHERE id=ANY(${questionIds}) AND question_type='mcq'` as { id: number; course: string | null; topic: string | null }[];
+    if (selected.length !== questionIds.length) return NextResponse.json({ error: "One or more selected questions could not be found." }, { status: 400 });
+    if (new Set(selected.map((question) => question.course)).size !== 1 || new Set(selected.map((question) => question.topic)).size !== 1) return NextResponse.json({ error: "A scenario set must use questions from the same course and topic." }, { status: 400 });
+    const groupId = crypto.randomUUID();
+    await getSql()`UPDATE questions q SET context_group_id=${groupId},shared_context=${scenario},context_position=chosen.position,updated_at=now() FROM (SELECT value::bigint AS id,ordinality::int AS position FROM jsonb_array_elements_text(${JSON.stringify(questionIds)}::jsonb) WITH ORDINALITY) chosen WHERE q.id=chosen.id`;
+    return NextResponse.json({ ok: true, contextGroupId: groupId });
+  }
+  if (body.action === "ungroup_scenario") {
+    const questionIds = [...new Set((body.questionIds ?? []).map(Number).filter(Number.isSafeInteger))].slice(0, 50);
+    if (!questionIds.length) return NextResponse.json({ error: "Select a scenario set to ungroup." }, { status: 400 });
+    await getSql()`UPDATE questions SET context_group_id=NULL,shared_context=NULL,context_position=NULL,updated_at=now() WHERE id=ANY(${questionIds})`;
+    return NextResponse.json({ ok: true });
+  }
   const questionId = Number(body.questionId);
   if (!Number.isSafeInteger(questionId)) return NextResponse.json({ error: "Choose a question." }, { status: 400 });
   if (body.action === "flag") {

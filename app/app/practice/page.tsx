@@ -20,6 +20,9 @@ type Question = {
   source_locator: string | null;
   display_name: string | null;
   rel_source_path: string | null;
+  shared_context: string | null;
+  context_group_id: string | null;
+  context_position: number | null;
 };
 type Result = { matchesMaterialKey: boolean; materialSupportedKey: string; verificationStatus: string };
 type PracticeSession = { id: number; answers_count: number; total_seconds: number; last_question_id: number | null };
@@ -41,6 +44,7 @@ function PracticeContent() {
   ].map((topic) => topic.trim()).filter((topic) => Boolean(topic) && (!course || courseTopics.includes(topic))))];
   const requestedQuestion = Number(searchParams.get("question")) || 0;
   const [question, setQuestion] = useState<Question | null | undefined>(undefined);
+  const [scenarioQueue, setScenarioQueue] = useState<Question[]>([]);
   const [chosenKey, setChosenKey] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState("");
@@ -69,6 +73,7 @@ function PracticeContent() {
     setTotalQuestions(data.totalQuestions ?? 0);
     setQuestionNumber((data.answeredCount ?? 0) + 1);
     setQuestion(data.question);
+    setScenarioQueue((data.questionGroup ?? []).slice(1));
     setSaved(false); setNote(""); setShowSaveNote(false);
     setQuestionStartedAt(data.question ? Date.now() : null);
     setCurrentQuestionSeconds(0);
@@ -125,6 +130,18 @@ function PracticeContent() {
     setResult(data);
   }
 
+  function nextQuestion() {
+    if (!practiceSession || !question) return;
+    if (scenarioQueue.length) {
+      const [next, ...remaining] = scenarioQueue;
+      setScenarioQueue(remaining); setQuestion(next); setChosenKey(""); setResult(null); setError("");
+      setQuestionNumber((number) => number + 1); setSaved(false); setNote(""); setShowSaveNote(false);
+      setQuestionStartedAt(Date.now()); setCurrentQuestionSeconds(0);
+      return;
+    }
+    void loadQuestion(practiceSession.id, question.id);
+  }
+
   return (
     <main className="narrow">
       <Link className="back-link" href="/">← Back to home</Link>
@@ -133,6 +150,7 @@ function PracticeContent() {
       {course && selectedTopics.length > 0 && (question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>No live questions match this topic selection yet. Choose different topics or ask an administrator to assign questions to these topics.</p> : (
         <section className="panel question-panel">
           <p className="question-meta">{question.topic ?? courseTitle} · {yearsLabel(question.exam_years)}</p>
+          {question.shared_context && <div className="shared-context student-scenario"><p className="case-study-label">Scenario · use this for the linked questions</p><p>{question.shared_context}</p></div>}
           <div className="practice-progress" aria-hidden="true"><span /></div>
           <p className="stem">{cleanQuestionStem(question.stem)}</p>
           <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { if (!saved) void saveFlag(true); setShowSaveNote(true); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-6-4-6 4v-17Z" /></svg>{saved ? "Saved for later" : "Save for later"}</button>
@@ -159,7 +177,7 @@ function PracticeContent() {
               <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}: ${question.options.find((option) => option.key === result.materialSupportedKey)?.text ?? ""}`}</strong></p>
               <p>{question.explanation?.replace(/^(The materials (expressly )?(state|say) that|According to the materials,?\s*)/i, "") ?? "A fuller tutor explanation is being prepared for this verified answer."}</p>
               <div className="note-box"><label htmlFor="question-note">Your note</label><textarea id="question-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a reminder for later revision…" /><button type="button" className="outline-button" onClick={() => { void saveFlag(true, note); }}>Save note</button></div>
-              <button className="primary-button" type="button" onClick={() => { if (practiceSession) void loadQuestion(practiceSession.id, question.id); }}>Next question</button>
+              <button className="primary-button" type="button" onClick={nextQuestion}>Next question</button>
             </div>
           )}
         </section>

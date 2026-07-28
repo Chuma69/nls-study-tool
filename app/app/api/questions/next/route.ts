@@ -17,6 +17,9 @@ type QuestionRow = {
   source_locator: string | null;
   display_name: string | null;
   rel_source_path: string | null;
+  shared_context: string | null;
+  context_group_id: string | null;
+  context_position: number | null;
 };
 
 type CountRow = { total: number };
@@ -52,7 +55,7 @@ export async function GET(request: Request) {
   const session = sessions[0] ?? null;
   const sessionLastQuestionId = session?.last_question_id ?? 0;
   const rows = requestedQuestionId ? await getSql()`
-    SELECT q.id, q.course, q.topic, q.exam_years, q.stem, q.options, q.explanation,
+    SELECT q.id, q.course, q.topic, q.exam_years, q.stem, q.options, q.explanation,q.shared_context,q.context_group_id,q.context_position,
            q.verification_status, q.source_locator, s.display_name, s.rel_source_path,
            false AS previously_failed
     FROM questions q LEFT JOIN source_documents s ON s.id = q.source_document_id
@@ -63,7 +66,7 @@ export async function GET(request: Request) {
       AND (cardinality(${selectedTopics}::text[]) = 0 OR q.topic = ANY(${selectedTopics}))
     LIMIT 1
   ` as QuestionRow[] : await getSql()`
-    SELECT q.id, q.course, q.topic, q.exam_years, q.stem, q.options, q.explanation,
+    SELECT q.id, q.course, q.topic, q.exam_years, q.stem, q.options, q.explanation,q.shared_context,q.context_group_id,q.context_position,
            q.verification_status, q.source_locator,
            s.display_name, s.rel_source_path,
            COALESCE(bool_or(a.is_correct = false), false) AS previously_failed
@@ -77,11 +80,24 @@ export async function GET(request: Request) {
       AND (cardinality(${selectedTopics}::text[]) = 0 OR q.topic = ANY(${selectedTopics}))
       AND (${excludedQuestionId} = 0 OR q.id <> ${excludedQuestionId})
       AND (${sessionLastQuestionId} = 0 OR q.id <> ${sessionLastQuestionId})
+      AND (q.context_group_id IS NULL OR q.context_position=1)
     GROUP BY q.id, s.display_name, s.rel_source_path
     HAVING NOT COALESCE(bool_or(a.is_correct), false)
     ORDER BY COALESCE(bool_or(a.is_correct = false), false) ASC, random()
     LIMIT 1
   ` as QuestionRow[];
+
+  let questionGroup = rows;
+  if (rows[0]?.context_group_id) {
+    questionGroup = await getSql()`
+      SELECT q.id,q.course,q.topic,q.exam_years,q.stem,q.options,q.explanation,q.verification_status,q.source_locator,
+             q.shared_context,q.context_group_id,q.context_position,s.display_name,s.rel_source_path
+      FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id
+      WHERE q.context_group_id=${rows[0].context_group_id} AND q.question_type='mcq'
+        AND q.material_supported_key IS NOT NULL AND q.verification_status IN ('material_supported','staff_corrected')
+      ORDER BY q.context_position,q.id
+    ` as QuestionRow[];
+  }
 
   const totals = await getSql()`
     SELECT count(*)::int AS total
@@ -93,5 +109,5 @@ export async function GET(request: Request) {
       AND (cardinality(${selectedTopics}::text[]) = 0 OR q.topic = ANY(${selectedTopics}))
   ` as CountRow[];
 
-  return NextResponse.json({ question: rows[0] ?? null, totalQuestions: totals[0]?.total ?? 0, answeredCount: session?.answers_count ?? 0 });
+  return NextResponse.json({ question: questionGroup[0] ?? null, questionGroup, totalQuestions: totals[0]?.total ?? 0, answeredCount: session?.answers_count ?? 0 });
 }

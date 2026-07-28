@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   const sprint = sprints[0]; if (!sprint) return NextResponse.json({ error: "Sprint not found." }, { status: 404 });
   const finished = sprint.status !== "active";
   const items = await sql`
-    SELECT si.position,si.question_id,si.chosen_key,CASE WHEN ${finished} THEN si.is_correct ELSE NULL END AS is_correct,si.seconds_spent,q.course,q.stem,q.options,
+    SELECT si.position,si.question_id,si.chosen_key,CASE WHEN ${finished} THEN si.is_correct ELSE NULL END AS is_correct,si.seconds_spent,q.course,q.stem,q.options,q.shared_context,q.context_group_id,q.context_position,
            ${finished}::boolean AS finished,
            CASE WHEN ${finished} THEN q.material_supported_key ELSE NULL END AS material_supported_key,
            CASE WHEN ${finished} THEN q.explanation ELSE NULL END AS explanation
@@ -43,13 +43,21 @@ export async function POST(request: Request) {
     if (!courses.length || !Number.isInteger(count) || count < 1 || count > 100 || !Number.isInteger(minutes) || minutes < 1 || minutes > 180) return NextResponse.json({ error: "Choose 1–100 questions and 1–180 minutes." }, { status: 400 });
     if (!topics.length) return NextResponse.json({ error: "Choose at least one topic before starting a sprint." }, { status: 400 });
     if (topics.some((topic) => !courses.some((course) => isTopicForCourse(course, topic)))) return NextResponse.json({ error: "Choose topics from the selected courses." }, { status: 400 });
-    const questions = await sql`
-      SELECT id FROM questions WHERE question_type='mcq' AND course=ANY(${courses})
+    const available = await sql`
+      SELECT id,context_group_id,context_position FROM questions WHERE question_type='mcq' AND course=ANY(${courses})
         AND material_supported_key IS NOT NULL AND verification_status IN ('material_supported','staff_corrected')
         AND (cardinality(${topics}::text[]) = 0 OR topic = ANY(${topics}))
-      ORDER BY random() LIMIT ${count}
-    ` as { id: number }[];
-    if (questions.length < count) return NextResponse.json({ error: `Only ${questions.length} verified questions are available for that selection.` }, { status: 400 });
+    ` as { id: number; context_group_id: string | null; context_position: number | null }[];
+    const units = new Map<string, typeof available>();
+    for (const question of available) { const key = question.context_group_id ?? `question-${question.id}`; units.set(key, [...(units.get(key) ?? []), question]); }
+    const shuffled = [...units.values()].sort(() => Math.random() - 0.5);
+    const questions: { id: number }[] = [];
+    for (const unit of shuffled) {
+      const ordered = [...unit].sort((a, b) => (a.context_position ?? 1) - (b.context_position ?? 1));
+      if (questions.length + ordered.length <= count) questions.push(...ordered.map(({ id }) => ({ id })));
+      if (questions.length === count) break;
+    }
+    if (questions.length < count) return NextResponse.json({ error: `Only ${questions.length} questions can be assembled without splitting a scenario set. Choose a smaller count.` }, { status: 400 });
     const created = await sql`INSERT INTO sprints(user_id,courses,question_count,duration_seconds) VALUES(${user.id},${JSON.stringify(courses)}::jsonb,${count},${minutes * 60}) RETURNING id` as { id: number }[];
     for (let index = 0; index < questions.length; index += 1) await sql`INSERT INTO sprint_items(sprint_id,question_id,position) VALUES(${created[0].id},${questions[index].id},${index + 1})`;
     return NextResponse.json({ sprintId: created[0].id });
