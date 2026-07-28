@@ -167,6 +167,7 @@ p { margin: 0; }
 .number-stepper input { font-family: "IBM Plex Mono", monospace; font-size: 17px; min-height: 40px; text-align: center; width: 88px; }
 .number-stepper span { color: var(--muted); font-size: 14px; margin-right: 2px; }
 .sprint-summary { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .04em; margin: 28px 0 14px; }
+.sprint-history { margin-top: 42px; }
 .sprint-top { align-items: center; display: flex; justify-content: space-between; }
 .sprint-clock { color: var(--accent); font-family: "IBM Plex Mono", monospace; font-size: 24px; }
 .sprint-clock.urgent { color: var(--bad); }

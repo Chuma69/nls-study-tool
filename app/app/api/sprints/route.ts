@@ -7,8 +7,19 @@ const validCourses = new Set(["civil_litigation", "criminal_litigation", "corpor
 
 export async function GET(request: Request) {
   const user = await currentUser(); if (!user) return NextResponse.json({ error: "Start a study session first." }, { status: 401 });
-  const id = Number(new URL(request.url).searchParams.get("id")); if (!Number.isSafeInteger(id)) return NextResponse.json({ error: "Choose a sprint." }, { status: 400 });
+  const params = new URL(request.url).searchParams;
   const sql = getSql();
+  if (params.get("history") === "1") {
+    const sprints = await sql`
+      SELECT s.id,s.courses,s.question_count,s.duration_seconds,s.started_at,s.completed_at,s.status,
+             count(si.id) FILTER (WHERE si.is_correct)::int AS correct_count
+      FROM sprints s LEFT JOIN sprint_items si ON si.sprint_id=s.id
+      WHERE s.user_id=${user.id} AND s.status <> 'active'
+      GROUP BY s.id ORDER BY COALESCE(s.completed_at,s.started_at) DESC LIMIT 50
+    `;
+    return NextResponse.json({ sprints });
+  }
+  const id = Number(params.get("id")); if (!Number.isSafeInteger(id)) return NextResponse.json({ error: "Choose a sprint." }, { status: 400 });
   const sprints = await sql`SELECT id,courses,question_count,duration_seconds,started_at,completed_at,status FROM sprints WHERE id=${id} AND user_id=${user.id} LIMIT 1` as { id: number; courses: string[]; question_count: number; duration_seconds: number; started_at: string; completed_at: string | null; status: string }[];
   const sprint = sprints[0]; if (!sprint) return NextResponse.json({ error: "Sprint not found." }, { status: 404 });
   const finished = sprint.status !== "active";
