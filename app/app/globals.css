@@ -152,6 +152,10 @@ p { margin: 0; }
 .course-checklist { display: grid; gap: 9px; }
 .course-check { align-items: center; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; display: flex; font-size: 15px; gap: 10px; margin: 0; min-height: 46px; padding: 10px 12px; }
 .course-check input { accent-color: var(--accent); min-height: auto; padding: 0; width: 17px; }
+.number-stepper { align-items: center; display: flex; gap: 8px; }
+.number-stepper button { background: #fff; border: 1px solid var(--line); border-radius: 9px; font-size: 22px; height: 44px; line-height: 1; width: 44px; }
+.number-stepper input { font-family: "IBM Plex Mono", monospace; font-size: 18px; text-align: center; width: 104px; }
+.number-stepper span { color: var(--muted); font-size: 14px; }
 .sprint-summary { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .04em; margin: 28px 0 14px; }
 .sprint-top { align-items: center; display: flex; justify-content: space-between; }
 .sprint-clock { color: var(--accent); font-family: "IBM Plex Mono", monospace; font-size: 24px; }

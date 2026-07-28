@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   if (body.action === "create") {
     const courses = (body.courses ?? []).filter((course) => validCourses.has(course));
     const count = Number(body.count); const minutes = Number(body.minutes);
-    if (!courses.length || ![5, 10, 20, 30].includes(count) || ![10, 15, 30, 45].includes(minutes)) return NextResponse.json({ error: "Choose courses, time, and a question count." }, { status: 400 });
+    if (!courses.length || !Number.isInteger(count) || count < 1 || count > 100 || !Number.isInteger(minutes) || minutes < 1 || minutes > 180) return NextResponse.json({ error: "Choose 1–100 questions and 1–180 minutes." }, { status: 400 });
     const questions = await sql`
       SELECT id FROM questions WHERE question_type='mcq' AND course=ANY(${courses})
         AND material_supported_key IS NOT NULL AND verification_status IN ('material_supported','staff_corrected')
