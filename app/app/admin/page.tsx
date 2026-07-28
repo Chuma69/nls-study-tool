@@ -42,6 +42,7 @@ type Report = {
   material_supported_key: string;
   explanation: string | null;
   course: string;
+  topic: string | null;
 };
 type BankQuestion = {
   id: number;
@@ -195,6 +196,8 @@ export default function AdminPage() {
     setEditOptions(report.options);
     setEditAnswer(report.material_supported_key);
     setEditExplanation(report.explanation ?? "");
+    setEditCourse(COURSE_IDS.includes(report.course as (typeof COURSE_IDS)[number]) ? report.course : "");
+    setEditTopic(report.topic ?? "");
   }
   async function resolveReport(action: "save" | "dismiss") {
     if (!editing) return;
@@ -208,6 +211,8 @@ export default function AdminPage() {
         options: editOptions,
         answerKey: editAnswer,
         explanation: editExplanation,
+        course: editCourse,
+        topic: editTopic,
       }),
     });
     const data = await response.json();
@@ -629,6 +634,26 @@ export default function AdminPage() {
                 value={editStem}
                 onChange={(event) => setEditStem(event.target.value)}
               />
+              <label>Course</label>
+              <select
+                value={editCourse}
+                onChange={(event) => {
+                  setEditCourse(event.target.value);
+                  setEditTopic("");
+                }}
+              >
+                <option value="" disabled>Choose a course</option>
+                {COURSE_IDS.map((id) => <option key={id} value={id}>{COURSE_NAMES[id]}</option>)}
+              </select>
+              <label>Topic</label>
+              <select
+                value={editTopic}
+                onChange={(event) => setEditTopic(event.target.value)}
+                disabled={!editCourse}
+              >
+                <option value="" disabled>Choose an official topic</option>
+                {topicsForCourse(editCourse).map((topic) => <option key={topic} value={topic}>{topic}</option>)}
+              </select>
               <label>Course</label>
               <select
                 value={editCourse}

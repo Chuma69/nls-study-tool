@@ -214,6 +214,19 @@ def cmd_enrich_live_questions(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_audit_corpus(args: argparse.Namespace) -> int:
+    from . import corpus_audit
+    report = corpus_audit.run(args.sample_size)
+    print("✓ Corpus-quality audit complete — no OpenAI API calls were made.")
+    print(f"  source_documents         {report['source_documents']['total']}")
+    print(f"  needs_text_or_ocr        {report['source_documents']['needs_text_or_ocr']}")
+    print(f"  live_questions           {sum(item['live_questions'] for item in report['live_question_quality'])}")
+    print(f"  retrieval_sample         {report['retrieval_sample']['sample_size']}")
+    print(f"  retrieval_outcomes       {report['retrieval_sample']['outcomes']}")
+    print(f"  report                   {config.CORPUS_AUDIT_PATH}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="nls_ingest", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -254,6 +267,10 @@ def build_parser() -> argparse.ArgumentParser:
     le.add_argument("--approve-dry-run", help="Exact dry-run report ID approved by the owner.")
     le.add_argument("--max-cost-usd", type=float, help="Hard spend ceiling.")
     le.set_defaults(func=cmd_enrich_live_questions)
+
+    ca = sub.add_parser("audit-corpus", help="Read-only audit of source quality and live-question retrieval coverage.")
+    ca.add_argument("--sample-size", type=int, default=100, help="Number of live questions to test with the existing retrieval method.")
+    ca.set_defaults(func=cmd_audit_corpus)
 
     pb = sub.add_parser("build", help="Build the SQLite FTS index.")
     pb.add_argument("--ocr", action="store_true", help="OCR scanned PDFs (slow).")
