@@ -191,7 +191,7 @@ def cmd_run_reasoning_calibration(args: argparse.Namespace) -> int:
     from . import reasoning_calibration
     if not args.approve_dry_run or args.max_cost_usd is None:
         print("Reasoning pilot is blocked until its dry-run report and cap are approved.", file=sys.stderr); return 2
-    result = reasoning_calibration.run(args.approve_dry_run, args.max_cost_usd, args.sample_size, args.promote)
+    result = reasoning_calibration.run(args.approve_dry_run, args.max_cost_usd, args.sample_size, args.promote, args.resume_run_id)
     print("✓ Reasoning calibration finished.")
     for key, value in result.items(): print(f"  {key:26} {value}")
     return 0
@@ -229,6 +229,7 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--max-cost-usd", type=float, help="Hard pilot spend ceiling.")
     rp.add_argument("--sample-size", type=int, default=None)
     rp.add_argument("--promote", action="store_true", help="Apply cited materials-only results to the main question pool.")
+    rp.add_argument("--resume-run-id", type=int, help="Continue an interrupted calibration run without repeating saved questions.")
     rp.set_defaults(func=cmd_run_reasoning_calibration)
 
     pb = sub.add_parser("build", help="Build the SQLite FTS index.")
