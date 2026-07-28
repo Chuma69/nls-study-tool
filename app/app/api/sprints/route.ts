@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/session";
 import { getSql } from "@/lib/db";
+import { isCourse, isTopicForCourse } from "@/lib/course-topics";
 
 export const runtime = "nodejs";
-const validCourses = new Set(["civil_litigation", "criminal_litigation", "corporate_law_practice", "property_law_practice", "professional_ethics_skills"]);
-
 export async function GET(request: Request) {
   const user = await currentUser(); if (!user) return NextResponse.json({ error: "Start a study session first." }, { status: 401 });
   const params = new URL(request.url).searchParams;
@@ -35,15 +34,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const user = await currentUser(); if (!user) return NextResponse.json({ error: "Start a study session first." }, { status: 401 });
-  const body = await request.json() as { action?: "create" | "answer" | "finish"; courses?: string[]; count?: number; minutes?: number; sprintId?: number; questionId?: number; chosenKey?: string; secondsSpent?: number; timedOut?: boolean };
+  const body = await request.json() as { action?: "create" | "answer" | "finish"; courses?: string[]; topics?: string[]; count?: number; minutes?: number; sprintId?: number; questionId?: number; chosenKey?: string; secondsSpent?: number; timedOut?: boolean };
   const sql = getSql();
   if (body.action === "create") {
-    const courses = (body.courses ?? []).filter((course) => validCourses.has(course));
+    const courses = [...new Set((body.courses ?? []).filter(isCourse))];
+    const topics = [...new Set((body.topics ?? []).map((topic) => topic.trim()).filter(Boolean))];
     const count = Number(body.count); const minutes = Number(body.minutes);
     if (!courses.length || !Number.isInteger(count) || count < 1 || count > 100 || !Number.isInteger(minutes) || minutes < 1 || minutes > 180) return NextResponse.json({ error: "Choose 1–100 questions and 1–180 minutes." }, { status: 400 });
+    if (topics.some((topic) => !courses.some((course) => isTopicForCourse(course, topic)))) return NextResponse.json({ error: "Choose topics from the selected courses." }, { status: 400 });
     const questions = await sql`
       SELECT id FROM questions WHERE question_type='mcq' AND course=ANY(${courses})
         AND material_supported_key IS NOT NULL AND verification_status IN ('material_supported','staff_corrected')
+        AND (cardinality(${topics}::text[]) = 0 OR topic = ANY(${topics}))
       ORDER BY random() LIMIT ${count}
     ` as { id: number }[];
     if (questions.length < count) return NextResponse.json({ error: `Only ${questions.length} verified questions are available for that selection.` }, { status: 400 });

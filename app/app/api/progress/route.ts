@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 type SessionRow = { id: number; course: string; started_at: string; last_activity_at: string; answers_count: number; correct_count: number; total_seconds: number };
 type SprintRow = { id: number; started_at: string; completed_at: string | null; status: string; question_count: number; correct_count: number; answered_count: number; duration_seconds: number };
 type CourseRow = { course: string; total_questions: number; attempted_questions: number; correct_questions: number; total_topics: number; covered_topics: number };
+type TopicRow = { course: string; topic: string; total_questions: number; attempted_questions: number; correct_questions: number };
 
 const courseIds = ["civil_litigation", "criminal_litigation", "corporate_law_practice", "property_law_practice", "professional_ethics_skills"];
 
@@ -70,6 +71,27 @@ export async function GET() {
     topicsCovered: sum.topicsCovered + course.covered_topics,
   }), { questions: 0, answered: 0, topics: 0, topicsCovered: 0 });
   const coverage = { ...totals, percentage: totals.questions ? Math.round(totals.answered / totals.questions * 100) : 0 };
+  const rawTopics = await sql`
+    WITH latest_attempt AS (
+      SELECT DISTINCT ON (question_id) question_id, is_correct
+      FROM attempts WHERE user_id = ${user.id}
+      ORDER BY question_id, answered_at DESC, id DESC
+    )
+    SELECT q.course,q.topic,count(*)::int AS total_questions,
+           count(la.question_id)::int AS attempted_questions,
+           count(*) FILTER (WHERE la.is_correct)::int AS correct_questions
+    FROM questions q LEFT JOIN latest_attempt la ON la.question_id=q.id
+    WHERE q.question_type='mcq' AND q.course=ANY(${courseIds})
+      AND NULLIF(q.topic,'') IS NOT NULL
+      AND q.material_supported_key IS NOT NULL
+      AND q.verification_status IN ('material_supported','staff_corrected')
+    GROUP BY q.course,q.topic ORDER BY q.course,q.topic
+  ` as TopicRow[];
+  const topics = rawTopics.map((topic) => ({
+    ...topic,
+    accuracy: topic.attempted_questions ? Math.round(topic.correct_questions / topic.attempted_questions * 100) : 0,
+    coverage: topic.total_questions ? Math.round(topic.attempted_questions / topic.total_questions * 100) : 0,
+  }));
   const activeCourses = courses.filter((course) => course.total_questions > 0);
   const average = activeCourses.length ? activeCourses.reduce((sum, course) => sum + course.readiness, 0) / activeCourses.length : 0;
   const weakest = activeCourses.length ? activeCourses.reduce((lowest, course) => course.readiness < lowest.readiness ? course : lowest) : null;
@@ -85,7 +107,7 @@ export async function GET() {
       WHERE EXISTS (SELECT 1 FROM active_days WHERE day = streak.day - 1)
     ) SELECT count(*)::int AS days FROM streak
   ` as { days: number }[];
-  return NextResponse.json({ sessions, sprints, courses, coverage, readiness: { overall, weakestCourse: weakest?.course ?? null, streak: streakRows[0]?.days ?? 0 } });
+  return NextResponse.json({ sessions, sprints, courses, topics, coverage, readiness: { overall, weakestCourse: weakest?.course ?? null, streak: streakRows[0]?.days ?? 0 } });
 }
 
 export async function DELETE(request: Request) {

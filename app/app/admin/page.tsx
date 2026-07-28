@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { cleanQuestionStem } from "@/lib/question-text";
+import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS, topicsForCourse } from "@/lib/course-topics";
 
 type Item = {
   id: string;
@@ -45,6 +46,7 @@ type Report = {
 type BankQuestion = {
   id: number;
   course: string;
+  topic: string | null;
   stem: string;
   options: { key: string; text: string }[] | null;
   material_supported_key: string | null;
@@ -109,9 +111,11 @@ export default function AdminPage() {
   const [editAnswer, setEditAnswer] = useState("");
   const [editExplanation, setEditExplanation] = useState("");
   const [editCourse, setEditCourse] = useState("");
+  const [editTopic, setEditTopic] = useState("");
   const [bankQuestions, setBankQuestions] = useState<BankQuestion[]>([]);
   const [bankSearch, setBankSearch] = useState("");
   const [bankCourse, setBankCourse] = useState("");
+  const [bankTopic, setBankTopic] = useState("");
   const [bankStatus, setBankStatus] = useState("");
   const [bankPage, setBankPage] = useState(1);
   const [bankTotal, setBankTotal] = useState(0);
@@ -213,6 +217,7 @@ export default function AdminPage() {
       const params = new URLSearchParams({ page: String(page) });
       if (bankSearch.trim()) params.set("search", bankSearch.trim());
       if (bankCourse) params.set("course", bankCourse);
+      if (bankTopic) params.set("topic", bankTopic);
       if (bankStatus) params.set("status", bankStatus);
       const response = await fetch(`/api/admin/questions?${params}`);
       const data = await response.json();
@@ -238,6 +243,7 @@ export default function AdminPage() {
     setEditAnswer(question.material_supported_key ?? options[0]?.key ?? "");
     setEditExplanation(question.explanation ?? "");
     setEditCourse(question.course);
+    setEditTopic(question.topic ?? "");
   }
   async function publishBank() {
     if (!bankEditing) return;
@@ -251,6 +257,7 @@ export default function AdminPage() {
         answerKey: editAnswer,
         explanation: editExplanation,
         course: editCourse,
+        topic: editTopic,
       }),
     });
     const data = await response.json();
@@ -418,21 +425,18 @@ export default function AdminPage() {
               />
               <select
                 value={bankCourse}
-                onChange={(event) => setBankCourse(event.target.value)}
+                onChange={(event) => { setBankCourse(event.target.value); setBankTopic(""); }}
               >
                 <option value="">All courses</option>
                 <option value="none">Unassigned</option>
-                <option value="civil_litigation">Civil Litigation</option>
-                <option value="criminal_litigation">Criminal Litigation</option>
-                <option value="corporate_law_practice">
-                  Corporate Law Practice
-                </option>
-                <option value="property_law_practice">
-                  Property Law Practice
-                </option>
-                <option value="professional_ethics_skills">
-                  Professional Ethics &amp; Skills
-                </option>
+                {COURSE_IDS.map((id) => <option key={id} value={id}>{COURSE_NAMES[id]}</option>)}
+              </select>
+              <select
+                value={bankTopic}
+                onChange={(event) => setBankTopic(event.target.value)}
+              >
+                <option value="">All topics</option>
+                {(bankCourse && bankCourse !== "none" ? topicsForCourse(bankCourse) : COURSE_IDS.flatMap((id) => COURSE_TOPICS[id].topics)).map((topic) => <option key={topic} value={topic}>{topic}</option>)}
               </select>
               <select
                 value={bankStatus}
@@ -475,7 +479,7 @@ export default function AdminPage() {
                       onClick={() => beginBankEdit(question)}
                     >
                       <p className="eyebrow">
-                        #{question.id} · {courseLabel(question.course)} ·{" "}
+                        #{question.id} · {courseLabel(question.course)}{question.topic ? ` · ${question.topic}` : " · Topic not assigned"} ·{" "}
                         {["material_supported", "staff_corrected"].includes(
                           question.verification_status,
                         ) && question.material_supported_key
@@ -555,14 +559,15 @@ export default function AdminPage() {
               <label>Course</label>
               <select
                 value={editCourse}
-                onChange={(event) => setEditCourse(event.target.value)}
+                onChange={(event) => { setEditCourse(event.target.value); setEditTopic(""); }}
               >
                 <option value="" disabled>Choose a course</option>
-                <option value="civil_litigation">Civil Litigation</option>
-                <option value="criminal_litigation">Criminal Litigation</option>
-                <option value="corporate_law_practice">Corporate Law Practice</option>
-                <option value="property_law_practice">Property Law Practice</option>
-                <option value="professional_ethics_skills">Professional Ethics &amp; Skills</option>
+                {COURSE_IDS.map((id) => <option key={id} value={id}>{COURSE_NAMES[id]}</option>)}
+              </select>
+              <label>Topic</label>
+              <select value={editTopic} onChange={(event) => setEditTopic(event.target.value)} disabled={!editCourse}>
+                <option value="" disabled>Choose an official topic</option>
+                {topicsForCourse(editCourse).map((topic) => <option key={topic} value={topic}>{topic}</option>)}
               </select>
               {editOptions.map((option, index) => (
                 <div className="option-edit" key={option.key}>

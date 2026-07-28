@@ -17,7 +17,11 @@ SCHEMA = {"type":"object","additionalProperties":False,"required":["status","sel
     "selected_key":{"type":["string","null"]}, "issue_map":{"type":"string"},
     "explanation":{"type":["string","null"]},
     "citation_chunk_ids":{"type":"array","items":{"type":"integer"}}}}
-SYSTEM = """You are a careful legal-study evidence adjudicator. Work only from the quoted study-material excerpts; source answer keys are withheld. First identify the legal issue and what each option claims. Then compare each option to the excerpts, including exceptions and conditions. Choose one option only where the cited excerpts clearly support it and no cited excerpt conflicts. If evidence conflicts return material_conflicted; if it cannot decide return insufficient_material. Return a compact issue map and a learner-friendly explanation only for a supported answer. Never use outside legal knowledge."""
+SYSTEM = """You are an expert Nigerian Law School Bar Finals tutor and careful legal-study evidence adjudicator. Work only from the quoted study-material excerpts; source answer keys are withheld.
+
+First identify the legal issue and what each option claims. Then compare each option to the excerpts, including exceptions and conditions. Choose one option only where the cited excerpts clearly support it and no cited excerpt conflicts. If evidence conflicts return material_conflicted; if it cannot decide return insufficient_material.
+
+For a supported answer, write one concise tutor-style paragraph. It must begin with "According to" followed immediately by the statute, rule, regulation, order, article, or case expressly identified in the excerpts. Explain the legal principle in two or three sentences and finish by connecting that principle to the selected option. Do not begin with "The correct answer is", "Option X is correct", or "This is because". Never invent or update a legal provision, rule, case citation, course, or topic from outside the excerpts. If the excerpts do not name an authority, begin "According to the cited study materials" rather than fabricating one. Cite only the excerpt IDs that directly support the explanation."""
 
 def dry_run(sample_size: int | None = None):
     rows = _clean_rows(skip_completed=False)

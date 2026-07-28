@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cleanQuestionStem } from "@/lib/question-text";
 import { QuestionReport } from "@/components/question-report";
 import { StudyFooter } from "@/components/study-footer";
+import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS } from "@/lib/course-topics";
 
 type Question = {
   id: number;
   course: string | null;
+  topic: string | null;
   exam_years: string[];
   stem: string;
   options: { key: string; text: string }[];
@@ -29,7 +31,10 @@ function clock(seconds: number) { return `${String(Math.floor(seconds / 60)).pad
 
 function PracticeContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const course = searchParams.get("course");
+  const topicsParam = searchParams.get("topics") ?? "";
+  const selectedTopics = topicsParam.split(",").map((topic) => topic.trim()).filter(Boolean);
   const requestedQuestion = Number(searchParams.get("question")) || 0;
   const [question, setQuestion] = useState<Question | null | undefined>(undefined);
   const [chosenKey, setChosenKey] = useState("");
@@ -43,11 +48,14 @@ function PracticeContent() {
   const [saved, setSaved] = useState(false);
   const [note, setNote] = useState("");
   const [showSaveNote, setShowSaveNote] = useState(false);
+  const [topicDraft, setTopicDraft] = useState<string[]>(selectedTopics);
+  const [showTopics, setShowTopics] = useState(false);
 
   const loadQuestion = useCallback(async (sessionId: number, excludeQuestionId?: number, questionId?: number) => {
     setQuestion(undefined); setChosenKey(""); setResult(null); setError("");
     const params = new URLSearchParams();
     if (course) params.set("course", course);
+    if (selectedTopics.length) params.set("topics", selectedTopics.join(","));
     params.set("session", String(sessionId));
     if (excludeQuestionId) params.set("exclude", String(excludeQuestionId));
     if (questionId) params.set("question", String(questionId));
@@ -65,7 +73,9 @@ function PracticeContent() {
         if (flag) { setSaved(Boolean(flag.saved)); setNote(flag.note ?? ""); }
       });
     }
-  }, [course]);
+  }, [course, topicsParam]);
+
+  useEffect(() => setTopicDraft(selectedTopics), [topicsParam]);
 
   useEffect(() => {
     if (!questionStartedAt || result) return;
@@ -96,14 +106,11 @@ function PracticeContent() {
     setSaved(nextSaved);
   }
 
-  const courseChoices = [
-    ["civil_litigation", "CIV", "Civil Litigation"],
-    ["criminal_litigation", "CRIM", "Criminal Litigation"],
-    ["corporate_law_practice", "CORP", "Corporate Law Practice"],
-    ["property_law_practice", "PROP", "Property Law Practice"],
-    ["professional_ethics_skills", "ETH", "Professional Ethics & Skills"],
-  ];
-  const courseTitle = courseChoices.find(([id]) => id === course)?.[2] ?? "Practice";
+  const courseChoices = COURSE_IDS.map((id) => [id, id === "civil_litigation" ? "CIV" : id === "criminal_litigation" ? "CRIM" : id === "corporate_law_practice" ? "CORP" : id === "property_law_practice" ? "PROP" : "ETH", COURSE_NAMES[id]]);
+  const courseTitle = course && course in COURSE_TOPICS ? COURSE_NAMES[course as keyof typeof COURSE_TOPICS] : "Practice";
+  const courseTopics = course && course in COURSE_TOPICS ? COURSE_TOPICS[course as keyof typeof COURSE_TOPICS].topics : [];
+  function toggleTopic(topic: string) { setTopicDraft((topics) => topics.includes(topic) ? topics.filter((item) => item !== topic) : [...topics, topic]); }
+  function applyTopics() { const params = new URLSearchParams(); if (course) params.set("course", course); if (topicDraft.length) params.set("topics", topicDraft.join(",")); router.replace(`/practice?${params.toString()}`); setShowTopics(false); }
 
   async function checkAnswer() {
     if (!question || !chosenKey) return;
@@ -119,9 +126,10 @@ function PracticeContent() {
     <main className="narrow">
       <Link className="back-link" href="/">← Back to home</Link>
       <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><p className="meta">{course ? <>Question {questionNumber} / {totalQuestions}<br />Session {clock((practiceSession?.total_seconds ?? 0) + currentQuestionSeconds)}</> : "Verified materials only"}</p></div>
-      {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>Question verification is in progress for this course. We will only reopen practice when answers are supported by the loaded study materials, not by source answer sheets.</p> : (
+      {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : <section className="topic-filter panel"><div className="course-checklist-heading"><div><p className="eyebrow">Topics</p><p className="muted">{selectedTopics.length ? `${selectedTopics.length} selected` : "All topics"}</p></div><button className="text-button" type="button" onClick={() => setShowTopics((open) => !open)}>{showTopics ? "Close" : "Choose topics"}</button></div>{showTopics && <><div className="course-checklist">{courseTopics.map((topic) => <label className="course-check" key={topic}><input type="checkbox" checked={topicDraft.includes(topic)} onChange={() => toggleTopic(topic)} /><span>{topic}</span></label>)}</div><div className="button-row"><button className="outline-button" type="button" onClick={() => setTopicDraft([])}>All topics</button><button className="primary-button" type="button" onClick={applyTopics}>Apply topics</button></div></>}</section>}
+      {course && (question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>No live questions match this topic selection yet. Choose all topics or ask an administrator to assign questions to these topics.</p> : (
         <section className="panel question-panel">
-          <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)}</p>
+          <p className="question-meta">{question.topic ?? courseTitle} · {yearsLabel(question.exam_years)}</p>
           <div className="practice-progress" aria-hidden="true"><span /></div>
           <p className="stem">{cleanQuestionStem(question.stem)}</p>
           <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { if (!saved) void saveFlag(true); setShowSaveNote(true); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-6-4-6 4v-17Z" /></svg>{saved ? "Saved for later" : "Save for later"}</button>
@@ -152,7 +160,7 @@ function PracticeContent() {
             </div>
           )}
         </section>
-      )}
+      ))}
       <StudyFooter />
     </main>
   );

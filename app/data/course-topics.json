@@ -1,0 +1,100 @@
+{
+  "civil_litigation": {
+    "name": "Civil Litigation",
+    "topics": [
+      "Intro & Civil Jurisdiction of Courts",
+      "Parties to a Civil Suit",
+      "Actions in Magistrate Court",
+      "Actions in High Court",
+      "Interlocutory Applications",
+      "Summary Judgment",
+      "Pleadings",
+      "Pre-trial Proceedings & Evidence",
+      "Trial & Examination of Witnesses",
+      "Final Address, Judgment & Enforcement",
+      "Application Pending Appeal & Appeals",
+      "Recovery of Premises",
+      "Election Petition",
+      "Matrimonial Causes",
+      "Fundamental Rights Enforcement Procedure"
+    ]
+  },
+  "criminal_litigation": {
+    "name": "Criminal Litigation",
+    "topics": [
+      "Introduction",
+      "Arrests, Searches & Constitutional Rights",
+      "Pre-trial Investigation & Police Interviews",
+      "Jurisdiction & Venue of Trials",
+      "Institution of Criminal Proceedings",
+      "Charges I",
+      "Charges II",
+      "Bail Pending Trial",
+      "Constitutional Safeguards",
+      "Trial I: Attendance of Parties & Arraignment",
+      "Trial II: Trial Preparation & Evidence",
+      "Trial III: Examination of Witnesses",
+      "Trial IV: Presentation of the Case for the Defence",
+      "Judgment & Sentencing",
+      "Appeals"
+    ]
+  },
+  "corporate_law_practice": {
+    "name": "Corporate Law Practice",
+    "topics": [
+      "Formation & Incorporation of Companies",
+      "Registration of Business Names, Partnerships & Trustees",
+      "Post-incorporation Matters",
+      "Foreign Participation & Corporate Contracts",
+      "Corporate Governance I",
+      "Corporate Governance II",
+      "Financial Statements, Audits & Returns",
+      "Majority Rule, Minority Protection & Investigation",
+      "Corporate Finance I – Equity & Investments",
+      "Corporate Finance II – Debentures & Bonds",
+      "Corporate Restructuring I (Internal)",
+      "Corporate Restructuring II (External)",
+      "Corporate Insolvency",
+      "Introduction to Intellectual Property Rights, Registration & Intellectual Property of Generative Artificial Intelligence",
+      "Winding Up & Dissolution of Business and Non-Business Organisations"
+    ]
+  },
+  "property_law_practice": {
+    "name": "Property Law Practice",
+    "topics": [
+      "General Overview & Applicable Laws",
+      "Deeds & Power of Attorney",
+      "Sale of Land I",
+      "Sale of Land II",
+      "Leases & Tenancies I",
+      "Leases & Covenants II",
+      "Mortgages I",
+      "Mortgages II",
+      "Land Instrument Registration Law & Property Taxation",
+      "Wills & Codicils I",
+      "Wills & Codicils II",
+      "Probate Practice",
+      "Personal Representatives"
+    ]
+  },
+  "professional_ethics_skills": {
+    "name": "Professional Ethics & Skills",
+    "topics": [
+      "Overview & History of the Legal Profession",
+      "Regulatory Bodies",
+      "Duties of Counsel to Client",
+      "Duties of Counsel to Court, State, Colleagues & Profession",
+      "Lawyers' Duties on Anti-Money Laundering & Corruption",
+      "Appointment & Discipline of Judicial Officers & Lawyers",
+      "Drafting Principles",
+      "Drafting II (Letters, CVs, Memos, Legal Opinions)",
+      "Improper Attraction of Business & Counselling Skills",
+      "Legal Research, AI in Research & Closing of Files",
+      "ADR (Alternative Dispute Resolution)",
+      "Arbitration",
+      "Law Office Management / IT in Law Office Management / Multi Door Court House",
+      "Remuneration of Legal Practitioners & Taxation",
+      "Legal Practitioners Accounts / Account Rules / Recovery of Legal Practitioners' Fees"
+    ]
+  }
+}
