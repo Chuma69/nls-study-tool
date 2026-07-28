@@ -16,12 +16,15 @@ export async function POST(request: Request) {
   const id = Number(questionId); if (!Number.isSafeInteger(id) || !["approve","reject"].includes(action ?? "")) return NextResponse.json({ error: "Invalid review action." }, { status: 400 });
   const sql = getSql();
   const consensus = await sql`SELECT selected_key,status FROM question_consensus WHERE question_id=${id} LIMIT 1` as { selected_key: string | null; status: string }[];
-  if (action === "approve" && consensus[0]?.status === "consensus_reached" && consensus[0].selected_key) {
+  if (action === "approve" && consensus[0]?.selected_key) {
     const review = await sql`SELECT explanation,citations FROM expert_reviews WHERE question_id=${id} AND selected_key=${consensus[0].selected_key} AND status='submitted' ORDER BY created_at LIMIT 1` as { explanation: string; citations: unknown }[];
+    if (!review[0]) return NextResponse.json({ error: "There is no submitted expert review to approve." }, { status: 400 });
     await sql`UPDATE questions SET material_supported_key=${consensus[0].selected_key},verification_status='staff_corrected',explanation=${review[0].explanation},explanation_version=1,explanation_citations=${JSON.stringify(review[0].citations)}::jsonb,updated_at=now() WHERE id=${id}`;
     await sql`UPDATE question_consensus SET status='staff_approved',reviewed_by=${auth.user.id},reviewed_at=now(),updated_at=now() WHERE question_id=${id}`;
-  } else {
+  } else if (action === "reject") {
     await sql`UPDATE question_consensus SET status='staff_rejected',reviewed_by=${auth.user.id},reviewed_at=now(),updated_at=now() WHERE question_id=${id}`;
+  } else {
+    return NextResponse.json({ error: "Choose a submitted expert review before approving." }, { status: 400 });
   }
   return NextResponse.json({ ok: true });
 }
