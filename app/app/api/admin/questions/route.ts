@@ -14,11 +14,11 @@ export async function GET(request: Request) {
   const questions = await sql`
     SELECT q.id,q.course,q.stem,q.options,q.material_supported_key,q.explanation,q.verification_status,s.display_name
     FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id
-    WHERE (${course}='' OR q.course=${course}) AND (${search}='' OR q.stem ILIKE ${pattern})
+    WHERE q.question_type='mcq' AND (${course}='' OR q.course=${course}) AND (${search}='' OR q.stem ILIKE ${pattern})
       AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')) OR (${status} IN ('unreviewed','insufficient_material','material_conflicted') AND q.verification_status=${status}))
     ORDER BY q.id DESC LIMIT ${limit} OFFSET ${offset}
   `;
-  const counts = await sql`SELECT count(*)::int AS total FROM questions q WHERE (${course}='' OR q.course=${course}) AND (${search}='' OR q.stem ILIKE ${pattern}) AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')) OR (${status} IN ('unreviewed','insufficient_material','material_conflicted') AND q.verification_status=${status}))` as { total: number }[];
+  const counts = await sql`SELECT count(*)::int AS total FROM questions q WHERE q.question_type='mcq' AND (${course}='' OR q.course=${course}) AND (${search}='' OR q.stem ILIKE ${pattern}) AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')) OR (${status} IN ('unreviewed','insufficient_material','material_conflicted') AND q.verification_status=${status}))` as { total: number }[];
   return NextResponse.json({ questions, page, total: counts[0]?.total ?? 0, hasMore: offset + questions.length < (counts[0]?.total ?? 0) });
 }
 
