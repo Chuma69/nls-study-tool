@@ -32,9 +32,12 @@ function PracticeContent() {
   const [questionNumber, setQuestionNumber] = useState(1);
   const [totalQuestions, setTotalQuestions] = useState(0);
 
-  const loadQuestion = useCallback(async () => {
+  const loadQuestion = useCallback(async (excludeQuestionId?: number) => {
     setQuestion(undefined); setChosenKey(""); setResult(null); setError("");
-    const response = await fetch(`/api/questions/next${course ? `?course=${encodeURIComponent(course)}` : ""}`);
+    const params = new URLSearchParams();
+    if (course) params.set("course", course);
+    if (excludeQuestionId) params.set("exclude", String(excludeQuestionId));
+    const response = await fetch(`/api/questions/next${params.size ? `?${params}` : ""}`);
     const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not load a question."); setQuestion(null); return; }
     setTotalQuestions(data.totalQuestions ?? 0);
@@ -89,7 +92,7 @@ function PracticeContent() {
             <div className={`result ${result.matchesMaterialKey ? "" : "incorrect"}`} role="status">
               <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}.`}</strong></p>
               <p>{question.explanation ?? "This answer is supported by the loaded materials. A fuller explanation is being prepared as verification continues."}</p>
-              <button className="primary-button" type="button" onClick={() => { setQuestionNumber((number) => Math.min(number + 1, totalQuestions || number + 1)); void loadQuestion(); }}>Next question</button>
+              <button className="primary-button" type="button" onClick={() => { setQuestionNumber((number) => Math.min(number + 1, totalQuestions || number + 1)); void loadQuestion(question.id); }}>Next question</button>
             </div>
           )}
           <p className="source">Source: {question.display_name ?? question.rel_source_path ?? "Source retained"}{question.source_locator ? ` · ${question.source_locator}` : ""}</p>

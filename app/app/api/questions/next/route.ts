@@ -26,6 +26,7 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Start a private or guest session first." }, { status: 401 });
 
   const selectedCourse = new URL(request.url).searchParams.get("course") ?? "";
+  const excludedQuestionId = Number(new URL(request.url).searchParams.get("exclude")) || 0;
   if (selectedCourse && !courses.has(selectedCourse)) {
     return NextResponse.json({ error: "Choose one of the listed courses." }, { status: 400 });
   }
@@ -41,9 +42,10 @@ export async function GET(request: Request) {
       AND q.material_supported_key IS NOT NULL
       AND q.verification_status IN ('material_supported', 'staff_corrected')
       AND (${selectedCourse} = '' OR q.course = ${selectedCourse})
+      AND (${excludedQuestionId} = 0 OR q.id <> ${excludedQuestionId})
     GROUP BY q.id, s.display_name, s.rel_source_path
     HAVING NOT COALESCE(bool_or(a.is_correct), false)
-    ORDER BY COALESCE(bool_or(a.is_correct = false), false) DESC, random()
+    ORDER BY COALESCE(bool_or(a.is_correct = false), false) ASC, random()
     LIMIT 1
   ` as QuestionRow[];
 
