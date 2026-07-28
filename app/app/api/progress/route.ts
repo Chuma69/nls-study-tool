@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSql } from "@/lib/db";
 import { currentUser } from "@/lib/session";
+import { topicsForCourse } from "@/lib/course-topics";
 
 export const runtime = "nodejs";
 
@@ -62,7 +63,7 @@ export async function GET() {
     const row = lookup.get(course) ?? { course, total_questions: 0, attempted_questions: 0, correct_questions: 0, total_topics: 0, covered_topics: 0 };
     const accuracy = row.attempted_questions ? Math.round(row.correct_questions / row.attempted_questions * 100) : 0;
     const coverage = row.total_questions ? Math.round(row.attempted_questions / row.total_questions * 100) : 0;
-    return { ...row, readiness: readinessForCourse(row.total_questions, row.attempted_questions, row.correct_questions), accuracy, coverage };
+    return { ...row, total_topics: topicsForCourse(course).length, readiness: readinessForCourse(row.total_questions, row.attempted_questions, row.correct_questions), accuracy, coverage };
   });
   const totals = courses.reduce((sum, course) => ({
     questions: sum.questions + course.total_questions,
@@ -87,10 +88,14 @@ export async function GET() {
       AND q.verification_status IN ('material_supported','staff_corrected')
     GROUP BY q.course,q.topic ORDER BY q.course,q.topic
   ` as TopicRow[];
-  const topics = rawTopics.map((topic) => ({
-    ...topic,
-    accuracy: topic.attempted_questions ? Math.round(topic.correct_questions / topic.attempted_questions * 100) : 0,
-    coverage: topic.total_questions ? Math.round(topic.attempted_questions / topic.total_questions * 100) : 0,
+  const topicLookup = new Map(rawTopics.map((topic) => [`${topic.course}:${topic.topic}`, topic]));
+  const topics = courseIds.flatMap((course) => topicsForCourse(course).map((topic) => {
+    const row = topicLookup.get(`${course}:${topic}`) ?? { course, topic, total_questions: 0, attempted_questions: 0, correct_questions: 0 };
+    return {
+      ...row,
+      accuracy: row.attempted_questions ? Math.round(row.correct_questions / row.attempted_questions * 100) : 0,
+      coverage: row.total_questions ? Math.round(row.attempted_questions / row.total_questions * 100) : 0,
+    };
   }));
   const activeCourses = courses.filter((course) => course.total_questions > 0);
   const average = activeCourses.length ? activeCourses.reduce((sum, course) => sum + course.readiness, 0) / activeCourses.length : 0;
