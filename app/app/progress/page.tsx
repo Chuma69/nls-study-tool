@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { StudyFooter } from "@/components/study-footer";
 
 type PracticeSession = { id: number; course: string; started_at: string; last_activity_at: string; answers_count: number; correct_count: number; total_seconds: number };
 type SprintSession = { id: number; started_at: string; completed_at: string | null; status: string; question_count: number; correct_count: number; answered_count: number; duration_seconds: number };
@@ -53,6 +54,6 @@ export default function ProgressPage() {
       </article>; })}
     </section>}</>}
     {message && <p className="status-message" role="status">{message}</p>}
-    <footer>Answers are limited to the loaded study materials and may be incomplete or outdated. This tool is exam-study support, not legal advice.</footer>
+    <StudyFooter />
   </main>;
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { StudyFooter } from "@/components/study-footer";
 
 type User = { id: number; username: string; identityType: "registered" | "guest"; role: "learner" | "expert" | "admin" };
 type CourseMetric = { course: string; total_questions: number; attempted_questions: number; total_topics: number; covered_topics: number; coverage: number };
@@ -129,9 +130,7 @@ export default function Home() {
         </section>
       )}
 
-      <footer>
-        Answers are limited to the loaded study materials and may be incomplete or outdated. This tool is exam-study support, not legal advice.
-      </footer>
+      <StudyFooter />
     </main>
   );
 }

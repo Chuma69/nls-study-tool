@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { cleanQuestionStem } from "@/lib/question-text";
 import { QuestionReport } from "@/components/question-report";
+import { StudyFooter } from "@/components/study-footer";
 
 type Question = {
   id: number;
@@ -151,7 +152,7 @@ function PracticeContent() {
           <p className="source">Source: {question.display_name ?? question.rel_source_path ?? "Source retained"}{question.source_locator ? ` · ${question.source_locator}` : ""}</p>
         </section>
       )}
-      <footer>Answers are limited to the loaded study materials and may be incomplete or outdated. This tool is exam-study support, not legal advice.</footer>
+      <StudyFooter />
     </main>
   );
 }

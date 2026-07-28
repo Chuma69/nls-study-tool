@@ -227,6 +227,8 @@ textarea { min-height: 120px; resize: vertical; }
 .text-link, .text-button { color: var(--accent); display: inline-block; font-size: 13px; margin: 14px 12px 0 0; }
 .text-button { background: transparent; border: 0; min-height: auto; padding: 0; text-decoration: underline; }
 footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .08em; line-height: 1.7; margin-top: 52px; padding-top: 16px; text-transform: uppercase; }
+.built-for { align-items: center; color: var(--ink); display: flex; font-family: "IBM Plex Sans", sans-serif; font-size: 12px; letter-spacing: 0; margin-top: 10px; text-transform: none; }
+.outline-heart { font-family: "IBM Plex Sans", sans-serif; font-size: 18px; line-height: 1; margin-left: 4px; }
 
 @media (max-width: 860px) {
   .site-nav-inner { align-items: flex-start; flex-direction: column; gap: 6px; padding: 14px 20px; }
