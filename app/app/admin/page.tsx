@@ -508,8 +508,7 @@ export default function AdminPage() {
       {tab === "questions" && (
         <>
           <section className="panel question-bank">
-            <p className="eyebrow">Question bank</p>
-            <h2>Review every question.</h2>
+            <p className="question-bank-heading">Question bank</p>
             <p className="muted">
               Select a row to see its options and review it before publishing.
             </p>
@@ -565,6 +564,13 @@ export default function AdminPage() {
               >
                 Search
               </button>
+            </div>
+            <div className="bank-results-summary">
+              <p className="muted">
+                {bankTotal
+                  ? `${bankTotal.toLocaleString()} matching questions`
+                  : "Opening question bank…"}
+              </p>
               <button
                 className="text-button clear-bank-filters"
                 type="button"
@@ -581,11 +587,6 @@ export default function AdminPage() {
                 Clear filters
               </button>
             </div>
-            <p className="muted">
-              {bankTotal
-                ? `${bankTotal.toLocaleString()} matching questions`
-                : "Opening question bank…"}
-            </p>
             {bankSelected.length > 0 && <div className="scenario-selection-bar"><strong>{bankSelected.length} selected</strong><button className="primary-button" type="button" disabled={bankSelected.length < 2} onClick={() => setShowScenarioBuilder(true)}>Group into scenario</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_publish")}>Publish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unpublish")}>Unpublish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_flag")}>Flag for review</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unflag")}>Remove flags</button><button className="text-button" type="button" onClick={() => setBankSelected([])}>Clear selection</button><span className="muted selection-order-note">Selection order becomes scenario question order.</span></div>}
             {showScenarioBuilder && <div className="shared-context scenario-builder"><label htmlFor="scenario-text">Shared scenario</label><textarea id="scenario-text" value={scenarioDraft} onChange={(event) => setScenarioDraft(event.target.value)} placeholder="Paste or write the scenario students must read before answering these questions…" /><div className="button-row"><button className="primary-button" type="button" disabled={bankSelected.length < 2 || !scenarioDraft.trim()} onClick={() => void groupSelectedQuestions()}>Save scenario group</button><button className="text-button" type="button" onClick={() => setShowScenarioBuilder(false)}>Cancel</button></div></div>}
             {bankQuestions.length > 0 && (

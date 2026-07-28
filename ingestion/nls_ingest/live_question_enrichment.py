@@ -39,26 +39,91 @@ Write one concise tutor-style paragraph explaining why the supplied answer is ri
 def _rows():
     with db.connect() as conn:
         with conn.cursor() as cur:
-            cur.execute("""SELECT id, stem, options, material_supported_key, course, topic, verification_status, explanation_version
+            cur.execute("""SELECT id, stem, options, material_supported_key, course, topic,
+                                  verification_status, explanation_version, explanation
                            FROM questions
                           WHERE question_type='mcq'
                             AND verification_status IN ('material_supported', 'staff_corrected')
                             AND material_supported_key IS NOT NULL
                           ORDER BY id""")
             return [{"id": row[0], "stem": row[1], "options": row[2], "key": row[3],
-                     "course": row[4], "topic": row[5], "verification_status": row[6], "explanation_version": row[7]} for row in cur.fetchall()]
+                     "course": row[4], "topic": row[5], "verification_status": row[6],
+                     "explanation_version": row[7], "explanation": row[8]} for row in cur.fetchall()]
 
 
 def _pending_rows():
-    return [question for question in _rows() if (
-        question["verification_status"] == "material_supported" and question["explanation_version"] != 2
-    ) or (
-        question["verification_status"] == "staff_corrected" and not question["topic"]
-    )]
+    # Reprocess only records that fail the current live-content contract. Older
+    # version numbers alone are not a reason to pay for another model call.
+    return [question for question in _rows() if
+            not is_valid_topic(question["course"], question["topic"])
+            or not (question["explanation"] or "").strip()]
 
 
 def _cost(input_tokens: int, output_tokens: int) -> float:
     return (input_tokens * config.REASONING_INPUT_USD_PER_MTOK + output_tokens * config.REASONING_OUTPUT_USD_PER_MTOK) / 1_000_000
+
+
+def _progress(run_id, processed, enriched, skipped, input_tokens, output_tokens,
+              spent, status="running", complete=False):
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """UPDATE live_question_enrichment_runs
+                      SET status=%s, questions_processed=%s,
+                          questions_enriched=%s, questions_skipped=%s,
+                          actual_input_tokens=%s, actual_output_tokens=%s,
+                          actual_cost_usd=%s, completed_at=%s
+                    WHERE id=%s""",
+                (status, processed, enriched, skipped, input_tokens,
+                 output_tokens, spent,
+                 datetime.now(timezone.utc) if complete else None, run_id),
+            )
+
+
+def _record_item(run_id, question, result, input_tokens, output_tokens,
+                 cost, error):
+    status = "enriched" if result else ("skipped" if error in {
+        "no_retrieval", "invalid_taxonomy", "missing_explanation"
+    } else "failed")
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            # Keep the content mutation and its audit record atomic. An upsert
+            # makes a retry safe if a Neon connection drops around COMMIT.
+            if result:
+                if question["verification_status"] == "staff_corrected":
+                    cur.execute(
+                        "UPDATE questions SET course=%s, topic=%s, updated_at=now() WHERE id=%s",
+                        (result["course"], result["topic"], question["id"]),
+                    )
+                else:
+                    cur.execute(
+                        """UPDATE questions
+                              SET course=%s, topic=%s, explanation=%s,
+                                  explanation_citations=%s::jsonb,
+                                  explanation_version=2, updated_at=now()
+                            WHERE id=%s AND verification_status='material_supported'""",
+                        (result["course"], result["topic"], result["explanation"],
+                         json.dumps(result["citations"]), question["id"]),
+                    )
+            cur.execute(
+                """INSERT INTO live_question_enrichment_items
+                       (run_id,question_id,status,assigned_course,assigned_topic,
+                        input_tokens,output_tokens,actual_cost_usd,error_code)
+                     VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     ON CONFLICT (run_id,question_id) DO UPDATE SET
+                       status=excluded.status,
+                       assigned_course=excluded.assigned_course,
+                       assigned_topic=excluded.assigned_topic,
+                       input_tokens=excluded.input_tokens,
+                       output_tokens=excluded.output_tokens,
+                       actual_cost_usd=excluded.actual_cost_usd,
+                       error_code=excluded.error_code""",
+                (run_id, question["id"], status,
+                 result["course"] if result else None,
+                 result["topic"] if result else None,
+                 input_tokens, output_tokens, cost, error),
+            )
+    return status
 
 
 def dry_run():
@@ -100,6 +165,7 @@ def dry_run():
 
 def _one(question):
     from openai import OpenAI, RateLimitError
+    input_tokens = output_tokens = 0
     try:
         for attempt in range(3):
             try:
@@ -121,6 +187,8 @@ def _one(question):
                     reasoning={"effort": "high"}, max_output_tokens=1500,
                     text={"verbosity": "medium", "format": {"type": "json_schema", "name": "live_mcq_enrichment", "strict": True, "schema": SCHEMA}},
                 )
+                input_tokens = int(response.usage.input_tokens or 0)
+                output_tokens = int(response.usage.output_tokens or 0)
                 break
             except RateLimitError:
                 if attempt == 4:
@@ -128,19 +196,21 @@ def _one(question):
                 time.sleep(min(60, 5 * (2 ** attempt)))
         payload = json.loads(response.output_text)
         if not is_valid_topic(payload["course"], payload["topic"]):
-            return question, None, int(response.usage.input_tokens or 0), int(response.usage.output_tokens or 0), "invalid_taxonomy"
+            return question, None, input_tokens, output_tokens, "invalid_taxonomy"
         allowed = {item["id"]: item for item in evidence}
         citations = [allowed[item] for item in payload["citation_chunk_ids"] if item in allowed]
         explanation = payload["explanation"].strip()
         if not explanation:
-            return question, None, int(response.usage.input_tokens or 0), int(response.usage.output_tokens or 0), "missing_explanation"
+            return question, None, input_tokens, output_tokens, "missing_explanation"
         if not explanation.startswith("According to"):
             explanation = f"According to the cited study materials, {explanation[0].lower() + explanation[1:]}"
         result = {"course": payload["course"], "topic": payload["topic"], "explanation": explanation,
                   "citations": [{"chunk_id": item["id"], "document": item["document"], "locator": item["locator"]} for item in citations]}
-        return question, result, int(response.usage.input_tokens or 0), int(response.usage.output_tokens or 0), None
+        return question, result, input_tokens, output_tokens, None
     except Exception as exc:
-        return question, None, 0, 0, type(exc).__name__
+        # A response may have been billed even when its payload later fails
+        # validation or JSON decoding. Preserve that usage in the item ledger.
+        return question, None, input_tokens, output_tokens, type(exc).__name__
 
 
 def run(approved_report_id: str, max_cost_usd: float):
@@ -153,29 +223,62 @@ def run(approved_report_id: str, max_cost_usd: float):
     if len(rows) != report["questions_planned"]:
         raise RuntimeError("The remaining live-question count changed; run a new dry-run before spending.")
     config.require_openai_key()
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO live_question_enrichment_runs
+                       (report_id,model_id,requested_cap_usd,
+                        estimated_input_tokens,estimated_output_tokens,
+                        estimated_cost_usd,questions_planned)
+                     VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                (approved_report_id, config.MODEL_REASONING, max_cost_usd,
+                 report["estimated_input_tokens"], report["estimated_output_tokens"],
+                 report["estimated_cost_usd"], len(rows)),
+            )
+            run_id = cur.fetchone()[0]
+
     spent = 0.0
+    total_input = total_output = 0
     processed = enriched = skipped = 0
-    for question in rows:
-        if spent >= max_cost_usd:
-            break
-        question, result, inp, out, error = _one(question)
-        spent += _cost(inp, out)
-        processed += 1
-        if result:
-            with db.connect() as conn:
-                with conn.cursor() as cur:
-                    # Preserve an administrator's own answer/explanation. We only add the
-                    # topic to those questions; materials-backed explanations can refresh.
-                    if question["verification_status"] == "staff_corrected":
-                        cur.execute("UPDATE questions SET course=%s, topic=%s, updated_at=now() WHERE id=%s", (result["course"], result["topic"], question["id"]))
-                    else:
-                        cur.execute("""UPDATE questions
-                                          SET course=%s, topic=%s, explanation=%s,
-                                              explanation_citations=%s::jsonb, explanation_version=2, updated_at=now()
-                                        WHERE id=%s AND verification_status='material_supported'""",
-                                    (result["course"], result["topic"], result["explanation"], json.dumps(result["citations"]), question["id"]))
-            enriched += 1
-        else:
-            skipped += 1
-        print(f"  enriched {processed}/{len(rows)}; {enriched} saved; {skipped} skipped; ${spent:.4f}", flush=True)
-    return {"questions_processed": processed, "questions_enriched": enriched, "questions_skipped": skipped, "actual_cost_usd": round(spent, 6)}
+    run_status = "completed"
+    try:
+        for question in rows:
+            if spent >= max_cost_usd:
+                run_status = "stopped"
+                break
+            question, result, inp, out, error = _one(question)
+            cost = _cost(inp, out)
+            item_status = _record_item(
+                run_id, question, result, inp, out, cost, error
+            )
+            spent += cost
+            total_input += inp
+            total_output += out
+            processed += 1
+            enriched += item_status == "enriched"
+            skipped += item_status != "enriched"
+            _progress(run_id, processed, enriched, skipped, total_input,
+                      total_output, spent)
+            print(
+                f"  enriched {processed}/{len(rows)}; {enriched} saved; "
+                f"{skipped} skipped; ${spent:.4f} (run {run_id})",
+                flush=True,
+            )
+    except KeyboardInterrupt:
+        run_status = "stopped"
+        raise
+    except Exception:
+        run_status = "failed"
+        raise
+    finally:
+        _progress(run_id, processed, enriched, skipped, total_input,
+                  total_output, spent, status=run_status, complete=True)
+    return {
+        "run_id": run_id,
+        "questions_processed": processed,
+        "questions_enriched": enriched,
+        "questions_skipped": skipped,
+        "actual_input_tokens": total_input,
+        "actual_output_tokens": total_output,
+        "actual_cost_usd": round(spent, 6),
+    }

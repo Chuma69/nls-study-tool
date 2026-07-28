@@ -167,6 +167,7 @@ form .primary-button { margin-top: 14px; }
 .course-checklist-heading { align-items: center; display: flex; justify-content: space-between; margin-top: 34px; }
 .course-checklist-heading h2 { margin: 0; }
 .course-checklist-heading .text-button { margin: 0; }
+.topic-heading-actions { align-items: center; display: flex; gap: 18px; }
 .course-checklist { display: grid; gap: 9px; margin-top: 14px; }
 .course-check { align-items: center; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; display: flex; font-size: 15px; gap: 10px; margin: 0; min-height: 46px; padding: 10px 12px; }
 .course-check input { accent-color: var(--accent); min-height: auto; padding: 0; width: 17px; }
@@ -263,9 +264,12 @@ form .primary-button { margin-top: 14px; }
 .invite-controls .primary-button { margin: 0; white-space: nowrap; }
 .review-queue .review-row:last-child { padding-bottom: 0; }
 .bank-controls { display: grid; gap: 10px; grid-template-columns: minmax(200px, 1fr) minmax(170px, .6fr) auto; margin: 16px 0 10px; }
-.question-bank .bank-controls { grid-template-columns: minmax(260px, 1.35fr) repeat(3, minmax(150px, .62fr)) auto auto; }
+.question-bank-heading { font-family: "IBM Plex Sans", sans-serif; font-size: 18px; font-weight: 700; margin: 0 0 6px; }
+.question-bank .bank-controls { grid-template-columns: minmax(260px, 1.35fr) repeat(3, minmax(150px, .62fr)) auto; }
 .question-bank .bank-controls .outline-button { align-self: stretch; margin: 0; white-space: nowrap; }
 .clear-bank-filters { align-self: center; margin: 0; white-space: nowrap; }
+.bank-results-summary { align-items: center; display: flex; justify-content: space-between; }
+.bank-results-summary p { margin: 0; }
 .question-bank-row { cursor: pointer; transition: background .15s ease, padding .15s ease; }
 .question-bank-row:hover { background: oklch(.97 .02 235); padding-left: 12px; padding-right: 12px; }
 .question-bank-row.selected-bank-row { background: oklch(.94 .035 235); }
