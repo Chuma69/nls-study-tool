@@ -17,6 +17,8 @@ type QuestionRow = {
   rel_source_path: string | null;
 };
 
+type CountRow = { total: number };
+
 const courses = new Set(["civil_litigation", "criminal_litigation", "corporate_law_practice", "property_law_practice", "professional_ethics_skills"]);
 
 export async function GET(request: Request) {
@@ -45,5 +47,14 @@ export async function GET(request: Request) {
     LIMIT 1
   ` as QuestionRow[];
 
-  return NextResponse.json({ question: rows[0] ?? null });
+  const totals = await getSql()`
+    SELECT count(*)::int AS total
+    FROM questions q
+    WHERE q.question_type = 'mcq'
+      AND q.material_supported_key IS NOT NULL
+      AND q.verification_status IN ('material_supported', 'staff_corrected')
+      AND (${selectedCourse} = '' OR q.course = ${selectedCourse})
+  ` as CountRow[];
+
+  return NextResponse.json({ question: rows[0] ?? null, totalQuestions: totals[0]?.total ?? 0 });
 }

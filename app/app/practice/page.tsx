@@ -29,16 +29,19 @@ function PracticeContent() {
   const [chosenKey, setChosenKey] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState("");
+  const [questionNumber, setQuestionNumber] = useState(1);
+  const [totalQuestions, setTotalQuestions] = useState(0);
 
   const loadQuestion = useCallback(async () => {
     setQuestion(undefined); setChosenKey(""); setResult(null); setError("");
     const response = await fetch(`/api/questions/next${course ? `?course=${encodeURIComponent(course)}` : ""}`);
     const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not load a question."); setQuestion(null); return; }
+    setTotalQuestions(data.totalQuestions ?? 0);
     setQuestion(data.question);
   }, [course]);
 
-  useEffect(() => { if (course) void loadQuestion(); else setQuestion(null); }, [course, loadQuestion]);
+  useEffect(() => { setQuestionNumber(1); if (course) void loadQuestion(); else setQuestion(null); }, [course, loadQuestion]);
 
   const courseChoices = [
     ["civil_litigation", "CIV", "Civil Litigation"],
@@ -60,7 +63,7 @@ function PracticeContent() {
   return (
     <main className="narrow">
       <Link className="back-link" href="/">← Back to home</Link>
-      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><p className="meta">Verified materials only</p></div>
+      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><p className="meta">{course ? `Question ${questionNumber} / ${totalQuestions}` : "Verified materials only"}</p></div>
       {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>Question verification is in progress for this course. We will only reopen practice when answers are supported by the loaded study materials, not by source answer sheets.</p> : (
         <section className="panel question-panel">
           <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)}</p>
@@ -86,7 +89,7 @@ function PracticeContent() {
             <div className={`result ${result.matchesMaterialKey ? "" : "incorrect"}`} role="status">
               <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}.`}</strong></p>
               <p>{question.explanation ?? "This answer is supported by the loaded materials. A fuller explanation is being prepared as verification continues."}</p>
-              <button className="primary-button" type="button" onClick={() => { void loadQuestion(); }}>Next question</button>
+              <button className="primary-button" type="button" onClick={() => { setQuestionNumber((number) => Math.min(number + 1, totalQuestions || number + 1)); void loadQuestion(); }}>Next question</button>
             </div>
           )}
           <p className="source">Source: {question.display_name ?? question.rel_source_path ?? "Source retained"}{question.source_locator ? ` · ${question.source_locator}` : ""}</p>
