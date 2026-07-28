@@ -139,7 +139,7 @@ function PracticeContent() {
             {chosenKey ? "Check answer" : "Choose an option above first"}
           </button> : (
             <div className={`result ${result.matchesMaterialKey ? "" : "incorrect"}`} role="status">
-              <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}.`}</strong></p>
+              <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}: ${question.options.find((option) => option.key === result.materialSupportedKey)?.text ?? ""}`}</strong></p>
               <p>{question.explanation?.replace(/^(The materials (expressly )?(state|say) that|According to the materials,?\s*)/i, "") ?? "A fuller tutor explanation is being prepared for this verified answer."}</p>
               <div className="note-box"><label htmlFor="question-note">Your note</label><textarea id="question-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a reminder for later revision…" /><button type="button" className="outline-button" onClick={() => { void saveFlag(true, note); }}>Save note</button></div>
               <button className="primary-button" type="button" onClick={() => { if (practiceSession) void loadQuestion(practiceSession.id, question.id); }}>Next question</button>
