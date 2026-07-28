@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { cleanQuestionStem } from "@/lib/question-text";
+import { QuestionReport } from "@/components/question-report";
 
 type Question = {
   id: number;
@@ -135,6 +136,7 @@ function PracticeContent() {
               <strong>{option.key}</strong><span>{option.text}</span>
             </label>)}
           </div>
+          <QuestionReport questionId={question.id} />
           {error && <p className="error" role="alert">{error}</p>}
           {!result ? <button className="primary-button" type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
             {chosenKey ? "Check answer" : "Choose an option above first"}

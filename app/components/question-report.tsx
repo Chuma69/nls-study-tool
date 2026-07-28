@@ -1,0 +1,9 @@
+"use client";
+
+import { useState } from "react";
+
+export function QuestionReport({ questionId }: { questionId: number }) {
+  const [open, setOpen] = useState(false); const [category, setCategory] = useState<"typo" | "answer" | "other">("typo"); const [details, setDetails] = useState(""); const [message, setMessage] = useState("");
+  async function submit() { const response = await fetch("/api/question-reports", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId, category, details }) }); const data = await response.json(); if (!response.ok) { setMessage(data.error ?? "Could not send your report."); return; } setMessage("Thanks — this has been sent to the admin review queue."); setOpen(false); setDetails(""); }
+  return <div className="question-report">{!open ? <button type="button" className="text-button" onClick={() => setOpen(true)}>Report a problem with this question</button> : <div className="report-form"><label>What needs attention?</label><select value={category} onChange={(event) => setCategory(event.target.value as "typo" | "answer" | "other")}><option value="typo">Typo or unclear wording</option><option value="answer">Possible answer or explanation issue</option><option value="other">Other problem</option></select><textarea value={details} onChange={(event) => setDetails(event.target.value)} placeholder="Tell us what you noticed (optional)." /><div className="button-row"><button type="button" className="outline-button" onClick={() => { void submit(); }}>Send report</button><button type="button" className="text-button" onClick={() => setOpen(false)}>Cancel</button></div></div>}{message && <p className="status-message">{message}</p>}</div>;
+}

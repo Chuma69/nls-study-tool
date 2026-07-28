@@ -133,6 +133,10 @@ p { margin: 0; }
 .note-box label { color: var(--ink); }
 .note-box textarea { font-size: 14px; min-height: 82px; }
 .note-box .outline-button { margin-top: 10px; }
+.question-report { margin-top: 10px; }
+.report-form { background: oklch(.97 .02 235); border: 1px solid var(--line); border-radius: 9px; margin-top: 12px; padding: 14px; }
+.report-form label { margin-top: 0; }
+.report-form textarea { min-height: 76px; }
 .flashcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin-top: 28px; padding: 22px; }
 .rule-progress { align-items: center; background: oklch(.95 .025 235); border: 1px dashed oklch(.78 .025 235); border-radius: 14px; display: flex; flex-wrap: wrap; gap: 26px; margin-top: 26px; padding: 18px 22px; }
 .rule-progress strong { color: var(--accent); display: block; font-family: Newsreader, Georgia, serif; font-size: 29px; font-weight: 500; line-height: 1; }
@@ -203,6 +207,14 @@ p { margin: 0; }
 .activity-stat span { color: var(--muted); font-size: 11px; }
 .activity-courses { display: flex; flex-wrap: wrap; gap: 6px; }
 .activity-courses span { background: oklch(.95 .02 235); border-radius: 99px; font-size: 11px; padding: 5px 8px; }
+.report-queue { margin-bottom: 22px; }
+.review-list { display: grid; gap: 12px; margin-top: 18px; }
+.review-row { border-top: 1px solid var(--line); padding: 16px 0; }
+.review-row p + p { margin-top: 7px; }
+.report-editor { margin-bottom: 22px; }
+.question-bank { margin-bottom: 22px; }
+.bank-controls { display: grid; gap: 10px; grid-template-columns: minmax(200px, 1fr) minmax(170px, .6fr) auto; margin: 16px 0 10px; }
+.option-edit { align-items: center; display: grid; gap: 10px; grid-template-columns: 22px 1fr; margin-top: 10px; }
 .source { margin-top: 20px; }
 
 label { display: block; font-size: 13px; margin: 18px 0 6px; }
