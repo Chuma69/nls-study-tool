@@ -260,7 +260,8 @@ form .primary-button { margin-top: 14px; }
 .invite-controls .primary-button { margin: 0; white-space: nowrap; }
 .review-queue .review-row:last-child { padding-bottom: 0; }
 .bank-controls { display: grid; gap: 10px; grid-template-columns: minmax(200px, 1fr) minmax(170px, .6fr) auto; margin: 16px 0 10px; }
-.question-bank .bank-controls { grid-template-columns: minmax(200px, 1fr) minmax(150px, .55fr) minmax(150px, .55fr) auto; }
+.question-bank .bank-controls { grid-template-columns: minmax(260px, 1.35fr) repeat(3, minmax(150px, .62fr)) auto; }
+.question-bank .bank-controls .outline-button { align-self: stretch; margin: 0; white-space: nowrap; }
 .question-bank-row { cursor: pointer; transition: background .15s ease, padding .15s ease; }
 .question-bank-row:hover { background: oklch(.97 .02 235); padding-left: 12px; padding-right: 12px; }
 .question-bank-pages { align-items: center; }
@@ -293,6 +294,8 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "I
   .home-grid { grid-template-columns: 1fr; }
   .course-grid { grid-template-columns: repeat(2, 1fr); }
   .picker-grid { grid-template-columns: 1fr; }
+  .question-bank .bank-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .question-bank .bank-controls input { grid-column: 1 / -1; }
 }
 @media (max-width: 560px) {
   .nav-links { gap: 0; width: 100%; }
@@ -312,5 +315,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "I
   .activity-row { align-items: start; grid-template-columns: 1fr 1fr; }
   .activity-courses { grid-column: 1 / -1; }
   .invite-controls { grid-template-columns: 1fr; }
+  .question-bank .bank-controls { grid-template-columns: 1fr; }
+  .question-bank .bank-controls input { grid-column: auto; }
   h1 { font-size: 2.5rem; }
 }

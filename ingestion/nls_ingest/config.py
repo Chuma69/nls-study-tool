@@ -88,6 +88,7 @@ REASONING_INPUT_USD_PER_MTOK = float(os.environ.get("REASONING_INPUT_USD_PER_MTO
 REASONING_OUTPUT_USD_PER_MTOK = float(os.environ.get("REASONING_OUTPUT_USD_PER_MTOK", "15.00"))
 REASONING_PILOT_SIZE = int(os.environ.get("REASONING_PILOT_SIZE", "150"))
 REASONING_PILOT_DRY_RUN_PATH: Path = BUILD_DIR / "reasoning_calibration_dry_run.json"
+LIVE_ENRICHMENT_DRY_RUN_PATH: Path = BUILD_DIR / "live_question_enrichment_dry_run.json"
 
 # ── Chunking (PRD §5.4) ───────────────────────────────────────
 CHUNK_TARGET_TOKENS = 650      # ~500–800 range

@@ -197,6 +197,23 @@ def cmd_run_reasoning_calibration(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_enrich_live_questions(args: argparse.Namespace) -> int:
+    from . import live_question_enrichment
+    if args.dry_run:
+        report = live_question_enrichment.dry_run()
+        print("✓ Live-question enrichment dry-run complete — no OpenAI API calls were made.")
+        for key in ("report_id", "model_id", "questions_planned", "estimated_input_tokens", "estimated_output_tokens", "estimated_cost_usd", "recommended_cap_usd"):
+            print(f"  {key:26} {report[key]}")
+        return 0
+    if not args.approve_dry_run or args.max_cost_usd is None:
+        print("Live-question enrichment is blocked until its dry-run report and cap are approved.", file=sys.stderr)
+        return 2
+    result = live_question_enrichment.run(args.approve_dry_run, args.max_cost_usd)
+    print("✓ Live-question enrichment finished.")
+    for key, value in result.items(): print(f"  {key:26} {value}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="nls_ingest", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -231,6 +248,12 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--promote", action="store_true", help="Apply cited materials-only results to the main question pool.")
     rp.add_argument("--resume-run-id", type=int, help="Continue an interrupted calibration run without repeating saved questions.")
     rp.set_defaults(func=cmd_run_reasoning_calibration)
+
+    le = sub.add_parser("enrich-live-questions", help="Assign official topics and refresh grounded explanations for live MCQs.")
+    le.add_argument("--dry-run", action="store_true", help="Estimate cost without calling OpenAI.")
+    le.add_argument("--approve-dry-run", help="Exact dry-run report ID approved by the owner.")
+    le.add_argument("--max-cost-usd", type=float, help="Hard spend ceiling.")
+    le.set_defaults(func=cmd_enrich_live_questions)
 
     pb = sub.add_parser("build", help="Build the SQLite FTS index.")
     pb.add_argument("--ocr", action="store_true", help="OCR scanned PDFs (slow).")
