@@ -55,7 +55,7 @@ export default function AccountPage() {
           {message && <p role="status">{message}</p>}
         </>
       )}
-      <footer>Answers are limited to the loaded study materials and may be incomplete or outdated. This tool is exam-study support, not legal advice.</footer>
+      <footer>This is a beta-phase study project and mistakes can happen. Please report any issue or feedback you spot. Answers draw on loaded study materials and reviews by legal experts; this tool is exam-study support, not legal advice.</footer>
     </main>
   );
 }
