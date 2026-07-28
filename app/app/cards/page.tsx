@@ -6,7 +6,7 @@ import { cleanQuestionStem } from "@/lib/question-text";
 
 type Card = { id: number; course: string; stem: string; options: { key: string; text: string }[]; material_supported_key: string; explanation: string | null; display_name: string | null };
 function tutorExplanation(text: string | null) {
-  return text?.replace(/^Option\s+[A-Z]\s*\([^)]*\)\s+is supported\.\s*/i, "").replace(/^(The materials (expressly )?(state|say) that|According to the materials,?\s*)/i, "") ?? "A tutor explanation is being prepared for this verified rule.";
+  return text?.replace(/^Option\s+[A-Z]\s*(?:\([^)]*\))?\s*(?:is|was)\s*/i, "").replace(/^(The materials (expressly )?(state|say) that|According to the materials,?\s*)/i, "") ?? "A tutor explanation is being prepared for this verified rule.";
 }
 
 export default function CardsPage() {
