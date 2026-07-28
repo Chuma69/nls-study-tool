@@ -134,6 +134,10 @@ p { margin: 0; }
 .note-box textarea { font-size: 14px; min-height: 82px; }
 .note-box .outline-button { margin-top: 10px; }
 .flashcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin-top: 28px; padding: 22px; }
+.rule-progress { align-items: center; background: oklch(.95 .025 235); border: 1px dashed oklch(.78 .025 235); border-radius: 14px; display: flex; flex-wrap: wrap; gap: 26px; margin-top: 26px; padding: 18px 22px; }
+.rule-progress strong { color: var(--accent); display: block; font-family: Newsreader, Georgia, serif; font-size: 29px; font-weight: 500; line-height: 1; }
+.rule-progress span { color: var(--muted); display: block; font-size: 11px; margin-top: 4px; }
+.rule-progress .text-button { margin: 0 0 0 auto; }
 .flashcard-face { background: transparent; border: 0; color: var(--ink); min-height: 320px; padding: 18px; text-align: left; width: 100%; }
 .flashcard-face h2 { font-size: clamp(1.75rem, 4vw, 2.65rem); line-height: 1.15; margin: 22px 0; }
 .flashcard-face span, .flashcard-face small { color: var(--muted); display: block; margin-top: 22px; }
