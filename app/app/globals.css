@@ -180,6 +180,7 @@ p { margin: 0; }
 .sprint-review.incorrect .eyebrow { color: var(--bad); }
 .session-list { display: grid; gap: 14px; margin-top: 28px; }
 .course-progress { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin-top: 28px; padding: 24px; }
+.rule-cards-progress .coverage-grid { margin: 18px 0 24px; }
 .course-progress-row { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 14px; grid-template-columns: minmax(180px, 1fr) minmax(110px, 1.2fr) 46px; padding: 16px 0; }
 .course-progress > .eyebrow + .course-progress-row { border-top: 0; margin-top: 10px; }
 .course-progress-title strong { display: block; font-family: Newsreader, Georgia, serif; font-size: 21px; font-weight: 500; }

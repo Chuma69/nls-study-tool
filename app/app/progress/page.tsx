@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 type PracticeSession = { id: number; course: string; started_at: string; last_activity_at: string; answers_count: number; correct_count: number; total_seconds: number };
 type SprintSession = { id: number; started_at: string; completed_at: string | null; status: string; question_count: number; correct_count: number; answered_count: number; duration_seconds: number };
+type RuleCardStats = { reviewed: number; due: number; confident: number };
 type CourseProgress = { course: string; total_questions: number; attempted_questions: number; total_topics: number; covered_topics: number; accuracy: number; coverage: number };
 type ProgressData = { sessions: PracticeSession[]; sprints: SprintSession[]; courses: CourseProgress[]; coverage: { questions: number; answered: number; topics: number; topicsCovered: number; percentage: number } };
 
@@ -18,9 +19,10 @@ function duration(seconds: number) { return `${Math.floor(seconds / 60)}m ${seco
 
 export default function ProgressPage() {
   const [progress, setProgress] = useState<ProgressData | null>(null);
+  const [ruleCards, setRuleCards] = useState<RuleCardStats>({ reviewed: 0, due: 0, confident: 0 });
   const [message, setMessage] = useState("");
   async function refresh() { const response = await fetch("/api/progress"); const data = await response.json(); setProgress(data); }
-  useEffect(() => { void refresh().catch(() => setProgress({ sessions: [], sprints: [], courses: [], coverage: { questions: 0, answered: 0, topics: 0, topicsCovered: 0, percentage: 0 } })); }, []);
+  useEffect(() => { void refresh().catch(() => setProgress({ sessions: [], sprints: [], courses: [], coverage: { questions: 0, answered: 0, topics: 0, topicsCovered: 0, percentage: 0 } })); void fetch("/api/cards").then((response) => response.json()).then((data) => setRuleCards(data.stats ?? { reviewed: 0, due: 0, confident: 0 })).catch(() => undefined); }, []);
   async function clearCourse(course: string) {
     const name = courseNames[course] ?? course;
     if (!window.confirm(`Clear all saved attempts and session timing for ${name}? This cannot be undone.`)) return;
@@ -38,6 +40,7 @@ export default function ProgressPage() {
         <div className="course-progress-title"><strong>{courseNames[course.course] ?? course.course}</strong><span>{course.attempted_questions}/{course.total_questions} questions · {course.covered_topics}/{course.total_topics} topics</span><button className="clear-course" type="button" disabled={!course.attempted_questions} onClick={() => { void clearCourse(course.course); }}>Clear progress</button></div>
         <div className="bar"><span style={{ width: `${course.coverage}%` }} /></div><b>{course.coverage}%</b>
       </article>)}</section>
+      <section className="course-progress rule-cards-progress"><p className="eyebrow">Rule cards</p><div className="coverage-grid"><div><strong>{ruleCards.reviewed}</strong><span>rules reviewed</span></div><div><strong>{ruleCards.due}</strong><span>due for review</span></div><div><strong>{ruleCards.confident}</strong><span>confident rules</span></div></div><Link className="button-link" href="/cards">Review rule cards</Link></section>
       <div className="section-heading compact"><div><p className="eyebrow">Past sessions</p><h2>Practice history.</h2></div></div>
       {progress.sessions.length === 0 && progress.sprints.length === 0 ? <section className="panel empty-state"><h2>No sessions yet.</h2><p className="muted">Choose a course and answer your first question to begin your record.</p><Link className="button-link" href="/practice">Start practice</Link></section> : <section className="session-list">
       {progress.sessions.map((session) => { const percentage = session.answers_count ? Math.round(session.correct_count / session.answers_count * 100) : 0; return <article className="card session-row" key={session.id}>
