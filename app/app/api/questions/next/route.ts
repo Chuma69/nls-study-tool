@@ -38,6 +38,9 @@ export async function GET(request: Request) {
   if (selectedTopics.length && (!selectedCourse || selectedTopics.some((topic) => !isTopicForCourse(selectedCourse, topic)))) {
     return NextResponse.json({ error: "Choose topics from the selected course." }, { status: 400 });
   }
+  if (!selectedTopics.length) {
+    return NextResponse.json({ error: "Choose at least one topic before starting practice." }, { status: 400 });
+  }
   const sessions = requestedSessionId ? await getSql()`
     SELECT id, answers_count, last_question_id FROM practice_sessions
     WHERE id = ${requestedSessionId} AND user_id = ${user.id} AND course = ${selectedCourse} AND ended_at IS NULL

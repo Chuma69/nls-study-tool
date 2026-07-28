@@ -41,6 +41,7 @@ export async function POST(request: Request) {
     const topics = [...new Set((body.topics ?? []).map((topic) => topic.trim()).filter(Boolean))];
     const count = Number(body.count); const minutes = Number(body.minutes);
     if (!courses.length || !Number.isInteger(count) || count < 1 || count > 100 || !Number.isInteger(minutes) || minutes < 1 || minutes > 180) return NextResponse.json({ error: "Choose 1–100 questions and 1–180 minutes." }, { status: 400 });
+    if (!topics.length) return NextResponse.json({ error: "Choose at least one topic before starting a sprint." }, { status: 400 });
     if (topics.some((topic) => !courses.some((course) => isTopicForCourse(course, topic)))) return NextResponse.json({ error: "Choose topics from the selected courses." }, { status: 400 });
     const questions = await sql`
       SELECT id FROM questions WHERE question_type='mcq' AND course=ANY(${courses})
