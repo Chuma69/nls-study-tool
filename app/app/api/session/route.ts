@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getSql } from "@/lib/db";
-import { currentUser, guestEmail, hashSessionToken, makeSessionToken, SESSION_COOKIE, sessionExpiry } from "@/lib/session";
+import { currentUser, guestEmail, hashSessionToken, isAdminEmail, makeSessionToken, SESSION_COOKIE, sessionExpiry } from "@/lib/session";
 import { allowRequest } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -12,7 +12,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  let body: { mode?: string; username?: string; email?: string };
+  let body: { mode?: string; username?: string; email?: string; inviteToken?: string };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Please try again." }, { status: 400 }); }
 
   const isGuest = body.mode === "guest";
@@ -33,15 +33,22 @@ export async function POST(request: Request) {
 
   const sql = getSql();
   try {
+    const invite = !isGuest && body.inviteToken ? await sql`
+      SELECT id FROM expert_invites
+      WHERE email = ${email} AND token_hash = ${hashSessionToken(body.inviteToken)}
+        AND accepted_at IS NULL AND expires_at > now() LIMIT 1
+    ` as { id: number }[] : [];
+    const role = isGuest ? "learner" : isAdminEmail(email) ? "admin" : invite.length ? "expert" : "learner";
     const users = await sql`
-      INSERT INTO users (username, email, identity_type)
-      VALUES (${username}, ${email}, ${isGuest ? "guest" : "registered"})
+      INSERT INTO users (username, email, identity_type, role)
+      VALUES (${username}, ${email}, ${isGuest ? "guest" : "registered"}, ${role})
       RETURNING id
     ` as { id: number }[];
+    if (invite.length) await sql`UPDATE expert_invites SET accepted_at = now() WHERE id = ${invite[0].id}`;
     const token = makeSessionToken();
     const expiresAt = sessionExpiry();
     await sql`INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (${users[0].id}, ${hashSessionToken(token)}, ${expiresAt.toISOString()})`;
-    const response = NextResponse.json({ user: { id: users[0].id, username, identityType: isGuest ? "guest" : "registered" } });
+    const response = NextResponse.json({ user: { id: users[0].id, username, identityType: isGuest ? "guest" : "registered", role } });
     response.cookies.set(SESSION_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", expires: expiresAt, path: "/" });
     return response;
   } catch (error: unknown) {

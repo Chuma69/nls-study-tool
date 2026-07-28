@@ -10,6 +10,7 @@ export type CurrentUser = {
   username: string;
   email: string;
   identityType: "registered" | "guest";
+  role: "learner" | "expert" | "admin";
 };
 
 type SessionRow = {
@@ -17,6 +18,7 @@ type SessionRow = {
   username: string;
   email: string;
   identity_type: "registered" | "guest";
+  role: "learner" | "expert" | "admin";
 };
 
 export function makeSessionToken() {
@@ -41,7 +43,7 @@ export async function currentUser(): Promise<CurrentUser | null> {
 
   const sql = getSql();
   const rows = await sql`
-    SELECT users.id, users.username, users.email, users.identity_type
+    SELECT users.id, users.username, users.email, users.identity_type, users.role
     FROM sessions
     JOIN users ON users.id = sessions.user_id
     WHERE sessions.token_hash = ${hashSessionToken(token)}
@@ -52,5 +54,10 @@ export async function currentUser(): Promise<CurrentUser | null> {
   const user = rows[0];
   if (!user) return null;
 
-  return { id: user.id, username: user.username, email: user.email, identityType: user.identity_type };
+  return { id: user.id, username: user.username, email: user.email, identityType: user.identity_type,
+    role: isAdminEmail(user.email) ? "admin" : user.role };
+}
+
+export function isAdminEmail(email: string) {
+  return (process.env.ADMIN_EMAIL_ALLOWLIST ?? "").split(",").map((value) => value.trim().toLowerCase()).includes(email.toLowerCase());
 }

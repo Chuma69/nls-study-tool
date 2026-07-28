@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
-type User = { id: number; username: string; identityType: "registered" | "guest" };
+type User = { id: number; username: string; identityType: "registered" | "guest"; role: "learner" | "expert" | "admin" };
 
 export default function Home() {
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -13,6 +14,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    setInviteToken(new URLSearchParams(window.location.search).get("invite"));
     fetch("/api/session")
       .then((response) => response.json())
       .then((data) => setUser(data.user ?? null))
@@ -26,7 +28,7 @@ export default function Home() {
       const response = await fetch("/api/session", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(mode === "guest" ? { mode } : { mode, username: name, email }),
+        body: JSON.stringify(mode === "guest" ? { mode } : { mode, username: name, email, inviteToken }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "We could not start your study session.");
@@ -60,13 +62,15 @@ export default function Home() {
           </p>
           <Link className="button-link" href="/practice">Start MCQ practice</Link>
           <Link className="text-link" href="/account">Privacy & data</Link>
+          {(user.role === "expert" || user.role === "admin") && <Link className="text-link" href="/expert">Expert review</Link>}
+          {user.role === "admin" && <Link className="text-link" href="/admin">Admin review</Link>}
           <button className="text-button" type="button" onClick={() => { void fetch("/api/session", { method: "DELETE" }).then(() => setUser(null)); }}>
             End this session
           </button>
         </section>
       ) : (
         <section className="panel">
-          <h2>Start studying</h2>
+          <h2>{inviteToken ? "Join as an expert reviewer" : "Start studying"}</h2>
           <p className="muted">Create a private study profile, or try the tool as a guest.</p>
           <form onSubmit={submit}>
             <label htmlFor="name">Name</label>

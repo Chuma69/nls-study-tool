@@ -90,6 +90,8 @@ label {
 }
 
 input,
+textarea,
+select,
 button {
   border: 1px solid var(--line);
   border-radius: 0;
@@ -103,6 +105,18 @@ input {
   color: var(--fg);
   padding: 0.65rem 0.75rem;
 }
+
+textarea,
+select {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+  width: 100%;
+}
+
+textarea { min-height: 6rem; resize: vertical; }
 
 button {
   background: var(--fg);
@@ -196,6 +210,8 @@ button.text-button {
 .option strong { flex: 0 0 1.25rem; }
 .result { border-top: 1px solid var(--line-soft); margin-top: 1.25rem; padding-top: 0.25rem; }
 .danger-panel { margin-top: 1rem; }
+.review-row { border-top: 1px solid var(--line-soft); padding: 1rem 0; }
+.review-row button { margin-top: 0.5rem; }
 
 footer {
   border-top: 1px solid var(--line-soft);
