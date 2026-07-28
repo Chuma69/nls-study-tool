@@ -46,11 +46,11 @@ export default function Home() {
   }
 
   const courses = [
-    ["CIV", "Civil Litigation", 72, "good"],
-    ["CRIM", "Criminal Litigation", 64, "mid"],
-    ["CORP", "Corporate Law Practice", 56, "bad"],
-    ["PROP", "Property Law Practice", 69, "mid"],
-    ["ETH", "Professional Ethics & Skills", 81, "good"],
+    ["civil_litigation", "CIV", "Civil Litigation", 72, "good"],
+    ["criminal_litigation", "CRIM", "Criminal Litigation", 64, "mid"],
+    ["corporate_law_practice", "CORP", "Corporate Law Practice", 56, "bad"],
+    ["property_law_practice", "PROP", "Property Law Practice", 69, "mid"],
+    ["professional_ethics_skills", "ETH", "Professional Ethics & Skills", 81, "good"],
   ];
   const firstName = user?.username.trim().split(/\s+/)[0] ?? "there";
 
@@ -74,7 +74,7 @@ export default function Home() {
 
           <div className="section-heading"><h2>Start Practice</h2></div>
           <section className="course-grid">
-            {courses.map(([code, name, accuracy, tone]) => <Link key={code} className={`card course-card ${tone}`} href="/practice">
+            {courses.map(([id, code, name, accuracy, tone]) => <Link key={code} className={`card course-card ${tone}`} href={`/practice?course=${id}`}>
               <div className="course-top"><span className="course-code">{code}</span><strong>{accuracy}%</strong></div><h3>{name}</h3><div className="bar"><span style={{ width: `${accuracy}%` }} /></div><p className="course-meta">180 questions · 5 topics</p>
             </Link>)}
           </section>

@@ -96,6 +96,11 @@ p { margin: 0; }
 
 .back-link { color: var(--muted); display: inline-block; font-size: 13px; margin-bottom: 28px; }
 .practice-header { align-items: flex-start; display: flex; gap: 18px; justify-content: space-between; margin-bottom: 22px; }
+.course-picker { margin-top: 30px; }
+.picker-grid { display: grid; gap: 18px; grid-template-columns: repeat(2, 1fr); margin-top: 26px; }
+.picker-card { min-height: 146px; position: relative; text-decoration: none; }
+.picker-card h3 { font-size: 25px; margin: 12px 40px 0 0; }
+.picker-arrow { bottom: 20px; color: var(--accent); font-family: Newsreader, Georgia, serif; font-size: 30px; position: absolute; right: 22px; }
 .practice-progress { background: var(--line); height: 3px; margin: 18px 0 20px; }
 .practice-progress span { background: var(--accent); display: block; height: 100%; width: 12%; }
 .question-panel { padding: 28px 30px; }
@@ -129,6 +134,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "I
   main { padding: 28px 20px 56px; }
   .home-grid { grid-template-columns: 1fr; }
   .course-grid { grid-template-columns: repeat(2, 1fr); }
+  .picker-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
   .nav-links { gap: 0; width: 100%; }

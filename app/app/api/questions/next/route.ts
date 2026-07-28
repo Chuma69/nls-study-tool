@@ -17,10 +17,16 @@ type QuestionRow = {
   rel_source_path: string | null;
 };
 
-export async function GET() {
+const courses = new Set(["civil_litigation", "criminal_litigation", "corporate_law_practice", "property_law_practice", "professional_ethics_skills"]);
+
+export async function GET(request: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Start a private or guest session first." }, { status: 401 });
 
+  const selectedCourse = new URL(request.url).searchParams.get("course") ?? "";
+  if (selectedCourse && !courses.has(selectedCourse)) {
+    return NextResponse.json({ error: "Choose one of the listed courses." }, { status: 400 });
+  }
   const rows = await getSql()`
     SELECT q.id, q.course, q.exam_years, q.stem, q.options, q.explanation,
            q.verification_status, q.source_locator,
@@ -32,6 +38,7 @@ export async function GET() {
     WHERE q.question_type = 'mcq'
       AND q.material_supported_key IS NOT NULL
       AND q.verification_status IN ('material_supported', 'staff_corrected')
+      AND (${selectedCourse} = '' OR q.course = ${selectedCourse})
     GROUP BY q.id, s.display_name, s.rel_source_path
     HAVING NOT COALESCE(bool_or(a.is_correct), false)
     ORDER BY COALESCE(bool_or(a.is_correct = false), false) DESC, random()
