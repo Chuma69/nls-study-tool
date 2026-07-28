@@ -585,7 +585,7 @@ export default function AdminPage() {
                       className={`review-row question-bank-row ${bankSelected.includes(question.id) ? "selected-bank-row" : ""}`}
                       onClick={() => beginBankEdit(question)}
                     >
-                      <label className="bank-question-select" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={bankSelected.includes(question.id)} onChange={() => toggleBankSelection(question.id)} /><span>Select question</span></label>
+                      <label className="bank-question-select" onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`Select question ${question.id}`} checked={bankSelected.includes(question.id)} onChange={() => toggleBankSelection(question.id)} /></label>
                       <p className="eyebrow">
                         #{question.id} · {courseLabel(question.course)}{question.topic ? ` · ${question.topic}` : " · Topic not assigned"} ·{" "}
                         {["material_supported", "staff_corrected"].includes(

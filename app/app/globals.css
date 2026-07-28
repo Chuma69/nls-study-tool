@@ -266,7 +266,8 @@ form .primary-button { margin-top: 14px; }
 .question-bank-row { cursor: pointer; transition: background .15s ease, padding .15s ease; }
 .question-bank-row:hover { background: oklch(.97 .02 235); padding-left: 12px; padding-right: 12px; }
 .question-bank-row.selected-bank-row { background: oklch(.94 .035 235); }
-.bank-question-select { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 14px; cursor: pointer; }
+.bank-question-select { display: inline-flex; align-items: center; margin-bottom: 10px; cursor: pointer; }
+.bank-question-select input { accent-color: var(--accent); border-radius: 3px; min-height: 0; padding: 0; width: 18px; height: 18px; }
 .scenario-selection-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .scenario-selection-bar .primary-button { margin: 0 0 0 auto; }
 .scenario-builder { margin: 18px 0; }
