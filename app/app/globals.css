@@ -51,6 +51,7 @@ p { margin: 0; }
 .countdown strong { color: var(--accent); font-family: Newsreader, Georgia, serif; font-size: 48px; font-weight: 500; line-height: 1; }
 .primary-button, .button-link { background: var(--accent); border: 1px solid var(--accent); border-radius: 9px; color: #fff; display: inline-flex; justify-content: center; min-height: 44px; padding: 10px 16px; text-align: center; text-decoration: none; }
 .panel > .primary-button { margin-top: 14px; }
+form .primary-button { margin-top: 14px; }
 .primary-button:hover, .button-link:hover { background: oklch(.4 .11 245); }
 .secondary, .outline-button { background: #fff; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); min-height: 44px; padding: 10px 16px; }
 .button-link-muted { display: inline-flex; align-items: center; text-decoration: none; }
