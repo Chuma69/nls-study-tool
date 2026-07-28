@@ -58,6 +58,7 @@ type BankQuestion = {
   context_group_id: string | null;
   context_position: number | null;
   display_name: string | null;
+  admin_flagged: boolean;
 };
 type AdminUser = {
   id: number;
@@ -118,6 +119,7 @@ export default function AdminPage() {
   const [bankCourse, setBankCourse] = useState("");
   const [bankTopic, setBankTopic] = useState("");
   const [bankStatus, setBankStatus] = useState("");
+  const [bankReview, setBankReview] = useState("");
   const [bankPage, setBankPage] = useState(1);
   const [bankFiltersReady, setBankFiltersReady] = useState(false);
   const [bankTotal, setBankTotal] = useState(0);
@@ -228,10 +230,10 @@ export default function AdminPage() {
       void load();
     }
   }
-  type BankFilters = { search: string; course: string; topic: string; status: string };
+  type BankFilters = { search: string; course: string; topic: string; status: string; review: string };
   async function loadBank(
     page = bankPage,
-    filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus },
+    filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, review: bankReview },
   ) {
     try {
       const params = new URLSearchParams({ page: String(page) });
@@ -239,6 +241,7 @@ export default function AdminPage() {
       if (filters.course) params.set("course", filters.course);
       if (filters.topic) params.set("topic", filters.topic);
       if (filters.status) params.set("status", filters.status);
+      if (filters.review) params.set("review", filters.review);
       const response = await fetch(`/api/admin/questions?${params}`);
       const data = await response.json();
       if (!response.ok)
@@ -254,12 +257,13 @@ export default function AdminPage() {
       setMsg("The question bank could not load. Please try again.");
     }
   }
-  function applyBankFilters(page = 1, filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus }) {
+  function applyBankFilters(page = 1, filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, review: bankReview }) {
     const params = new URLSearchParams();
     if (filters.search.trim()) params.set("search", filters.search.trim());
     if (filters.course) params.set("course", filters.course);
     if (filters.topic) params.set("topic", filters.topic);
     if (filters.status) params.set("status", filters.status);
+    if (filters.review) params.set("review", filters.review);
     if (page > 1) params.set("page", String(page));
     router.replace(`/admin/questions${params.size ? `?${params}` : ""}`);
     void loadBank(page, filters);
@@ -270,6 +274,7 @@ export default function AdminPage() {
     setBankCourse(params.get("course") ?? "");
     setBankTopic(params.get("topic") ?? "");
     setBankStatus(params.get("status") ?? "");
+    setBankReview(params.get("review") ?? "");
     setBankPage(Math.max(1, Number(params.get("page")) || 1));
     setBankFiltersReady(true);
   }, []);
@@ -337,6 +342,23 @@ export default function AdminPage() {
       setBankEditing(null);
       void loadBank();
     }
+  }
+  async function changeReviewFlag() {
+    if (!bankEditing) return;
+    const action = bankEditing.admin_flagged ? "unflag" : "flag";
+    const response = await fetch("/api/admin/questions", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ questionId: bankEditing.id, action }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setMsg(data.error ?? "Could not update the review flag.");
+      return;
+    }
+    setMsg(action === "flag" ? "Question flagged for future review." : "Review flag removed.");
+    setBankEditing(null);
+    void loadBank();
   }
   async function addAdmin() {
     const response = await fetch("/api/admin/admins", {
@@ -494,6 +516,14 @@ export default function AdminPage() {
                 <option value="live">Live</option>
                 <option value="not_live">Not live</option>
               </select>
+              <select
+                value={bankReview}
+                onChange={(event) => setBankReview(event.target.value)}
+              >
+                <option value="">All review flags</option>
+                <option value="flagged">Flagged for review</option>
+                <option value="not_flagged">Not flagged</option>
+              </select>
               <button
                 className="outline-button"
                 type="button"
@@ -507,11 +537,12 @@ export default function AdminPage() {
                 className="text-button clear-bank-filters"
                 type="button"
                 onClick={() => {
-                  const filters = { search: "", course: "", topic: "", status: "" };
+                  const filters = { search: "", course: "", topic: "", status: "", review: "" };
                   setBankSearch(filters.search);
                   setBankCourse(filters.course);
                   setBankTopic(filters.topic);
                   setBankStatus(filters.status);
+                  setBankReview(filters.review);
                   applyBankFilters(1, filters);
                 }}
               >
@@ -546,7 +577,7 @@ export default function AdminPage() {
                           question.verification_status,
                         ) && question.material_supported_key
                           ? "live"
-                          : "not live"}
+                          : "not live"}{question.admin_flagged ? " · flagged for review" : ""}
                       </p>
                       <p>{cleanQuestionStem(question.stem)}</p>
                     </article>
@@ -681,6 +712,17 @@ export default function AdminPage() {
                 onChange={(event) => setEditExplanation(event.target.value)}
               />
               <div className="button-row">
+                <button
+                  className="secondary"
+                  type="button"
+                  onClick={() => {
+                    void changeReviewFlag();
+                  }}
+                >
+                  {bankEditing.admin_flagged
+                    ? "Remove review flag"
+                    : "Flag for future review"}
+                </button>
                 <button
                   className="primary-button"
                   type="button"
