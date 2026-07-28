@@ -51,3 +51,18 @@ export async function GET() {
   const coverage = { ...totals, percentage: totals.questions ? Math.round(totals.answered / totals.questions * 100) : 0 };
   return NextResponse.json({ sessions, courses, coverage });
 }
+
+export async function DELETE(request: Request) {
+  const user = await currentUser();
+  if (!user) return NextResponse.json({ error: "Start a private or guest session first." }, { status: 401 });
+  const course = new URL(request.url).searchParams.get("course") ?? "";
+  if (!courseIds.includes(course)) return NextResponse.json({ error: "Choose one of the listed courses." }, { status: 400 });
+  const sql = getSql();
+  await sql`
+    DELETE FROM attempts a
+    USING questions q
+    WHERE a.question_id = q.id AND a.user_id = ${user.id} AND q.course = ${course}
+  `;
+  await sql`DELETE FROM practice_sessions WHERE user_id = ${user.id} AND course = ${course}`;
+  return NextResponse.json({ ok: true });
+}

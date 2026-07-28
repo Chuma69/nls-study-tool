@@ -17,14 +17,24 @@ function duration(seconds: number) { return `${Math.floor(seconds / 60)}m ${seco
 
 export default function ProgressPage() {
   const [progress, setProgress] = useState<ProgressData | null>(null);
-  useEffect(() => { fetch("/api/progress").then((r) => r.json()).then((data) => setProgress(data)).catch(() => setProgress({ sessions: [], courses: [], coverage: { questions: 0, answered: 0, topics: 0, topicsCovered: 0, percentage: 0 } })); }, []);
+  const [message, setMessage] = useState("");
+  async function refresh() { const response = await fetch("/api/progress"); const data = await response.json(); setProgress(data); }
+  useEffect(() => { void refresh().catch(() => setProgress({ sessions: [], courses: [], coverage: { questions: 0, answered: 0, topics: 0, topicsCovered: 0, percentage: 0 } })); }, []);
+  async function clearCourse(course: string) {
+    const name = courseNames[course] ?? course;
+    if (!window.confirm(`Clear all saved attempts and session timing for ${name}? This cannot be undone.`)) return;
+    const response = await fetch(`/api/progress?course=${encodeURIComponent(course)}`, { method: "DELETE" });
+    if (!response.ok) { setMessage("That course could not be cleared. Please try again."); return; }
+    setMessage(`${name} progress cleared.`);
+    await refresh();
+  }
   return <main className="narrow">
     <Link className="back-link" href="/">← Back to home</Link>
     <p className="eyebrow">Progress</p><h1>Progress by Course.</h1>
     <p className="lead">Every answered question and the time spent on it is saved here.</p>
     {progress === null ? <p className="muted" style={{ marginTop: 28 }}>Loading your sessions…</p> : <>
       <section className="course-progress"><p className="eyebrow">Coverage by course</p>{progress.courses.map((course) => <article className="course-progress-row" key={course.course}>
-        <div className="course-progress-title"><strong>{courseNames[course.course] ?? course.course}</strong><span>{course.attempted_questions}/{course.total_questions} questions · {course.covered_topics}/{course.total_topics} topics</span></div>
+        <div className="course-progress-title"><strong>{courseNames[course.course] ?? course.course}</strong><span>{course.attempted_questions}/{course.total_questions} questions · {course.covered_topics}/{course.total_topics} topics</span><button className="clear-course" type="button" disabled={!course.attempted_questions} onClick={() => { void clearCourse(course.course); }}>Clear progress</button></div>
         <div className="bar"><span style={{ width: `${course.coverage}%` }} /></div><b>{course.coverage}%</b>
       </article>)}</section>
       <div className="section-heading compact"><div><p className="eyebrow">Past sessions</p><h2>Practice history.</h2></div></div>
@@ -34,6 +44,7 @@ export default function ProgressPage() {
         <div className="session-score"><strong>{percentage}%</strong><span>{session.correct_count}/{session.answers_count} correct</span></div>
       </article>; })}
     </section>}</>}
+    {message && <p className="status-message" role="status">{message}</p>}
     <footer>Answers are limited to the loaded study materials and may be incomplete or outdated. This tool is exam-study support, not legal advice.</footer>
   </main>;
 }
