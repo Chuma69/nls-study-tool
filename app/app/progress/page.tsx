@@ -20,7 +20,7 @@ export default function ProgressPage() {
   useEffect(() => { fetch("/api/progress").then((r) => r.json()).then((data) => setProgress(data)).catch(() => setProgress({ sessions: [], courses: [], coverage: { questions: 0, answered: 0, topics: 0, topicsCovered: 0, percentage: 0 } })); }, []);
   return <main className="narrow">
     <Link className="back-link" href="/">← Back to home</Link>
-    <p className="eyebrow">Progress</p><h1>Past sessions.</h1>
+    <p className="eyebrow">Progress</p><h1>Progress by Course.</h1>
     <p className="lead">Every answered question and the time spent on it is saved here.</p>
     {progress === null ? <p className="muted" style={{ marginTop: 28 }}>Loading your sessions…</p> : <>
       <section className="course-progress"><p className="eyebrow">Coverage by course</p>{progress.courses.map((course) => <article className="course-progress-row" key={course.course}>
