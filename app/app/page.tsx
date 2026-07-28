@@ -4,6 +4,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
 type User = { id: number; username: string; identityType: "registered" | "guest"; role: "learner" | "expert" | "admin" };
+type CourseMetric = { course: string; total_questions: number; attempted_questions: number; total_topics: number; covered_topics: number; coverage: number };
+type ProgressData = { courses: CourseMetric[]; coverage: { questions: number; answered: number; topics: number; topicsCovered: number; percentage: number } };
 
 export default function Home() {
   const [inviteToken, setInviteToken] = useState<string | null>(null);
@@ -12,6 +14,7 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<ProgressData | null>(null);
 
   useEffect(() => {
     setInviteToken(new URLSearchParams(window.location.search).get("invite"));
@@ -20,6 +23,11 @@ export default function Home() {
       .then((data) => setUser(data.user ?? null))
       .catch(() => setUser(null));
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/progress").then((response) => response.json()).then((data) => setProgress(data)).catch(() => setProgress(null));
+  }, [user]);
 
   async function start(mode: "registered" | "guest") {
     setBusy(true);
@@ -46,11 +54,11 @@ export default function Home() {
   }
 
   const courses = [
-    ["civil_litigation", "CIV", "Civil Litigation", 72, "good"],
-    ["criminal_litigation", "CRIM", "Criminal Litigation", 64, "mid"],
-    ["corporate_law_practice", "CORP", "Corporate Law Practice", 56, "bad"],
-    ["property_law_practice", "PROP", "Property Law Practice", 69, "mid"],
-    ["professional_ethics_skills", "ETH", "Professional Ethics & Skills", 81, "good"],
+    ["civil_litigation", "CIV", "Civil Litigation"],
+    ["criminal_litigation", "CRIM", "Criminal Litigation"],
+    ["corporate_law_practice", "CORP", "Corporate Law Practice"],
+    ["property_law_practice", "PROP", "Property Law Practice"],
+    ["professional_ethics_skills", "ETH", "Professional Ethics & Skills"],
   ];
   const firstName = user?.username.trim().split(/\s+/)[0] ?? "there";
   const today = new Date();
@@ -59,6 +67,7 @@ export default function Home() {
   if (finalsDate < midnightToday) finalsDate = new Date(today.getFullYear() + 1, 9, 31);
   const daysToFinals = Math.round((finalsDate.getTime() - midnightToday.getTime()) / 86_400_000);
   const dateLine = new Intl.DateTimeFormat(undefined, { weekday: "long", day: "numeric", month: "long" }).format(today);
+  const coverage = progress?.coverage;
 
   return (
     <main>
@@ -80,9 +89,9 @@ export default function Home() {
 
           <div className="section-heading"><h2>Start Practice</h2></div>
           <section className="course-grid">
-            {courses.map(([id, code, name, accuracy, tone]) => <Link key={code} className={`card course-card ${tone}`} href={`/practice?course=${id}`}>
-              <div className="course-top"><span className="course-code">{code}</span><strong>{accuracy}%</strong></div><h3>{name}</h3><div className="bar"><span style={{ width: `${accuracy}%` }} /></div><p className="course-meta">180 questions · 5 topics</p>
-            </Link>)}
+            {courses.map(([id, code, name]) => { const metric = progress?.courses.find((course) => course.course === id); const completion = metric?.coverage ?? 0; const tone = completion >= 70 ? "good" : completion >= 40 ? "mid" : "bad"; return <Link key={code} className={`card course-card ${tone}`} href={`/practice?course=${id}`}>
+              <div className="course-top"><span className="course-code">{code}</span><strong>{metric ? `${completion}%` : "—"}</strong></div><h3>{name}</h3><div className="bar"><span style={{ width: `${completion}%` }} /></div><p className="course-meta">{metric ? `${metric.attempted_questions}/${metric.total_questions} questions · ${metric.covered_topics}/${metric.total_topics} topics` : "Loading coverage…"}</p>
+            </Link>; })}
           </section>
 
           <section className="shortcut-grid exact-shortcuts">
@@ -90,7 +99,7 @@ export default function Home() {
             <div id="cards" className="card shortcut-card green"><h3>Rule cards</h3><p className="muted">Time limits, sections, forms — 30 seconds each.</p></div>
             <Link id="saved" className="card shortcut-card amber" href="/account"><h3>Saved &amp; notes</h3><p className="muted">2 flagged for a second look.</p></Link>
           </section>
-          <section id="progress" className="weak-panel"><p className="eyebrow">Weak topics to revisit</p><div className="weak-strip"><span className="topic-chip">Meetings &amp; Resolutions <b>48%</b></span><span className="topic-chip">Securities &amp; Debentures <b>51%</b></span><span className="topic-chip">Directors &amp; Officers <b>55%</b></span><span className="topic-chip">Charges &amp; Information <b>58%</b></span><span className="topic-chip">Mortgages <b>58%</b></span></div></section>
+          <section id="progress" className="coverage-panel"><p className="eyebrow">Coverage so far</p><div className="coverage-grid"><div><strong>{coverage?.answered ?? 0}</strong><span>of {coverage?.questions ?? 0} questions answered</span></div><div><strong>{coverage?.topicsCovered ?? 0}</strong><span>of {coverage?.topics ?? 0} topics covered</span></div><div><strong>{coverage?.percentage ?? 0}%</strong><span>question-bank completion</span></div></div></section>
           {(user.role === "expert" || user.role === "admin") && <Link className="text-link" href="/expert">Open expert review →</Link>}
           {user.role === "admin" && <Link className="text-link" href="/admin">Open admin review →</Link>}
           <button className="text-button" type="button" onClick={() => { void fetch("/api/session", { method: "DELETE" }).then(() => setUser(null)); }}>End this session</button>
