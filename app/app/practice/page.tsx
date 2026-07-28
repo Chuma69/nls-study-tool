@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { cleanQuestionStem } from "@/lib/question-text";
 
 type Question = {
   id: number;
@@ -119,7 +120,7 @@ function PracticeContent() {
         <section className="panel question-panel">
           <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)}</p>
           <div className="practice-progress" aria-hidden="true"><span /></div>
-          <p className="stem">{question.stem}</p>
+          <p className="stem">{cleanQuestionStem(question.stem)}</p>
           <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { void saveFlag(!saved); }}>{saved ? "★ Saved for later" : "☆ Flag for later"}</button>
           <div className="options" role="radiogroup" aria-label="Answer options">
             {question.options.map((option) => <label key={option.key} className={`option ${chosenKey === option.key ? "selected" : ""} ${result ? "locked" : ""}`}>
