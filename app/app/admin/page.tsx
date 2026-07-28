@@ -118,6 +118,7 @@ export default function AdminPage() {
   const [bankTopic, setBankTopic] = useState("");
   const [bankStatus, setBankStatus] = useState("");
   const [bankPage, setBankPage] = useState(1);
+  const [bankFiltersReady, setBankFiltersReady] = useState(false);
   const [bankTotal, setBankTotal] = useState(0);
   const [bankMore, setBankMore] = useState(false);
   const [msg, setMsg] = useState("");
@@ -158,7 +159,6 @@ export default function AdminPage() {
   function selectTab(nextTab: typeof tab) {
     setTab(nextTab);
     router.push(`/admin/${nextTab}`);
-    if (nextTab === "questions") void loadBank(1);
   }
   async function makeInvite() {
     const response = await fetch("/api/admin/invites", {
@@ -212,13 +212,17 @@ export default function AdminPage() {
       void load();
     }
   }
-  async function loadBank(page = bankPage) {
+  type BankFilters = { search: string; course: string; topic: string; status: string };
+  async function loadBank(
+    page = bankPage,
+    filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus },
+  ) {
     try {
       const params = new URLSearchParams({ page: String(page) });
-      if (bankSearch.trim()) params.set("search", bankSearch.trim());
-      if (bankCourse) params.set("course", bankCourse);
-      if (bankTopic) params.set("topic", bankTopic);
-      if (bankStatus) params.set("status", bankStatus);
+      if (filters.search.trim()) params.set("search", filters.search.trim());
+      if (filters.course) params.set("course", filters.course);
+      if (filters.topic) params.set("topic", filters.topic);
+      if (filters.status) params.set("status", filters.status);
       const response = await fetch(`/api/admin/questions?${params}`);
       const data = await response.json();
       if (!response.ok)
@@ -234,6 +238,28 @@ export default function AdminPage() {
       setMsg("The question bank could not load. Please try again.");
     }
   }
+  function applyBankFilters(page = 1, filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus }) {
+    const params = new URLSearchParams();
+    if (filters.search.trim()) params.set("search", filters.search.trim());
+    if (filters.course) params.set("course", filters.course);
+    if (filters.topic) params.set("topic", filters.topic);
+    if (filters.status) params.set("status", filters.status);
+    if (page > 1) params.set("page", String(page));
+    router.replace(`/admin/questions${params.size ? `?${params}` : ""}`);
+    void loadBank(page, filters);
+  }
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setBankSearch(params.get("search") ?? "");
+    setBankCourse(params.get("course") ?? "");
+    setBankTopic(params.get("topic") ?? "");
+    setBankStatus(params.get("status") ?? "");
+    setBankPage(Math.max(1, Number(params.get("page")) || 1));
+    setBankFiltersReady(true);
+  }, []);
+  useEffect(() => {
+    if (tab === "questions" && bankFiltersReady) void loadBank();
+  }, [tab, bankFiltersReady]);
   function beginBankEdit(question: BankQuestion) {
     const options = Array.isArray(question.options) ? question.options : [];
     setBankEditing({ ...question, options });
@@ -456,10 +482,24 @@ export default function AdminPage() {
                 className="outline-button"
                 type="button"
                 onClick={() => {
-                  void loadBank(1);
+                  applyBankFilters(1);
                 }}
               >
                 Search
+              </button>
+              <button
+                className="text-button clear-bank-filters"
+                type="button"
+                onClick={() => {
+                  const filters = { search: "", course: "", topic: "", status: "" };
+                  setBankSearch(filters.search);
+                  setBankCourse(filters.course);
+                  setBankTopic(filters.topic);
+                  setBankStatus(filters.status);
+                  applyBankFilters(1, filters);
+                }}
+              >
+                Clear filters
               </button>
             </div>
             <p className="muted">
@@ -505,7 +545,7 @@ export default function AdminPage() {
                   type="button"
                   disabled={bankPage === 1}
                   onClick={() => {
-                    void loadBank(bankPage - 1);
+                    applyBankFilters(bankPage - 1);
                   }}
                 >
                   Previous
@@ -516,7 +556,7 @@ export default function AdminPage() {
                   type="button"
                   disabled={!bankMore}
                   onClick={() => {
-                    void loadBank(bankPage + 1);
+                    applyBankFilters(bankPage + 1);
                   }}
                 >
                   Next
