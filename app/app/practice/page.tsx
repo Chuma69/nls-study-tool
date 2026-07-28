@@ -47,6 +47,7 @@ function PracticeContent() {
     ["property_law_practice", "PROP", "Property Law Practice"],
     ["professional_ethics_skills", "ETH", "Professional Ethics & Skills"],
   ];
+  const courseTitle = courseChoices.find(([id]) => id === course)?.[2] ?? "Practice";
 
   async function checkAnswer() {
     if (!question || !chosenKey) return;
@@ -59,7 +60,7 @@ function PracticeContent() {
   return (
     <main className="narrow">
       <Link className="back-link" href="/">← Back to home</Link>
-      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1>One question at a time.</h1></div><p className="meta">Verified materials only</p></div>
+      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><p className="meta">Verified materials only</p></div>
       {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>Question verification is in progress for this course. We will only reopen practice when answers are supported by the loaded study materials, not by source answer sheets.</p> : (
         <section className="panel question-panel">
           <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)}</p>

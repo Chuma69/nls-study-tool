@@ -96,6 +96,7 @@ p { margin: 0; }
 
 .back-link { color: var(--muted); display: inline-block; font-size: 13px; margin-bottom: 28px; }
 .practice-header { align-items: flex-start; display: flex; gap: 18px; justify-content: space-between; margin-bottom: 22px; }
+.course-practice-title { font-size: clamp(2.1rem, 4vw, 3.25rem); line-height: 1.05; }
 .course-picker { margin-top: 30px; }
 .picker-grid { display: grid; gap: 18px; grid-template-columns: repeat(2, 1fr); margin-top: 26px; }
 .picker-card { min-height: 146px; position: relative; text-decoration: none; }
