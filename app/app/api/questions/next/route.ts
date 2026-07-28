@@ -28,7 +28,10 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const selectedCourse = url.searchParams.get("course") ?? "";
-  const selectedTopics = [...new Set((url.searchParams.get("topics") ?? "").split(",").map((topic) => topic.trim()).filter(Boolean))];
+  const selectedTopics = [...new Set([
+    ...url.searchParams.getAll("topic"),
+    ...(url.searchParams.get("topics") ?? "").split(","),
+  ].map((topic) => topic.trim()).filter(Boolean))];
   const excludedQuestionId = Number(new URL(request.url).searchParams.get("exclude")) || 0;
   const requestedQuestionId = Number(new URL(request.url).searchParams.get("question")) || 0;
   const requestedSessionId = Number(new URL(request.url).searchParams.get("session")) || 0;

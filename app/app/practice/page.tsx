@@ -33,8 +33,12 @@ function PracticeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const course = searchParams.get("course");
-  const topicsParam = searchParams.get("topics") ?? "";
-  const selectedTopics = topicsParam.split(",").map((topic) => topic.trim()).filter(Boolean);
+  const courseTopics = course && course in COURSE_TOPICS ? COURSE_TOPICS[course as keyof typeof COURSE_TOPICS].topics : [];
+  const topicsParam = searchParams.toString();
+  const selectedTopics = [...new Set([
+    ...searchParams.getAll("topic"),
+    ...(searchParams.get("topics") ?? "").split(","),
+  ].map((topic) => topic.trim()).filter((topic) => Boolean(topic) && (!course || courseTopics.includes(topic))))];
   const requestedQuestion = Number(searchParams.get("question")) || 0;
   const [question, setQuestion] = useState<Question | null | undefined>(undefined);
   const [chosenKey, setChosenKey] = useState("");
@@ -55,7 +59,7 @@ function PracticeContent() {
     setQuestion(undefined); setChosenKey(""); setResult(null); setError("");
     const params = new URLSearchParams();
     if (course) params.set("course", course);
-    if (selectedTopics.length) params.set("topics", selectedTopics.join(","));
+    selectedTopics.forEach((topic) => params.append("topic", topic));
     params.set("session", String(sessionId));
     if (excludeQuestionId) params.set("exclude", String(excludeQuestionId));
     if (questionId) params.set("question", String(questionId));
@@ -108,9 +112,8 @@ function PracticeContent() {
 
   const courseChoices = COURSE_IDS.map((id) => [id, id === "civil_litigation" ? "CIV" : id === "criminal_litigation" ? "CRIM" : id === "corporate_law_practice" ? "CORP" : id === "property_law_practice" ? "PROP" : "ETH", COURSE_NAMES[id]]);
   const courseTitle = course && course in COURSE_TOPICS ? COURSE_NAMES[course as keyof typeof COURSE_TOPICS] : "Practice";
-  const courseTopics = course && course in COURSE_TOPICS ? COURSE_TOPICS[course as keyof typeof COURSE_TOPICS].topics : [];
   function toggleTopic(topic: string) { setTopicDraft((topics) => topics.includes(topic) ? topics.filter((item) => item !== topic) : [...topics, topic]); }
-  function applyTopics() { if (!topicDraft.length) { setError("Choose at least one topic before starting practice."); return; } const params = new URLSearchParams(); if (course) params.set("course", course); params.set("topics", topicDraft.join(",")); router.replace(`/practice?${params.toString()}`); setShowTopics(false); }
+  function applyTopics() { if (!topicDraft.length) { setError("Choose at least one topic before starting practice."); return; } const params = new URLSearchParams(); if (course) params.set("course", course); topicDraft.forEach((topic) => params.append("topic", topic)); router.replace(`/practice?${params.toString()}`); setShowTopics(false); }
 
   async function checkAnswer() {
     if (!question || !chosenKey) return;
