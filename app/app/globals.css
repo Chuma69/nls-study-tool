@@ -128,8 +128,14 @@ form .primary-button { margin-top: 14px; }
 .result strong { font-family: Newsreader, Georgia, serif; font-size: 20px; }
 .result p + p { color: var(--muted); font-size: 14px; margin-top: 5px; }
 .result .primary-button { margin-top: 14px; }
-.flag-button { background: transparent; border: 0; color: var(--accent); font-size: 13px; min-height: auto; padding: 0; text-decoration: underline; width: auto; }
+.flag-button { align-items: center; background: transparent; border: 0; color: var(--accent); display: inline-flex; font-size: 13px; gap: 6px; min-height: auto; padding: 0; text-decoration: underline; width: auto; }
+.flag-button svg { fill: none; height: 18px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; width: 18px; }
 .flag-button.saved { color: var(--good); }
+.save-note-box { background: oklch(.97 .02 235); border: 1px solid var(--line); border-radius: 9px; margin-top: 12px; padding: 14px; }
+.save-note-box label { margin-top: 0; }
+.save-note-box label span { color: var(--muted); font-weight: 400; }
+.save-note-box textarea { font-size: 14px; min-height: 82px; }
+.save-note-box .button-row { margin-top: 10px; }
 .note-box { border-top: 1px solid oklch(.82 .04 165); margin-top: 16px; padding-top: 2px; }
 .note-box label { color: var(--ink); }
 .note-box textarea { font-size: 14px; min-height: 82px; }

@@ -42,6 +42,7 @@ function PracticeContent() {
   const [currentQuestionSeconds, setCurrentQuestionSeconds] = useState(0);
   const [saved, setSaved] = useState(false);
   const [note, setNote] = useState("");
+  const [showSaveNote, setShowSaveNote] = useState(false);
 
   const loadQuestion = useCallback(async (sessionId: number, excludeQuestionId?: number, questionId?: number) => {
     setQuestion(undefined); setChosenKey(""); setResult(null); setError("");
@@ -56,7 +57,7 @@ function PracticeContent() {
     setTotalQuestions(data.totalQuestions ?? 0);
     setQuestionNumber((data.answeredCount ?? 0) + 1);
     setQuestion(data.question);
-    setSaved(false); setNote("");
+    setSaved(false); setNote(""); setShowSaveNote(false);
     setQuestionStartedAt(data.question ? Date.now() : null);
     setCurrentQuestionSeconds(0);
     if (data.question) {
@@ -123,7 +124,8 @@ function PracticeContent() {
           <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)}</p>
           <div className="practice-progress" aria-hidden="true"><span /></div>
           <p className="stem">{cleanQuestionStem(question.stem)}</p>
-          <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { void saveFlag(!saved); }}>{saved ? "🔖 Saved for later" : "🔖 Save for later"}</button>
+          <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { if (!saved) void saveFlag(true); setShowSaveNote(true); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-6-4-6 4v-17Z" /></svg>{saved ? "Saved for later" : "Save for later"}</button>
+          {showSaveNote && <div className="save-note-box"><label htmlFor="save-for-later-note">Add a note <span>(optional)</span></label><textarea id="save-for-later-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="What should you remember when you return to this?" /><div className="button-row"><button className="outline-button" type="button" onClick={() => { void saveFlag(true, note); setShowSaveNote(false); }}>Save note</button><button className="text-button" type="button" onClick={() => setShowSaveNote(false)}>Skip</button></div></div>}
           <div className="options" role="radiogroup" aria-label="Answer options">
             {question.options.map((option) => <label key={option.key} className={`option ${chosenKey === option.key ? "selected" : ""} ${result ? "locked" : ""}`}>
               <input
