@@ -286,9 +286,11 @@ export default function AdminPage() {
   }, [tab, bankFiltersReady]);
   useEffect(() => {
     if (!bankEditing) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setBankEditing(null); };
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", closeOnEscape); };
   }, [bankEditing]);
   function beginBankEdit(question: BankQuestion) {
     const options = Array.isArray(question.options) ? question.options : [];
@@ -657,9 +659,9 @@ export default function AdminPage() {
             )}
           </section>
           {bankEditing && (
-            <section id="bank-question-editor" className="panel report-editor">
+            <><div className="modal-backdrop" aria-hidden="true" /><section id="bank-question-editor" className="panel report-editor" role="dialog" aria-modal="true" aria-labelledby="bank-question-editor-title">
               <button className="modal-close-button" type="button" aria-label="Close question review" onClick={() => setBankEditing(null)}>×</button>
-              <p className="eyebrow">Reviewing question #{bankEditing.id}</p>
+              <p className="eyebrow" id="bank-question-editor-title">Reviewing question #{bankEditing.id}</p>
               {bankEditing.shared_context && (
                 <div className="shared-context">
                   <p className="case-study-label">Case-study set</p>
@@ -781,7 +783,7 @@ export default function AdminPage() {
                   Delete permanently
                 </button>
               </div>
-            </section>
+            </section></>
           )}
         </>
       )}
