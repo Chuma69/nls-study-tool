@@ -436,7 +436,13 @@ export default function AdminPage() {
                 onChange={(event) => setBankTopic(event.target.value)}
               >
                 <option value="">All topics</option>
-                {(bankCourse && bankCourse !== "none" ? topicsForCourse(bankCourse) : COURSE_IDS.flatMap((id) => COURSE_TOPICS[id].topics)).map((topic) => <option key={topic} value={topic}>{topic}</option>)}
+                <option value="none">No topic assigned</option>
+                {(bankCourse === "none"
+                  ? []
+                  : bankCourse
+                    ? topicsForCourse(bankCourse)
+                    : COURSE_IDS.flatMap((id) => COURSE_TOPICS[id].topics)
+                ).map((topic) => <option key={topic} value={topic}>{topic}</option>)}
               </select>
               <select
                 value={bankStatus}
