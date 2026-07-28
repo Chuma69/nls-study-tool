@@ -179,6 +179,15 @@ def cmd_verify_questions(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_calibrate_reasoning(args: argparse.Namespace) -> int:
+    from . import reasoning_calibration
+    report = reasoning_calibration.dry_run(args.sample_size)
+    print("✓ Reasoning calibration dry-run complete — no OpenAI API calls were made.")
+    for key in ("report_id", "model_id", "questions_planned", "estimated_input_tokens", "estimated_output_tokens", "estimated_cost_usd", "recommended_cap_usd"):
+        print(f"  {key:26} {report[key]}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="nls_ingest", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -202,6 +211,10 @@ def build_parser() -> argparse.ArgumentParser:
     vq.add_argument("--approve-dry-run", help="Exact verification report ID approved by the owner.")
     vq.add_argument("--max-cost-usd", type=float, help="Hard spend ceiling for verification.")
     vq.set_defaults(func=cmd_verify_questions)
+
+    cp = sub.add_parser("calibrate-reasoning", help="Estimate a stronger materials-only reasoning pilot.")
+    cp.add_argument("--sample-size", type=int, default=None, help="Representative MCQs to include (default 150).")
+    cp.set_defaults(func=cmd_calibrate_reasoning)
 
     pb = sub.add_parser("build", help="Build the SQLite FTS index.")
     pb.add_argument("--ocr", action="store_true", help="OCR scanned PDFs (slow).")
