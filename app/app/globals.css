@@ -267,6 +267,11 @@ form .primary-button { margin-top: 14px; }
 .question-bank-row:hover { background: oklch(.97 .02 235); padding-left: 12px; padding-right: 12px; }
 .question-bank-pages { align-items: center; }
 .question-bank-pages span { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+.bank-page-numbers { align-items: center; display: flex; gap: 6px; }
+.bank-page-numbers > span { align-items: center; display: inline-flex; gap: 6px; }
+.bank-page-numbers .secondary { min-height: 36px; min-width: 36px; padding: 6px 9px; }
+.bank-page-numbers .active-page { background: var(--accent); border-color: var(--accent); color: #fff; }
+.bank-page-numbers .page-ellipsis { color: var(--muted); padding: 0 2px; }
 .case-study-label { color: var(--accent); font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
 .shared-context { background: oklch(.96 .02 235); border: 1px solid var(--line); border-radius: 9px; margin: 10px 0 18px; padding: 14px; }
 .shared-context > p:last-of-type { line-height: 1.55; margin: 6px 0 0; }

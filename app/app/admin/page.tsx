@@ -122,6 +122,17 @@ export default function AdminPage() {
   const [bankTotal, setBankTotal] = useState(0);
   const [bankMore, setBankMore] = useState(false);
   const [msg, setMsg] = useState("");
+  const bankPageCount = Math.max(1, Math.ceil(bankTotal / 25));
+  const bankVisiblePages = Array.from(
+    new Set([
+      1,
+      ...Array.from(
+        { length: 5 },
+        (_, index) => bankPage - 2 + index,
+      ).filter((page) => page > 0 && page <= bankPageCount),
+      bankPageCount,
+    ]),
+  ).sort((first, second) => first - second);
   async function load() {
     try {
       const [consensus, activity, reportResponse, adminResponse] =
@@ -550,7 +561,23 @@ export default function AdminPage() {
                 >
                   Previous
                 </button>
-                <span>Page {bankPage}</span>
+                <div className="bank-page-numbers" aria-label="Question bank pages">
+                  {bankVisiblePages.map((page, index) => (
+                    <span key={page}>
+                      {index > 0 && page - bankVisiblePages[index - 1] > 1 && (
+                        <span className="page-ellipsis">…</span>
+                      )}
+                      <button
+                        className={page === bankPage ? "secondary active-page" : "secondary"}
+                        type="button"
+                        aria-current={page === bankPage ? "page" : undefined}
+                        onClick={() => applyBankFilters(page)}
+                      >
+                        {page}
+                      </button>
+                    </span>
+                  ))}
+                </div>
                 <button
                   className="secondary"
                   type="button"
