@@ -119,6 +119,7 @@ p { margin: 0; }
 .result.incorrect { background: oklch(.975 .02 25); border-color: oklch(.83 .09 25); }
 .result strong { font-family: Newsreader, Georgia, serif; font-size: 20px; }
 .result p + p { color: var(--muted); font-size: 14px; margin-top: 5px; }
+.result .primary-button { margin-top: 14px; }
 .source { margin-top: 20px; }
 
 label { display: block; font-size: 13px; margin: 18px 0 6px; }
