@@ -44,12 +44,16 @@ export async function POST(request: Request) {
   const sprints = await sql`SELECT id,status FROM sprints WHERE id=${sprintId} AND user_id=${user.id} LIMIT 1` as { id: number; status: string }[];
   if (!sprints[0]) return NextResponse.json({ error: "Sprint not found." }, { status: 404 });
   if (body.action === "answer") {
-    if (sprints[0].status !== "active" || !Number.isSafeInteger(body.questionId) || !body.chosenKey) return NextResponse.json({ error: "That answer is not available." }, { status: 400 });
-    const rows = await sql`SELECT q.material_supported_key,q.options FROM sprint_items si JOIN questions q ON q.id=si.question_id WHERE si.sprint_id=${sprintId} AND si.question_id=${body.questionId} AND si.chosen_key IS NULL` as { material_supported_key: string; options: { key: string }[] }[];
+    const questionId = Number(body.questionId);
+    if (sprints[0].status !== "active") return NextResponse.json({ error: "This sprint has already ended." }, { status: 400 });
+    if (!Number.isSafeInteger(questionId) || !body.chosenKey) return NextResponse.json({ error: "Choose an answer before continuing." }, { status: 400 });
+    const rows = await sql`SELECT q.material_supported_key,q.options,si.chosen_key FROM sprint_items si JOIN questions q ON q.id=si.question_id WHERE si.sprint_id=${sprintId} AND si.question_id=${questionId}` as { material_supported_key: string; options: { key: string }[]; chosen_key: string | null }[];
     const question = rows[0]; if (!question?.options.some((option) => option.key === body.chosenKey)) return NextResponse.json({ error: "Invalid sprint answer." }, { status: 400 });
+    // A duplicate browser request should not make a learner lose their answer.
+    if (question.chosen_key) return NextResponse.json({ ok: true, alreadyRecorded: true });
     const correct = question.material_supported_key === body.chosenKey; const seconds = Math.max(0, Math.min(7200, Math.round(Number(body.secondsSpent) || 0)));
-    await sql`UPDATE sprint_items SET chosen_key=${body.chosenKey},is_correct=${correct},seconds_spent=${seconds},answered_at=now() WHERE sprint_id=${sprintId} AND question_id=${body.questionId}`;
-    await sql`INSERT INTO attempts(user_id,question_id,chosen_key,is_correct,seconds_spent) VALUES(${user.id},${body.questionId},${body.chosenKey},${correct},${seconds})`;
+    await sql`UPDATE sprint_items SET chosen_key=${body.chosenKey},is_correct=${correct},seconds_spent=${seconds},answered_at=now() WHERE sprint_id=${sprintId} AND question_id=${questionId}`;
+    await sql`INSERT INTO attempts(user_id,question_id,chosen_key,is_correct,seconds_spent) VALUES(${user.id},${questionId},${body.chosenKey},${correct},${seconds})`;
     return NextResponse.json({ ok: true });
   }
   if (body.action === "finish") {
