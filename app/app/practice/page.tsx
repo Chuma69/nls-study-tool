@@ -123,7 +123,7 @@ function PracticeContent() {
           <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)}</p>
           <div className="practice-progress" aria-hidden="true"><span /></div>
           <p className="stem">{cleanQuestionStem(question.stem)}</p>
-          <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { void saveFlag(!saved); }}>{saved ? "★ Saved for later" : "☆ Flag for later"}</button>
+          <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { void saveFlag(!saved); }}>{saved ? "🔖 Saved for later" : "🔖 Save for later"}</button>
           <div className="options" role="radiogroup" aria-label="Answer options">
             {question.options.map((option) => <label key={option.key} className={`option ${chosenKey === option.key ? "selected" : ""} ${result ? "locked" : ""}`}>
               <input
@@ -149,7 +149,6 @@ function PracticeContent() {
               <button className="primary-button" type="button" onClick={() => { if (practiceSession) void loadQuestion(practiceSession.id, question.id); }}>Next question</button>
             </div>
           )}
-          <p className="source">Source: {question.display_name ?? question.rel_source_path ?? "Source retained"}{question.source_locator ? ` · ${question.source_locator}` : ""}</p>
         </section>
       )}
       <StudyFooter />

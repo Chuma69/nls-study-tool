@@ -24,16 +24,17 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const user = await currentUser(); if (!user) return NextResponse.json({ error: "Start a study session first." }, { status: 401 });
-  let body: { questionId?: number; saved?: boolean; note?: string }; try { body = await request.json(); } catch { return NextResponse.json({ error: "Please try again." }, { status: 400 }); }
-  if (!Number.isSafeInteger(body.questionId)) return NextResponse.json({ error: "Choose a valid question." }, { status: 400 });
+  let body: { questionId?: number | string; saved?: boolean; note?: string }; try { body = await request.json(); } catch { return NextResponse.json({ error: "Please try again." }, { status: 400 }); }
+  const questionId = Number(body.questionId);
+  if (!Number.isSafeInteger(questionId)) return NextResponse.json({ error: "Choose a valid question." }, { status: 400 });
   const sql = getSql();
   if (body.saved === false) {
-    await sql`UPDATE question_flags SET resolved_at=now() WHERE user_id=${user.id} AND question_id=${body.questionId} AND kind='saved' AND resolved_at IS NULL`;
+    await sql`UPDATE question_flags SET resolved_at=now() WHERE user_id=${user.id} AND question_id=${questionId} AND kind='saved' AND resolved_at IS NULL`;
     return NextResponse.json({ saved: false });
   }
   const note = body.note?.trim().slice(0, 3000) ?? "";
   await sql`
-    INSERT INTO question_flags(question_id,user_id,kind,note) VALUES(${body.questionId},${user.id},'saved',${note || null})
+    INSERT INTO question_flags(question_id,user_id,kind,note) VALUES(${questionId},${user.id},'saved',${note || null})
     ON CONFLICT (user_id,question_id,kind) WHERE resolved_at IS NULL DO UPDATE SET note=EXCLUDED.note
   `;
   return NextResponse.json({ saved: true, note });
