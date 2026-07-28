@@ -236,6 +236,12 @@ form .primary-button { margin-top: 14px; }
 .question-bank-row:hover { background: oklch(.97 .02 235); padding-left: 12px; padding-right: 12px; }
 .question-bank-pages { align-items: center; }
 .question-bank-pages span { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+.case-study-label { color: var(--accent); font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.shared-context { background: oklch(.96 .02 235); border: 1px solid var(--line); border-radius: 9px; margin: 10px 0 18px; padding: 14px; }
+.shared-context > p:last-of-type { line-height: 1.55; margin: 6px 0 0; }
+.linked-question-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.linked-question-list .secondary { min-height: 34px; padding: 6px 10px; }
+.active-linked-question { border-color: var(--accent); color: var(--accent); }
 .option-edit { align-items: center; display: grid; gap: 10px; grid-template-columns: 22px 1fr; margin-top: 10px; }
 .source { margin-top: 20px; }
 
