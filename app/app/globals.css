@@ -50,8 +50,10 @@ p { margin: 0; }
 .countdown { align-items: baseline; display: flex; gap: 12px; margin: 34px 0 44px; }
 .countdown strong { color: var(--accent); font-family: Newsreader, Georgia, serif; font-size: 48px; font-weight: 500; line-height: 1; }
 .primary-button, .button-link { background: var(--accent); border: 1px solid var(--accent); border-radius: 9px; color: #fff; display: inline-flex; justify-content: center; min-height: 44px; padding: 10px 16px; text-align: center; text-decoration: none; }
+.panel > .primary-button { margin-top: 14px; }
 .primary-button:hover, .button-link:hover { background: oklch(.4 .11 245); }
 .secondary, .outline-button { background: #fff; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); min-height: 44px; padding: 10px 16px; }
+.button-link-muted { display: inline-flex; align-items: center; text-decoration: none; }
 .button-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 .readiness-card { background: var(--dark); background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.05) 0 1px, transparent 1px 9px); color: #fff; display: flex; flex-direction: column; justify-content: space-between; min-height: 446px; padding: 48px; }
 .readiness-card .eyebrow { color: oklch(.75 .05 200); }
@@ -125,6 +127,37 @@ p { margin: 0; }
 .result strong { font-family: Newsreader, Georgia, serif; font-size: 20px; }
 .result p + p { color: var(--muted); font-size: 14px; margin-top: 5px; }
 .result .primary-button { margin-top: 14px; }
+.flag-button { background: transparent; border: 0; color: var(--accent); font-size: 13px; min-height: auto; padding: 0; text-decoration: underline; width: auto; }
+.flag-button.saved { color: var(--good); }
+.note-box { border-top: 1px solid oklch(.82 .04 165); margin-top: 16px; padding-top: 2px; }
+.note-box label { color: var(--ink); }
+.note-box textarea { font-size: 14px; min-height: 82px; }
+.note-box .outline-button { margin-top: 10px; }
+.flashcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin-top: 28px; padding: 22px; }
+.flashcard-face { background: transparent; border: 0; color: var(--ink); min-height: 320px; padding: 18px; text-align: left; width: 100%; }
+.flashcard-face h2 { font-size: clamp(1.75rem, 4vw, 2.65rem); line-height: 1.15; margin: 22px 0; }
+.flashcard-face span, .flashcard-face small { color: var(--muted); display: block; margin-top: 22px; }
+.flashcard-face > p:not(.eyebrow) { color: var(--muted); margin-top: 14px; }
+.saved-list { display: grid; gap: 16px; margin-top: 28px; }
+.saved-row h2 { font-size: 23px; line-height: 1.25; margin-top: 10px; }
+.saved-note { background: oklch(.96 .02 235); border-left: 3px solid var(--accent); color: var(--muted); margin-top: 16px; padding: 10px 12px; white-space: pre-wrap; }
+.sprint-setup { margin-top: 28px; }
+.sprint-setup h2 { font-size: 22px; margin: 28px 0 12px; }
+.sprint-setup h2:first-child { margin-top: 0; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 9px; }
+.chip { background: #fff; border: 1px solid var(--line); border-radius: 99px; color: var(--ink); min-height: 38px; padding: 7px 12px; width: auto; }
+.chip.selected { background: oklch(.93 .04 245); border-color: var(--accent); color: oklch(.35 .1 245); }
+.sprint-summary { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .04em; margin: 28px 0 14px; }
+.sprint-top { align-items: center; display: flex; justify-content: space-between; }
+.sprint-clock { color: var(--accent); font-family: "IBM Plex Mono", monospace; font-size: 24px; }
+.sprint-clock.urgent { color: var(--bad); }
+.sprint-results { display: grid; gap: 16px; margin-top: 28px; }
+.sprint-review { border-top: 1px solid var(--line); padding-top: 16px; }
+.sprint-review:first-of-type { border-top: 0; }
+.sprint-review h2 { font-size: 21px; line-height: 1.25; margin: 7px 0; }
+.sprint-review > p:last-child { color: var(--muted); font-size: 14px; }
+.sprint-review.correct .eyebrow { color: var(--good); }
+.sprint-review.incorrect .eyebrow { color: var(--bad); }
 .session-list { display: grid; gap: 14px; margin-top: 28px; }
 .course-progress { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin-top: 28px; padding: 24px; }
 .course-progress-row { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 14px; grid-template-columns: minmax(180px, 1fr) minmax(110px, 1.2fr) 46px; padding: 16px 0; }

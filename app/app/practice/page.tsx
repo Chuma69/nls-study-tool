@@ -27,6 +27,7 @@ function clock(seconds: number) { return `${String(Math.floor(seconds / 60)).pad
 function PracticeContent() {
   const searchParams = useSearchParams();
   const course = searchParams.get("course");
+  const requestedQuestion = Number(searchParams.get("question")) || 0;
   const [question, setQuestion] = useState<Question | null | undefined>(undefined);
   const [chosenKey, setChosenKey] = useState("");
   const [result, setResult] = useState<Result | null>(null);
@@ -36,21 +37,30 @@ function PracticeContent() {
   const [practiceSession, setPracticeSession] = useState<PracticeSession | null>(null);
   const [questionStartedAt, setQuestionStartedAt] = useState<number | null>(null);
   const [currentQuestionSeconds, setCurrentQuestionSeconds] = useState(0);
+  const [saved, setSaved] = useState(false);
+  const [note, setNote] = useState("");
 
-  const loadQuestion = useCallback(async (sessionId: number, excludeQuestionId?: number) => {
+  const loadQuestion = useCallback(async (sessionId: number, excludeQuestionId?: number, questionId?: number) => {
     setQuestion(undefined); setChosenKey(""); setResult(null); setError("");
     const params = new URLSearchParams();
     if (course) params.set("course", course);
     params.set("session", String(sessionId));
     if (excludeQuestionId) params.set("exclude", String(excludeQuestionId));
+    if (questionId) params.set("question", String(questionId));
     const response = await fetch(`/api/questions/next${params.size ? `?${params}` : ""}`);
     const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not load a question."); setQuestion(null); return; }
     setTotalQuestions(data.totalQuestions ?? 0);
     setQuestionNumber((data.answeredCount ?? 0) + 1);
     setQuestion(data.question);
+    setSaved(false); setNote("");
     setQuestionStartedAt(data.question ? Date.now() : null);
     setCurrentQuestionSeconds(0);
+    if (data.question) {
+      void fetch(`/api/flags?questionId=${data.question.id}`).then((flagResponse) => flagResponse.ok ? flagResponse.json() : null).then((flag) => {
+        if (flag) { setSaved(Boolean(flag.saved)); setNote(flag.note ?? ""); }
+      });
+    }
   }, [course]);
 
   useEffect(() => {
@@ -70,10 +80,17 @@ function PracticeContent() {
         if (!response.ok) { setError(data.error ?? "Could not start practice."); setQuestion(null); return; }
         const session = data.session as PracticeSession;
         setPracticeSession(session);
-        void loadQuestion(session.id);
+        void loadQuestion(session.id, undefined, requestedQuestion || undefined);
       }).catch(() => { if (!cancelled) { setError("Could not start practice."); setQuestion(null); } });
     return () => { cancelled = true; };
-  }, [course, loadQuestion]);
+  }, [course, loadQuestion, requestedQuestion]);
+
+  async function saveFlag(nextSaved = saved, nextNote = note) {
+    if (!question) return;
+    const response = await fetch("/api/flags", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, saved: nextSaved, note: nextNote }) });
+    if (!response.ok) { const data = await response.json(); setError(data.error ?? "Could not save this question."); return; }
+    setSaved(nextSaved);
+  }
 
   const courseChoices = [
     ["civil_litigation", "CIV", "Civil Litigation"],
@@ -103,6 +120,7 @@ function PracticeContent() {
           <p className="question-meta">{question.course ?? "Course not identified"} · {yearsLabel(question.exam_years)}</p>
           <div className="practice-progress" aria-hidden="true"><span /></div>
           <p className="stem">{question.stem}</p>
+          <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { void saveFlag(!saved); }}>{saved ? "★ Saved for later" : "☆ Flag for later"}</button>
           <div className="options" role="radiogroup" aria-label="Answer options">
             {question.options.map((option) => <label key={option.key} className={`option ${chosenKey === option.key ? "selected" : ""} ${result ? "locked" : ""}`}>
               <input
@@ -122,7 +140,8 @@ function PracticeContent() {
           </button> : (
             <div className={`result ${result.matchesMaterialKey ? "" : "incorrect"}`} role="status">
               <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}.`}</strong></p>
-              <p>{question.explanation ?? "This answer is supported by the loaded materials. A fuller explanation is being prepared as verification continues."}</p>
+              <p>{question.explanation?.replace(/^(The materials (expressly )?(state|say) that|According to the materials,?\s*)/i, "") ?? "A fuller tutor explanation is being prepared for this verified answer."}</p>
+              <div className="note-box"><label htmlFor="question-note">Your note</label><textarea id="question-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a reminder for later revision…" /><button type="button" className="outline-button" onClick={() => { void saveFlag(true, note); }}>Save note</button></div>
               <button className="primary-button" type="button" onClick={() => { if (practiceSession) void loadQuestion(practiceSession.id, question.id); }}>Next question</button>
             </div>
           )}

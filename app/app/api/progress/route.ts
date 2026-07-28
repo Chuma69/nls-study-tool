@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/session";
 export const runtime = "nodejs";
 
 type SessionRow = { id: number; course: string; started_at: string; last_activity_at: string; answers_count: number; correct_count: number; total_seconds: number };
+type SprintRow = { id: number; started_at: string; completed_at: string | null; status: string; question_count: number; correct_count: number; answered_count: number; duration_seconds: number };
 type CourseRow = { course: string; total_questions: number; attempted_questions: number; correct_questions: number; total_topics: number; covered_topics: number };
 
 const courseIds = ["civil_litigation", "criminal_litigation", "corporate_law_practice", "property_law_practice", "professional_ethics_skills"];
@@ -29,6 +30,14 @@ export async function GET() {
     FROM practice_sessions WHERE user_id = ${user.id}
     ORDER BY last_activity_at DESC LIMIT 50
   ` as SessionRow[];
+  const sprints = await sql`
+    SELECT s.id,s.started_at,s.completed_at,s.status,s.question_count,s.duration_seconds,
+           count(si.id) FILTER (WHERE si.chosen_key IS NOT NULL)::int AS answered_count,
+           count(si.id) FILTER (WHERE si.is_correct)::int AS correct_count
+    FROM sprints s LEFT JOIN sprint_items si ON si.sprint_id=s.id
+    WHERE s.user_id=${user.id} AND s.status <> 'active'
+    GROUP BY s.id ORDER BY COALESCE(s.completed_at,s.started_at) DESC LIMIT 50
+  ` as SprintRow[];
   const rawCourses = await sql`
     WITH latest_attempt AS (
       SELECT DISTINCT ON (question_id) question_id, is_correct
@@ -76,7 +85,7 @@ export async function GET() {
       WHERE EXISTS (SELECT 1 FROM active_days WHERE day = streak.day - 1)
     ) SELECT count(*)::int AS days FROM streak
   ` as { days: number }[];
-  return NextResponse.json({ sessions, courses, coverage, readiness: { overall, weakestCourse: weakest?.course ?? null, streak: streakRows[0]?.days ?? 0 } });
+  return NextResponse.json({ sessions, sprints, courses, coverage, readiness: { overall, weakestCourse: weakest?.course ?? null, streak: streakRows[0]?.days ?? 0 } });
 }
 
 export async function DELETE(request: Request) {

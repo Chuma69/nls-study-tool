@@ -84,7 +84,7 @@ export default function Home() {
               <h1>Welcome, {firstName}.</h1>
               <p className="lead">It&apos;s a good day to know the answer.</p>
               <div className="countdown"><strong>{daysToFinals}</strong><span className="meta">Days until Bar Part II finals</span></div>
-              <div className="button-row"><Link className="button-link" href="/practice">Start practice</Link><button className="secondary" disabled title="Sprints are the next feature being built">Design a sprint</button></div>
+              <div className="button-row"><Link className="button-link" href="/practice">Start practice</Link><Link className="secondary button-link-muted" href="/sprint">Design a sprint</Link></div>
             </section>
             <aside className="panel readiness-card">
               <div><p className="eyebrow">Readiness</p><div className="readiness-score">{readiness} <span>/ 100</span></div><p className="readiness-line">{readinessLine}</p><div className="readiness-bar"><span style={{ width: `${readiness}%` }} /></div></div>
@@ -100,9 +100,9 @@ export default function Home() {
           </section>
 
           <section className="shortcut-grid exact-shortcuts">
-            <div id="sprints" className="card shortcut-card blue"><h3>Test sprint</h3><p className="muted">Pick a clock and a question count.</p></div>
-            <div id="cards" className="card shortcut-card green"><h3>Rule cards</h3><p className="muted">Time limits, sections, forms — 30 seconds each.</p></div>
-            <Link id="saved" className="card shortcut-card amber" href="/account"><h3>Saved &amp; notes</h3><p className="muted">2 flagged for a second look.</p></Link>
+            <Link id="sprints" href="/sprint" className="card shortcut-card blue"><h3>Test sprint</h3><p className="muted">Pick a clock and a question count.</p></Link>
+            <Link id="cards" href="/cards" className="card shortcut-card green"><h3>Rule cards</h3><p className="muted">Recall verified rules at your own pace.</p></Link>
+            <Link id="saved" className="card shortcut-card amber" href="/saved"><h3>Saved &amp; notes</h3><p className="muted">Return to questions you flagged.</p></Link>
           </section>
           <section id="progress" className="coverage-panel"><p className="eyebrow">Coverage so far</p><div className="coverage-grid"><div><strong>{coverage?.answered ?? 0}</strong><span>of {coverage?.questions ?? 0} questions answered</span></div><div><strong>{coverage?.topicsCovered ?? 0}</strong><span>of {coverage?.topics ?? 0} topics covered</span></div><div><strong>{coverage?.percentage ?? 0}%</strong><span>question-bank completion</span></div></div></section>
           {(user.role === "expert" || user.role === "admin") && <Link className="text-link" href="/expert">Open expert review →</Link>}

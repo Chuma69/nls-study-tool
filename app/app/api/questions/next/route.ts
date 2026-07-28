@@ -28,6 +28,7 @@ export async function GET(request: Request) {
 
   const selectedCourse = new URL(request.url).searchParams.get("course") ?? "";
   const excludedQuestionId = Number(new URL(request.url).searchParams.get("exclude")) || 0;
+  const requestedQuestionId = Number(new URL(request.url).searchParams.get("question")) || 0;
   const requestedSessionId = Number(new URL(request.url).searchParams.get("session")) || 0;
   if (selectedCourse && !courses.has(selectedCourse)) {
     return NextResponse.json({ error: "Choose one of the listed courses." }, { status: 400 });
@@ -39,7 +40,17 @@ export async function GET(request: Request) {
   ` as SessionRow[] : [];
   const session = sessions[0] ?? null;
   const sessionLastQuestionId = session?.last_question_id ?? 0;
-  const rows = await getSql()`
+  const rows = requestedQuestionId ? await getSql()`
+    SELECT q.id, q.course, q.exam_years, q.stem, q.options, q.explanation,
+           q.verification_status, q.source_locator, s.display_name, s.rel_source_path,
+           false AS previously_failed
+    FROM questions q LEFT JOIN source_documents s ON s.id = q.source_document_id
+    WHERE q.id = ${requestedQuestionId} AND q.question_type = 'mcq'
+      AND q.material_supported_key IS NOT NULL
+      AND q.verification_status IN ('material_supported', 'staff_corrected')
+      AND (${selectedCourse} = '' OR q.course = ${selectedCourse})
+    LIMIT 1
+  ` as QuestionRow[] : await getSql()`
     SELECT q.id, q.course, q.exam_years, q.stem, q.options, q.explanation,
            q.verification_status, q.source_locator,
            s.display_name, s.rel_source_path,
