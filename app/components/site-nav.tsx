@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation";
 
 const links = [
   ["Home", "/"],
-  ["Practice", "/practice"],
-  ["Expert review", "/expert"],
-  ["Account", "/account"],
+  ["Sprints", "/#sprints"],
+  ["Progress", "/#progress"],
+  ["Cards", "/#cards"],
+  ["Saved", "/#saved"],
 ] as const;
 
 export function SiteNav() {

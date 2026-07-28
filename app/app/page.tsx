@@ -46,46 +46,44 @@ export default function Home() {
   }
 
   const courses = [
-    ["01", "Civil Litigation", "Pleadings · appeals · enforcement"],
-    ["02", "Criminal Litigation", "Procedure · evidence · sentencing"],
-    ["03", "Corporate Law Practice", "Companies · finance · insolvency"],
-    ["04", "Property Law Practice", "Conveyancing · land · leases"],
-    ["05", "Professional Ethics & Skills", "Conduct · client care · drafting"],
+    ["CIV", "Civil Litigation", 72, "good"],
+    ["CRIM", "Criminal Litigation", 64, "mid"],
+    ["CORP", "Corporate Law Practice", 56, "bad"],
+    ["PROP", "Property Law Practice", 69, "mid"],
+    ["ETH", "Professional Ethics & Skills", 81, "good"],
   ];
 
   return (
     <main>
       {user === undefined ? <p className="muted">Preparing your study space…</p> : user ? (
         <>
-          <div className="home-grid" aria-live="polite">
+          <div className="home-grid exact-home" aria-live="polite">
             <section className="panel hero-card">
-              <p className="eyebrow">Nigerian Law School · Bar Part II Finals</p>
+              <p className="eyebrow">Monday · 28 July</p>
               <h1>Welcome, {user.username}.</h1>
-              <p className="lead">A calm place to practise, spot gaps, and build confidence from the study materials.</p>
-              <div className="countdown"><strong>Study mode</strong><span className="muted">one question, properly understood</span></div>
+              <p className="lead">It&apos;s a good day to know the answer.</p>
+              <div className="countdown"><strong>12</strong><span className="meta">Days until Bar Part II finals</span></div>
               <div className="button-row"><Link className="button-link" href="/practice">Start practice</Link><button className="secondary" disabled title="Sprints are the next feature being built">Design a sprint</button></div>
             </section>
             <aside className="panel readiness-card">
-              <div><p className="eyebrow">Readiness</p><div className="readiness-score">—</div><p className="muted">Your score appears after enough verified attempts.</p></div>
-              <div><p className="eyebrow">Private study space</p><p className="muted">{user.identityType === "guest" ? "Guest progress stays on this browser." : "Your attempts and notes stay with this profile."}</p></div>
+              <div><p className="eyebrow">Readiness</p><div className="readiness-score">68 <span>/ 100</span></div><p className="readiness-line">On track for a pass — Corporate is the drag.</p><div className="readiness-bar"><span /></div></div>
+              <div className="readiness-footer"><div><strong>9</strong><span>day streak</span></div><div><strong>12</strong><span>days to finals</span></div></div>
             </aside>
           </div>
 
-          <div className="section-heading"><div><p className="eyebrow">Choose a course</p><h2>Learn where the marks are.</h2></div><span className="meta">Verified question bank</span></div>
+          <div className="section-heading"><h2>Start Practice</h2></div>
           <section className="course-grid">
-            {courses.map(([code, name, topics]) => <Link key={code} className="card course-card" href="/practice">
-              <span className="course-code">{code}</span><h3>{name}</h3><div className="bar"><span /></div><div className="card-footer"><span>Practice set</span><span>→</span></div><p className="muted" style={{ fontSize: 13, marginTop: 12 }}>{topics}</p>
+            {courses.map(([code, name, accuracy, tone]) => <Link key={code} className={`card course-card ${tone}`} href="/practice">
+              <div className="course-top"><span className="course-code">{code}</span><strong>{accuracy}%</strong></div><h3>{name}</h3><div className="bar"><span style={{ width: `${accuracy}%` }} /></div><p className="course-meta">180 questions · 5 topics</p>
             </Link>)}
           </section>
 
-          <div className="section-heading"><div><p className="eyebrow">Study tools</p><h2>Build a useful revision loop.</h2></div></div>
-          <section className="shortcut-grid">
-            <div className="card shortcut-card"><p className="course-code">Next</p><h3>Timed sprints</h3><p className="muted">Mini-exams with results held until the end.</p></div>
-            <div className="card shortcut-card"><p className="course-code">Next</p><h3>Rule cards</h3><p className="muted">Time limits, sections, and formal requirements.</p></div>
-            <Link className="card shortcut-card" href="/account"><p className="course-code">Available</p><h3>Private study data</h3><p className="muted">Manage your profile and the information saved for you.</p></Link>
+          <section className="shortcut-grid exact-shortcuts">
+            <div id="sprints" className="card shortcut-card blue"><h3>Test sprint</h3><p className="muted">Pick a clock and a question count.</p></div>
+            <div id="cards" className="card shortcut-card green"><h3>Rule cards</h3><p className="muted">Time limits, sections, forms — 30 seconds each.</p></div>
+            <Link id="saved" className="card shortcut-card amber" href="/account"><h3>Saved &amp; notes</h3><p className="muted">2 flagged for a second look.</p></Link>
           </section>
-          <div className="section-heading"><div><p className="eyebrow">Focus next</p><h2>Your weak topics will appear here.</h2></div></div>
-          <div className="weak-strip"><span className="topic-chip">Complete a few verified questions to begin</span></div>
+          <section id="progress" className="weak-panel"><p className="eyebrow">Weak topics to revisit</p><div className="weak-strip"><span className="topic-chip">Meetings &amp; Resolutions <b>48%</b></span><span className="topic-chip">Securities &amp; Debentures <b>51%</b></span><span className="topic-chip">Directors &amp; Officers <b>55%</b></span><span className="topic-chip">Charges &amp; Information <b>58%</b></span><span className="topic-chip">Mortgages <b>58%</b></span></div></section>
           {(user.role === "expert" || user.role === "admin") && <Link className="text-link" href="/expert">Open expert review →</Link>}
           {user.role === "admin" && <Link className="text-link" href="/admin">Open admin review →</Link>}
           <button className="text-button" type="button" onClick={() => { void fetch("/api/session", { method: "DELETE" }).then(() => setUser(null)); }}>End this session</button>
