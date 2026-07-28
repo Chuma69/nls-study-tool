@@ -209,7 +209,9 @@ def _one(question):
                     },
                 )
                 break
-            except RateLimitError:
+            except RateLimitError as exc:
+                if getattr(exc, "code", None) == "insufficient_quota":
+                    return question, None, 0, 0, "insufficient_quota"
                 if attempt == 4:
                     raise
                 time.sleep(min(60, 5 * (2**attempt)))
@@ -361,11 +363,19 @@ def run(
                         "Use at least the original approved cap when resuming."
                     )
                 run_id = resume_run_id
+                # Zero-token failures (for example an exhausted API balance)
+                # were never processed and must be retried on resume.
                 cur.execute(
-                    "SELECT question_id FROM reasoning_calibration_items WHERE run_id=%s",
+                    """SELECT question_id FROM reasoning_calibration_items
+                        WHERE run_id=%s AND status<>'failed'""",
                     (run_id,),
                 )
                 saved_ids = {row[0] for row in cur.fetchall()}
+                cur.execute(
+                    """DELETE FROM reasoning_calibration_items
+                        WHERE run_id=%s AND status='failed'""",
+                    (run_id,),
+                )
                 cur.execute(
                     """SELECT COUNT(*)::int,COALESCE(SUM(input_tokens),0)::int,
                               COALESCE(SUM(output_tokens),0)::int,
@@ -414,6 +424,14 @@ def run(
                 final_status = "stopped"
                 break
             question, result, input_tokens, output_tokens, error = _one(question)
+            if error == "insufficient_quota":
+                final_status = "stopped"
+                print(
+                    "  stopped: OpenAI API balance is exhausted; "
+                    "add credits, then resume this run.",
+                    flush=True,
+                )
+                break
             cost = _cost(input_tokens, output_tokens)
             for attempt in range(4):
                 try:
