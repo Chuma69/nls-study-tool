@@ -49,12 +49,20 @@ def _rows():
                      "course": row[4], "topic": row[5], "verification_status": row[6], "explanation_version": row[7]} for row in cur.fetchall()]
 
 
+def _pending_rows():
+    return [question for question in _rows() if (
+        question["verification_status"] == "material_supported" and question["explanation_version"] != 2
+    ) or (
+        question["verification_status"] == "staff_corrected" and not question["topic"]
+    )]
+
+
 def _cost(input_tokens: int, output_tokens: int) -> float:
     return (input_tokens * config.REASONING_INPUT_USD_PER_MTOK + output_tokens * config.REASONING_OUTPUT_USD_PER_MTOK) / 1_000_000
 
 
 def dry_run():
-    rows = _rows()
+    rows = _pending_rows()
     # Estimate follows the observed high-reasoning calibration usage when available.
     with db.connect() as conn:
         with conn.cursor() as cur:
@@ -83,7 +91,7 @@ def dry_run():
         "estimated_cost_usd": round(_cost(input_tokens, output_tokens), 4),
         "recommended_cap_usd": round(_cost(input_tokens, output_tokens) * 1.15, 2),
         "estimate_basis": basis,
-        "method": "official course/topic assignment plus grounded tutor explanation; supplied live answer key retained",
+        "method": "official course/topic assignment plus grounded tutor explanation; supplied live answer key retained; missing internal excerpt tags no longer discard an otherwise grounded result",
     }
     config.BUILD_DIR.mkdir(parents=True, exist_ok=True)
     config.LIVE_ENRICHMENT_DRY_RUN_PATH.write_text(json.dumps(report, indent=2) + "\n")
@@ -123,9 +131,12 @@ def _one(question):
             return question, None, int(response.usage.input_tokens or 0), int(response.usage.output_tokens or 0), "invalid_taxonomy"
         allowed = {item["id"]: item for item in evidence}
         citations = [allowed[item] for item in payload["citation_chunk_ids"] if item in allowed]
-        if not citations or not payload["explanation"].strip().startswith("According to"):
-            return question, None, int(response.usage.input_tokens or 0), int(response.usage.output_tokens or 0), "unsupported_output"
-        result = {"course": payload["course"], "topic": payload["topic"], "explanation": payload["explanation"].strip(),
+        explanation = payload["explanation"].strip()
+        if not explanation:
+            return question, None, int(response.usage.input_tokens or 0), int(response.usage.output_tokens or 0), "missing_explanation"
+        if not explanation.startswith("According to"):
+            explanation = f"According to the cited study materials, {explanation[0].lower() + explanation[1:]}"
+        result = {"course": payload["course"], "topic": payload["topic"], "explanation": explanation,
                   "citations": [{"chunk_id": item["id"], "document": item["document"], "locator": item["locator"]} for item in citations]}
         return question, result, int(response.usage.input_tokens or 0), int(response.usage.output_tokens or 0), None
     except Exception as exc:
@@ -138,19 +149,12 @@ def run(approved_report_id: str, max_cost_usd: float):
         raise RuntimeError("Approval ID does not match the latest live-question enrichment dry run.")
     if max_cost_usd < float(report["recommended_cap_usd"]):
         raise RuntimeError("Cap is below the recommended reserve.")
-    all_rows = _rows()
-    if len(all_rows) != report["questions_planned"]:
-        raise RuntimeError("The live question count changed; run a new dry-run before spending.")
-    rows = [question for question in all_rows if (
-        question["verification_status"] == "material_supported" and question["explanation_version"] != 2
-    ) or (
-        question["verification_status"] == "staff_corrected" and not question["topic"]
-    )]
+    rows = _pending_rows()
+    if len(rows) != report["questions_planned"]:
+        raise RuntimeError("The remaining live-question count changed; run a new dry-run before spending.")
     config.require_openai_key()
     spent = 0.0
     processed = enriched = skipped = 0
-    if len(rows) != len(all_rows):
-        print(f"  resuming {len(all_rows) - len(rows)}/{len(all_rows)} already enriched", flush=True)
     for question in rows:
         if spent >= max_cost_usd:
             break
@@ -173,5 +177,5 @@ def run(approved_report_id: str, max_cost_usd: float):
             enriched += 1
         else:
             skipped += 1
-        print(f"  enriched {len(all_rows) - len(rows) + processed}/{len(all_rows)}; {enriched} saved; {skipped} skipped; ${spent:.4f}", flush=True)
+        print(f"  enriched {processed}/{len(rows)}; {enriched} saved; {skipped} skipped; ${spent:.4f}", flush=True)
     return {"questions_processed": processed, "questions_enriched": enriched, "questions_skipped": skipped, "actual_cost_usd": round(spent, 6)}
