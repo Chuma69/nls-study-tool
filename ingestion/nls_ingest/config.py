@@ -89,6 +89,7 @@ REASONING_OUTPUT_USD_PER_MTOK = float(os.environ.get("REASONING_OUTPUT_USD_PER_M
 REASONING_PILOT_SIZE = int(os.environ.get("REASONING_PILOT_SIZE", "150"))
 REASONING_PILOT_DRY_RUN_PATH: Path = BUILD_DIR / "reasoning_calibration_dry_run.json"
 LIVE_ENRICHMENT_DRY_RUN_PATH: Path = BUILD_DIR / "live_question_enrichment_dry_run.json"
+GENERAL_CLEANUP_DRY_RUN_PATH: Path = BUILD_DIR / "general_question_cleanup_dry_run.json"
 CORPUS_AUDIT_PATH: Path = BUILD_DIR / "corpus_quality_audit.json"
 
 # ── Chunking (PRD §5.4) ───────────────────────────────────────

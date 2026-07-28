@@ -227,6 +227,34 @@ def cmd_audit_corpus(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cleanup_general_live(args: argparse.Namespace) -> int:
+    from . import general_question_cleanup
+    if args.dry_run:
+        report = general_question_cleanup.dry_run()
+        print("✓ General live-question cleanup dry-run complete — no OpenAI API calls were made.")
+        for key in (
+            "report_id", "model_id", "questions_planned",
+            "staff_corrected_protected", "materials_answers_rechecked",
+            "estimated_input_tokens", "estimated_output_tokens",
+            "estimated_cost_usd", "recommended_cap_usd",
+        ):
+            print(f"  {key:28} {report[key]}")
+        return 0
+    if not args.approve_dry_run or args.max_cost_usd is None:
+        print(
+            "Cleanup is blocked until its dry-run report and cap are approved.",
+            file=sys.stderr,
+        )
+        return 2
+    result = general_question_cleanup.run(
+        args.approve_dry_run, args.max_cost_usd, args.resume_run_id
+    )
+    print("✓ General live-question cleanup finished.")
+    for key, value in result.items():
+        print(f"  {key:28} {value}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="nls_ingest", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -271,6 +299,25 @@ def build_parser() -> argparse.ArgumentParser:
     ca = sub.add_parser("audit-corpus", help="Read-only audit of source quality and live-question retrieval coverage.")
     ca.add_argument("--sample-size", type=int, default=100, help="Number of live questions to test with the existing retrieval method.")
     ca.set_defaults(func=cmd_audit_corpus)
+
+    gc = sub.add_parser(
+        "cleanup-general-live",
+        help="Classify and evidence-check live MCQs that are still assigned to general.",
+    )
+    gc.add_argument(
+        "--dry-run", action="store_true",
+        help="Estimate cost without calling OpenAI.",
+    )
+    gc.add_argument(
+        "--approve-dry-run",
+        help="Exact cleanup report ID approved by the owner.",
+    )
+    gc.add_argument("--max-cost-usd", type=float, help="Hard spend ceiling.")
+    gc.add_argument(
+        "--resume-run-id", type=int,
+        help="Continue an interrupted cleanup without repeating saved questions.",
+    )
+    gc.set_defaults(func=cmd_cleanup_general_live)
 
     pb = sub.add_parser("build", help="Build the SQLite FTS index.")
     pb.add_argument("--ocr", action="store_true", help="OCR scanned PDFs (slow).")
