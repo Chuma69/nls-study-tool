@@ -138,6 +138,7 @@ form .primary-button { margin-top: 14px; }
 .report-form { background: oklch(.97 .02 235); border: 1px solid var(--line); border-radius: 9px; margin-top: 12px; padding: 14px; }
 .report-form label { margin-top: 0; }
 .report-form textarea { min-height: 76px; }
+.optional-label span { color: var(--muted); font-weight: 400; }
 .flashcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin-top: 28px; padding: 22px; }
 .rule-progress { align-items: center; background: oklch(.95 .025 235); border: 1px dashed oklch(.78 .025 235); border-radius: 14px; display: flex; flex-wrap: wrap; gap: 26px; margin-top: 26px; padding: 18px 22px; }
 .rule-progress strong { color: var(--accent); display: block; font-family: Newsreader, Georgia, serif; font-size: 29px; font-weight: 500; line-height: 1; }
