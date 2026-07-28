@@ -20,10 +20,10 @@ export async function GET() {
   const stats = await sql`
     SELECT count(*)::int AS reviewed,
            count(*) FILTER (WHERE due_at <= now())::int AS due,
-           count(*) FILTER (WHERE interval_days >= 7)::int AS confident
+           count(*) FILTER (WHERE interval_days > 1)::int AS passed
     FROM card_reviews WHERE user_id=${user.id}
-  ` as { reviewed: number; due: number; confident: number }[];
-  return NextResponse.json({ card: rows[0] ?? null, stats: stats[0] ?? { reviewed: 0, due: 0, confident: 0 } });
+  ` as { reviewed: number; due: number; passed: number }[];
+  return NextResponse.json({ card: rows[0] ?? null, stats: stats[0] ?? { reviewed: 0, due: 0, passed: 0 } });
 }
 
 export async function POST(request: Request) {

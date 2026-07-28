@@ -219,9 +219,6 @@ form .primary-button { margin-top: 14px; }
 .bar.good > span { background: var(--good); }
 .bar.mid > span { background: var(--mid); }
 .bar.bad > span { background: var(--bad); }
-.exam-pace { border-top: 1px solid var(--line); margin-top: 22px; padding-top: 22px; }
-.exam-pace > p:not(.eyebrow) { color: var(--muted); font-size: 15px; line-height: 1.6; margin-top: 13px; }
-.exam-pace a { color: var(--accent); font-size: 13px; margin-top: 14px; }
 .progress-log-row { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 14px; grid-template-columns: 74px 1fr auto; padding: 17px 0; }
 .progress-session-log > .eyebrow + .progress-log-row { border-top: 0; margin-top: 18px; }
 .progress-log-row time { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 11px; }
