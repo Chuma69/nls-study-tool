@@ -9,19 +9,22 @@ async function refreshConsensus(questionId: number) {
   const rows = await sql`SELECT selected_key, COUNT(*)::int AS count FROM expert_reviews WHERE question_id=${questionId} AND status='submitted' GROUP BY selected_key ORDER BY count DESC` as { selected_key: string; count: number }[];
   const total = rows.reduce((sum, row) => sum + row.count, 0);
   const agreed = rows.find((row) => row.count >= 2);
+  const proposed = agreed?.selected_key ?? (rows.length === 1 ? rows[0].selected_key : null);
   const status = agreed ? "consensus_reached" : rows.length > 1 ? "conflicted" : "awaiting_reviews";
   await sql`INSERT INTO question_consensus(question_id,selected_key,review_count,status,updated_at)
-    VALUES(${questionId},${agreed?.selected_key ?? null},${total},${status},now())
+    VALUES(${questionId},${proposed},${total},${status},now())
     ON CONFLICT(question_id) DO UPDATE SET selected_key=EXCLUDED.selected_key,review_count=EXCLUDED.review_count,status=EXCLUDED.status,updated_at=now()`;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await requireRole("expert", "admin");
   if (auth.response) return auth.response;
+  const requestedQuestionId = Number(new URL(request.url).searchParams.get("question")) || 0;
   const rows = await getSql()`SELECT q.id,q.stem,q.options,q.course,q.exam_years,q.source_locator,
-    COALESCE(s.display_name,s.rel_source_path) AS source_name,COALESCE(c.status,'awaiting_reviews') AS consensus_status
+    COALESCE(s.display_name,s.rel_source_path) AS source_name,COALESCE(c.status,'awaiting_reviews') AS consensus_status,COALESCE(c.review_count,0)::int AS review_count
     FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id LEFT JOIN question_consensus c ON c.question_id=q.id
     WHERE q.question_type='mcq' AND q.verification_status NOT IN ('material_supported','staff_corrected')
+      AND (${requestedQuestionId}=0 OR q.id=${requestedQuestionId})
       AND q.options IS NOT NULL AND COALESCE(s.rel_source_path,'') !~* 'answer'
     ORDER BY CASE WHEN c.status='conflicted' THEN 0 ELSE 1 END,q.id LIMIT 20`;
   return NextResponse.json({ questions: rows });
@@ -42,6 +45,15 @@ export async function POST(request: Request) {
   await sql`INSERT INTO expert_reviews(question_id,expert_id,selected_key,explanation,citations,confidence,updated_at)
     VALUES(${questionId},${auth.user.id},${body.selectedKey},${body.explanation.trim()},${JSON.stringify(body.citations.filter(Boolean).slice(0,6))}::jsonb,${body.confidence},now())
     ON CONFLICT(question_id,expert_id) DO UPDATE SET selected_key=EXCLUDED.selected_key,explanation=EXCLUDED.explanation,citations=EXCLUDED.citations,confidence=EXCLUDED.confidence,status='submitted',updated_at=now()`;
+  if (auth.user.role === "admin") {
+    const citations = body.citations.filter(Boolean).slice(0, 6);
+    const reviewCount = await sql`SELECT count(*)::int AS count FROM expert_reviews WHERE question_id=${questionId} AND status='submitted'` as { count: number }[];
+    await sql`UPDATE questions SET material_supported_key=${body.selectedKey},verification_status='staff_corrected',explanation=${body.explanation.trim()},explanation_version=1,explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
+    await sql`INSERT INTO question_consensus(question_id,selected_key,review_count,status,reviewed_by,reviewed_at,updated_at)
+      VALUES(${questionId},${body.selectedKey},${reviewCount[0]?.count ?? 1},'staff_approved',${auth.user.id},now(),now())
+      ON CONFLICT(question_id) DO UPDATE SET selected_key=EXCLUDED.selected_key,review_count=EXCLUDED.review_count,status='staff_approved',reviewed_by=EXCLUDED.reviewed_by,reviewed_at=now(),updated_at=now()`;
+    return NextResponse.json({ ok: true, published: true });
+  }
   await refreshConsensus(questionId);
   return NextResponse.json({ ok: true });
 }

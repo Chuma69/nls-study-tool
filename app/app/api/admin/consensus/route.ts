@@ -7,7 +7,7 @@ export async function GET() {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
   const rows = await getSql()`SELECT q.id,q.stem,q.options,c.selected_key,c.review_count,c.status
     FROM question_consensus c JOIN questions q ON q.id=c.question_id
-    WHERE c.status IN ('consensus_reached','conflicted') ORDER BY c.updated_at DESC LIMIT 50`;
+    WHERE c.status IN ('awaiting_reviews','consensus_reached','conflicted') ORDER BY c.updated_at DESC LIMIT 50`;
   return NextResponse.json({ items: rows });
 }
 export async function POST(request: Request) {
