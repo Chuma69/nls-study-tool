@@ -228,6 +228,9 @@ p { margin: 0; }
 .invite-controls .primary-button { margin: 0; white-space: nowrap; }
 .review-queue .review-row:last-child { padding-bottom: 0; }
 .bank-controls { display: grid; gap: 10px; grid-template-columns: minmax(200px, 1fr) minmax(170px, .6fr) auto; margin: 16px 0 10px; }
+.question-bank .bank-controls { grid-template-columns: minmax(200px, 1fr) minmax(150px, .55fr) minmax(150px, .55fr) auto; }
+.question-bank-row { cursor: pointer; transition: background .15s ease, padding .15s ease; }
+.question-bank-row:hover { background: oklch(.97 .02 235); padding-left: 12px; padding-right: 12px; }
 .option-edit { align-items: center; display: grid; gap: 10px; grid-template-columns: 22px 1fr; margin-top: 10px; }
 .source { margin-top: 20px; }
 
@@ -238,8 +241,9 @@ textarea { min-height: 120px; resize: vertical; }
 .error { color: var(--bad); font-size: 13px; margin-top: 12px; }
 .text-link, .text-button { color: var(--accent); display: inline-block; font-size: 13px; margin: 14px 12px 0 0; }
 .text-button { background: transparent; border: 0; min-height: auto; padding: 0; text-decoration: underline; }
-footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .08em; line-height: 1.7; margin-top: 52px; padding-top: 16px; text-transform: uppercase; }
-.built-for { align-items: center; color: var(--ink); display: flex; font-family: "IBM Plex Sans", sans-serif; font-size: 12px; letter-spacing: 0; margin-top: 10px; text-transform: none; }
+footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .08em; line-height: 1.7; margin-top: 52px; padding-top: 16px; text-align: center; text-transform: uppercase; }
+.built-for { align-items: center; color: var(--ink); display: flex; font-family: "IBM Plex Sans", sans-serif; font-size: 12px; justify-content: center; letter-spacing: 0; margin-top: 10px; text-transform: none; }
+.yienor { margin-left: 4px; text-decoration: underline; text-underline-offset: 3px; }
 .outline-heart { font-family: "IBM Plex Sans", sans-serif; font-size: 18px; line-height: 1; margin-left: 4px; }
 
 @media (max-width: 860px) {
