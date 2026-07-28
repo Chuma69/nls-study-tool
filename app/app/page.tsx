@@ -53,6 +53,12 @@ export default function Home() {
     ["professional_ethics_skills", "ETH", "Professional Ethics & Skills", 81, "good"],
   ];
   const firstName = user?.username.trim().split(/\s+/)[0] ?? "there";
+  const today = new Date();
+  const midnightToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let finalsDate = new Date(today.getFullYear(), 9, 31);
+  if (finalsDate < midnightToday) finalsDate = new Date(today.getFullYear() + 1, 9, 31);
+  const daysToFinals = Math.round((finalsDate.getTime() - midnightToday.getTime()) / 86_400_000);
+  const dateLine = new Intl.DateTimeFormat(undefined, { weekday: "long", day: "numeric", month: "long" }).format(today);
 
   return (
     <main>
@@ -60,15 +66,15 @@ export default function Home() {
         <>
           <div className="home-grid exact-home" aria-live="polite">
             <section className="panel hero-card">
-              <p className="eyebrow">Monday · 28 July</p>
+              <p className="eyebrow">{dateLine}</p>
               <h1>Welcome, {firstName}.</h1>
               <p className="lead">It&apos;s a good day to know the answer.</p>
-              <div className="countdown"><strong>12</strong><span className="meta">Days until Bar Part II finals</span></div>
+              <div className="countdown"><strong>{daysToFinals}</strong><span className="meta">Days until Bar Part II finals</span></div>
               <div className="button-row"><Link className="button-link" href="/practice">Start practice</Link><button className="secondary" disabled title="Sprints are the next feature being built">Design a sprint</button></div>
             </section>
             <aside className="panel readiness-card">
               <div><p className="eyebrow">Readiness</p><div className="readiness-score">68 <span>/ 100</span></div><p className="readiness-line">On track for a pass — Corporate is the drag.</p><div className="readiness-bar"><span /></div></div>
-              <div className="readiness-footer"><div><strong>9</strong><span>day streak</span></div><div><strong>12</strong><span>days to finals</span></div></div>
+              <div className="readiness-footer"><div><strong>9</strong><span>day streak</span></div><div><strong>{daysToFinals}</strong><span>days to finals</span></div></div>
             </aside>
           </div>
 
