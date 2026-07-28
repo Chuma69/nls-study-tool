@@ -52,6 +52,7 @@ export default function Home() {
     ["PROP", "Property Law Practice", 69, "mid"],
     ["ETH", "Professional Ethics & Skills", 81, "good"],
   ];
+  const firstName = user?.username.trim().split(/\s+/)[0] ?? "there";
 
   return (
     <main>
@@ -60,7 +61,7 @@ export default function Home() {
           <div className="home-grid exact-home" aria-live="polite">
             <section className="panel hero-card">
               <p className="eyebrow">Monday · 28 July</p>
-              <h1>Welcome, {user.username}.</h1>
+              <h1>Welcome, {firstName}.</h1>
               <p className="lead">It&apos;s a good day to know the answer.</p>
               <div className="countdown"><strong>12</strong><span className="meta">Days until Bar Part II finals</span></div>
               <div className="button-row"><Link className="button-link" href="/practice">Start practice</Link><button className="secondary" disabled title="Sprints are the next feature being built">Design a sprint</button></div>
