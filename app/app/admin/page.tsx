@@ -124,11 +124,12 @@ export default function AdminPage() {
   const [bankStatus, setBankStatus] = useState("");
   const [bankReview, setBankReview] = useState("");
   const [bankPage, setBankPage] = useState(1);
+  const [bankPageSize, setBankPageSize] = useState(25);
   const [bankFiltersReady, setBankFiltersReady] = useState(false);
   const [bankTotal, setBankTotal] = useState(0);
   const [bankMore, setBankMore] = useState(false);
   const [msg, setMsg] = useState("");
-  const bankPageCount = Math.max(1, Math.ceil(bankTotal / 25));
+  const bankPageCount = Math.max(1, Math.ceil(bankTotal / bankPageSize));
   const bankVisiblePages = Array.from(
     new Set([
       1,
@@ -233,10 +234,10 @@ export default function AdminPage() {
       void load();
     }
   }
-  type BankFilters = { search: string; course: string; topic: string; status: string; review: string };
+  type BankFilters = { search: string; course: string; topic: string; status: string; review: string; pageSize: number };
   async function loadBank(
     page = bankPage,
-    filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, review: bankReview },
+    filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, review: bankReview, pageSize: bankPageSize },
   ) {
     try {
       const params = new URLSearchParams({ page: String(page) });
@@ -245,6 +246,7 @@ export default function AdminPage() {
       if (filters.topic) params.set("topic", filters.topic);
       if (filters.status) params.set("status", filters.status);
       if (filters.review) params.set("review", filters.review);
+      params.set("limit", String(filters.pageSize));
       const response = await fetch(`/api/admin/questions?${params}`);
       const data = await response.json();
       if (!response.ok)
@@ -260,13 +262,14 @@ export default function AdminPage() {
       setMsg("The question bank could not load. Please try again.");
     }
   }
-  function applyBankFilters(page = 1, filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, review: bankReview }) {
+  function applyBankFilters(page = 1, filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, review: bankReview, pageSize: bankPageSize }) {
     const params = new URLSearchParams();
     if (filters.search.trim()) params.set("search", filters.search.trim());
     if (filters.course) params.set("course", filters.course);
     if (filters.topic) params.set("topic", filters.topic);
     if (filters.status) params.set("status", filters.status);
     if (filters.review) params.set("review", filters.review);
+    if (filters.pageSize !== 25) params.set("limit", String(filters.pageSize));
     if (page > 1) params.set("page", String(page));
     router.replace(`/admin/questions${params.size ? `?${params}` : ""}`);
     void loadBank(page, filters);
@@ -278,6 +281,7 @@ export default function AdminPage() {
     setBankTopic(params.get("topic") ?? "");
     setBankStatus(params.get("status") ?? "");
     setBankReview(params.get("review") ?? "");
+    setBankPageSize([10,25,50,100].includes(Number(params.get("limit"))) ? Number(params.get("limit")) : 25);
     setBankPage(Math.max(1, Number(params.get("page")) || 1));
     setBankFiltersReady(true);
   }, []);
@@ -565,7 +569,7 @@ export default function AdminPage() {
                 className="text-button clear-bank-filters"
                 type="button"
                 onClick={() => {
-                  const filters = { search: "", course: "", topic: "", status: "", review: "" };
+                  const filters = { search: "", course: "", topic: "", status: "", review: "", pageSize: bankPageSize };
                   setBankSearch(filters.search);
                   setBankCourse(filters.course);
                   setBankTopic(filters.topic);
@@ -655,6 +659,7 @@ export default function AdminPage() {
                 >
                   Next
                 </button>
+                <label className="page-size-control">Questions per page<select value={bankPageSize} onChange={(event) => { const pageSize = Number(event.target.value); setBankPageSize(pageSize); applyBankFilters(1, { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, review: bankReview, pageSize }); }}><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
               </div>
             )}
           </section>

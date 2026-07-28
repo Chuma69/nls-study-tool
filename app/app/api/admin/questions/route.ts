@@ -6,7 +6,7 @@ import { COURSE_IDS, isCourse, isTopicForCourse } from "@/lib/course-topics";
 export const runtime = "nodejs";
 export async function GET(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const url = new URL(request.url); const search = (url.searchParams.get("search") ?? "").trim().slice(0, 200); const course = url.searchParams.get("course") ?? ""; const topic = url.searchParams.get("topic") ?? ""; const status = url.searchParams.get("status") ?? ""; const review = url.searchParams.get("review") ?? ""; const page = Math.max(1, Number(url.searchParams.get("page")) || 1); const limit = 25; const offset = (page - 1) * limit;
+  const url = new URL(request.url); const search = (url.searchParams.get("search") ?? "").trim().slice(0, 200); const course = url.searchParams.get("course") ?? ""; const topic = url.searchParams.get("topic") ?? ""; const status = url.searchParams.get("status") ?? ""; const review = url.searchParams.get("review") ?? ""; const page = Math.max(1, Number(url.searchParams.get("page")) || 1); const requestedLimit = Number(url.searchParams.get("limit")) || 25; const limit = [10,25,50,100].includes(requestedLimit) ? requestedLimit : 25; const offset = (page - 1) * limit;
   if (course && course !== "none" && !isCourse(course)) return NextResponse.json({ error: "Unknown course." }, { status: 400 });
   if (topic && topic !== "none" && !COURSE_IDS.some((id) => isTopicForCourse(id, topic))) return NextResponse.json({ error: "Unknown topic." }, { status: 400 });
   if (topic && topic !== "none" && course && course !== "none" && !isTopicForCourse(course, topic)) return NextResponse.json({ error: "That topic is not part of the selected course." }, { status: 400 });
