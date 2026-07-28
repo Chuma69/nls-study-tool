@@ -232,6 +232,8 @@ form .primary-button { margin-top: 14px; }
 .question-bank .bank-controls { grid-template-columns: minmax(200px, 1fr) minmax(150px, .55fr) minmax(150px, .55fr) auto; }
 .question-bank-row { cursor: pointer; transition: background .15s ease, padding .15s ease; }
 .question-bank-row:hover { background: oklch(.97 .02 235); padding-left: 12px; padding-right: 12px; }
+.question-bank-pages { align-items: center; }
+.question-bank-pages span { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
 .option-edit { align-items: center; display: grid; gap: 10px; grid-template-columns: 22px 1fr; margin-top: 10px; }
 .source { margin-top: 20px; }
 
