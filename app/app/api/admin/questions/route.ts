@@ -14,6 +14,37 @@ export async function GET(request: Request) {
   if (review && !["flagged", "not_flagged"].includes(review)) return NextResponse.json({ error: "Unknown review flag." }, { status: 400 });
   if (scenario && !["grouped", "standalone"].includes(scenario)) return NextResponse.json({ error: "Unknown scenario status." }, { status: 400 });
   const sql = getSql(); const pattern = `%${search}%`;
+  if (scenario === "grouped") {
+    const groupCounts = await sql`
+      SELECT count(DISTINCT q.context_group_id)::int AS total
+      FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id
+      WHERE q.question_type='mcq' AND q.context_group_id IS NOT NULL
+        AND (${course}='' OR (${course}='none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general')) IS NULL) OR (${course}<>'none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'))=${course}))
+        AND (${search}='' OR q.stem ILIKE ${pattern} OR q.shared_context ILIKE ${pattern})
+        AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')))
+        AND (${topic}='' OR (${topic}='none' AND NULLIF(q.topic,'') IS NULL) OR (${topic}<>'none' AND q.topic=${topic}))
+        AND (${review}='' OR (${review}='flagged' AND EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)) OR (${review}='not_flagged' AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)))
+    ` as { total: number }[];
+    const total = groupCounts[0]?.total ?? 0;
+    const questions = await sql`
+      WITH matching_groups AS (
+        SELECT q.context_group_id, max(q.id) AS newest_id
+        FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id
+        WHERE q.question_type='mcq' AND q.context_group_id IS NOT NULL
+          AND (${course}='' OR (${course}='none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general')) IS NULL) OR (${course}<>'none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'))=${course}))
+          AND (${search}='' OR q.stem ILIKE ${pattern} OR q.shared_context ILIKE ${pattern})
+          AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')))
+          AND (${topic}='' OR (${topic}='none' AND NULLIF(q.topic,'') IS NULL) OR (${topic}<>'none' AND q.topic=${topic}))
+          AND (${review}='' OR (${review}='flagged' AND EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)) OR (${review}='not_flagged' AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)))
+        GROUP BY q.context_group_id ORDER BY newest_id DESC LIMIT ${limit} OFFSET ${offset}
+      )
+      SELECT q.id,COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'),'') AS course,q.topic,q.stem,q.options,q.material_supported_key,q.explanation,q.explanation_citations,q.verification_status,q.shared_context,q.context_group_id,q.context_position,s.display_name,
+             EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AS admin_flagged
+      FROM matching_groups mg JOIN questions q ON q.context_group_id=mg.context_group_id LEFT JOIN source_documents s ON s.id=q.source_document_id
+      ORDER BY mg.newest_id DESC,q.context_position,q.id
+    `;
+    return NextResponse.json({ questions, page, total, totalKind: "scenario_groups", hasMore: offset + Math.min(limit, total) < total });
+  }
   const questions = await sql`
     SELECT q.id,COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'),'') AS course,q.topic,q.stem,q.options,q.material_supported_key,q.explanation,q.explanation_citations,q.verification_status,q.shared_context,q.context_group_id,q.context_position,s.display_name,
            EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AS admin_flagged

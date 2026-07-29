@@ -292,8 +292,22 @@ form .primary-button { margin-top: 14px; }
 .bank-page-numbers .active-page { background: var(--accent); border-color: var(--accent); color: #fff; }
 .bank-page-numbers .page-ellipsis { color: var(--muted); padding: 0 2px; }
 .case-study-label { color: var(--accent); font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.admin-scenario-group { border: 1px solid var(--line); border-radius: 12px; margin: 22px 0; overflow: hidden; }
+.admin-scenario-context { background: oklch(.95 .025 235); border-bottom: 1px solid var(--line); padding: 22px 24px; }
+.admin-scenario-context .case-study-label { margin-top: 0; }
+.admin-scenario-context > p:last-child { line-height: 1.65; margin-bottom: 0; }
+.admin-scenario-questions { padding: 0 24px; }
+.admin-scenario-questions .review-row:last-child { border-bottom: 0; }
+.scenario-question-number { color: var(--accent); display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; margin-bottom: 8px; text-transform: uppercase; }
 .shared-context { background: oklch(.96 .02 235); border: 1px solid var(--line); border-radius: 9px; margin: 10px 0 18px; padding: 14px; }
 .shared-context > p:last-of-type { line-height: 1.55; margin: 6px 0 0; }
+.case-study-intro { margin-top: 28px; }
+.case-study-intro h1, .case-study-intro h2 { margin: 8px 0 18px; }
+.case-study-intro > .primary-button { margin-top: 8px; }
+.case-study-link { background: transparent; border: 0; color: var(--accent); display: inline-flex; margin: 12px 0 18px; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+.case-study-overlay { align-items: center; background: rgba(20, 31, 39, .45); display: flex; inset: 0; justify-content: center; padding: 24px; position: fixed; z-index: 1000; }
+.case-study-dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; max-height: min(760px, calc(100vh - 48px)); max-width: 760px; overflow-y: auto; padding: 38px; position: relative; width: 100%; }
+.case-study-copy { font-family: Newsreader, Georgia, serif; font-size: clamp(1.25rem, 2vw, 1.7rem); line-height: 1.5; margin-top: 18px; white-space: pre-wrap; }
 .linked-question-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .linked-question-list .secondary { min-height: 34px; padding: 6px 10px; }
 .active-linked-question { border-color: var(--accent); color: var(--accent); }

@@ -131,6 +131,13 @@ export default function AdminPage() {
   const [bankMore, setBankMore] = useState(false);
   const [msg, setMsg] = useState("");
   const bankPageCount = Math.max(1, Math.ceil(bankTotal / bankPageSize));
+  const bankQuestionGroups = Array.from(
+    bankQuestions.reduce((groups, question) => {
+      const key = question.context_group_id ?? `question-${question.id}`;
+      groups.set(key, [...(groups.get(key) ?? []), question]);
+      return groups;
+    }, new Map<string, BankQuestion[]>()),
+  ).map(([id, questions]) => ({ id, questions }));
   const bankVisiblePages = Array.from(
     new Set([
       1,
@@ -580,7 +587,7 @@ export default function AdminPage() {
             <div className="bank-results-summary">
               <p className="muted">
                 {bankTotal
-                  ? `${bankTotal.toLocaleString()} matching questions`
+                  ? `${bankTotal.toLocaleString()} matching ${bankScenario === "grouped" ? "scenario groups" : "questions"}`
                   : "Opening question bank…"}
               </p>
               <button
@@ -604,33 +611,27 @@ export default function AdminPage() {
             {showScenarioBuilder && <div className="shared-context scenario-builder"><label htmlFor="scenario-text">Shared scenario</label><textarea id="scenario-text" value={scenarioDraft} onChange={(event) => setScenarioDraft(event.target.value)} placeholder="Paste or write the scenario students must read before answering these questions…" /><div className="button-row"><button className="primary-button" type="button" disabled={bankSelected.length < 2 || !scenarioDraft.trim()} onClick={() => void groupSelectedQuestions()}>Save scenario group</button><button className="text-button" type="button" onClick={() => setShowScenarioBuilder(false)}>Cancel</button></div></div>}
             {bankQuestions.length > 0 && (
               <div className="review-list">
-                {bankQuestions.map((question, index) => (
-                  <div key={question.id}>
-                    {question.context_group_id &&
-                      (index === 0 ||
-                        bankQuestions[index - 1]?.context_group_id !==
-                          question.context_group_id) && (
-                        <p className="case-study-label">
-                          Case-study set · review these linked questions
-                          together
-                        </p>
-                      )}
-                    <article
-                      className={`review-row question-bank-row ${bankSelected.includes(question.id) ? "selected-bank-row" : ""}`}
-                      onClick={() => beginBankEdit(question)}
-                    >
-                      <label className="bank-question-select" onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`Select question ${question.id}`} checked={bankSelected.includes(question.id)} onChange={() => toggleBankSelection(question.id)} /></label>
-                      <p className="eyebrow">
-                        #{question.id} · {courseLabel(question.course)}{question.topic ? ` · ${question.topic}` : " · Topic not assigned"} ·{" "}
-                        {["material_supported", "staff_corrected"].includes(
-                          question.verification_status,
-                        ) && question.material_supported_key
-                          ? "live"
-                          : "not live"}{question.admin_flagged ? " · flagged for review" : ""}
-                      </p>
-                      <p>{cleanQuestionStem(question.stem)}</p>
-                    </article>
-                  </div>
+                {bankQuestionGroups.map((group) => (
+                  <section className={group.questions[0]?.context_group_id ? "admin-scenario-group" : undefined} key={group.id}>
+                    {group.questions[0]?.context_group_id && <div className="admin-scenario-context"><p className="case-study-label">Case-study set · {group.questions.length} linked questions</p><p>{group.questions[0].shared_context}</p></div>}
+                    <div className="admin-scenario-questions">
+                      {group.questions.map((question, index) => (
+                        <article
+                          key={question.id}
+                          className={`review-row question-bank-row ${bankSelected.includes(question.id) ? "selected-bank-row" : ""}`}
+                          onClick={() => beginBankEdit(question)}
+                        >
+                          <label className="bank-question-select" onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`Select question ${question.id}`} checked={bankSelected.includes(question.id)} onChange={() => toggleBankSelection(question.id)} /></label>
+                          {question.context_group_id && <span className="scenario-question-number">Question {index + 1}</span>}
+                          <p className="eyebrow">
+                            #{question.id} · {courseLabel(question.course)}{question.topic ? ` · ${question.topic}` : " · Topic not assigned"} ·{" "}
+                            {["material_supported", "staff_corrected"].includes(question.verification_status) && question.material_supported_key ? "live" : "not live"}{question.admin_flagged ? " · flagged for review" : ""}
+                          </p>
+                          <p>{cleanQuestionStem(question.stem)}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
                 ))}
               </div>
             )}
