@@ -149,7 +149,6 @@ function PracticeContent() {
   function beginScenario() {
     if (!question?.context_group_id) return;
     setIntroducedScenarios((groups) => new Set(groups).add(question.context_group_id as string));
-    setQuestionStartedAt(Date.now());
   }
 
   return (
@@ -188,9 +187,9 @@ function PracticeContent() {
           </div>
           <QuestionReport questionId={question.id} />
           {error && <p className="error" role="alert">{error}</p>}
-          {!result ? <button className="primary-button" type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
+          {!result ? <div className="button-row practice-actions"><button className="primary-button" type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
             {chosenKey ? "Check answer" : "Choose an option above first"}
-          </button> : (
+          </button><button className="outline-button" type="button" onClick={nextQuestion}>Skip question</button></div> : (
             <div className={`result ${result.matchesMaterialKey ? "" : "incorrect"}`} role="status">
               <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}: ${question.options.find((option) => option.key === result.materialSupportedKey)?.text ?? ""}`}</strong></p>
               <p>{question.explanation?.replace(/^(The materials (expressly )?(state|say) that|According to the materials,?\s*)/i, "") ?? "A fuller tutor explanation is being prepared for this verified answer."}</p>

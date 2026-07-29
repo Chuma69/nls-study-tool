@@ -14,7 +14,7 @@ export function CaseStudy({ text, modal = false, onClose }: { text: string; moda
   if (!modal) return content;
   return <div className="case-study-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
     <section className="case-study-dialog" role="dialog" aria-modal="true" aria-labelledby="case-study-title">
-      <button type="button" className="modal-close" aria-label="Close case study" onClick={onClose}>×</button>
+      <button type="button" className="modal-close-button" aria-label="Close case study" onClick={onClose}>×</button>
       <p className="eyebrow" id="case-study-title">Case study</p>
       <div className="case-study-copy">{text}</div>
     </section>

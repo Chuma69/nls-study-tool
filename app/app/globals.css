@@ -308,6 +308,9 @@ form .primary-button { margin-top: 14px; }
 .case-study-overlay { align-items: center; background: rgba(20, 31, 39, .45); display: flex; inset: 0; justify-content: center; padding: 24px; position: fixed; z-index: 1000; }
 .case-study-dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; max-height: min(760px, calc(100vh - 48px)); max-width: 760px; overflow-y: auto; padding: 38px; position: relative; width: 100%; }
 .case-study-copy { font-family: Newsreader, Georgia, serif; font-size: clamp(1.25rem, 2vw, 1.7rem); line-height: 1.5; margin-top: 18px; white-space: pre-wrap; }
+.practice-actions { align-items: stretch; }
+.practice-actions > button { margin-top: 0; }
+.sprint-end-button { background: transparent; border: 0; color: var(--bad); padding: 0; text-decoration: underline; text-underline-offset: 3px; }
 .linked-question-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .linked-question-list .secondary { min-height: 34px; padding: 6px 10px; }
 .active-linked-question { border-color: var(--accent); color: var(--accent); }
