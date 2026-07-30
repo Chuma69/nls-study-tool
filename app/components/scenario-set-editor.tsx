@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { COURSE_NAMES, COURSE_TOPICS } from "@/lib/course-topics";
 
 type Option = { key: string; text: string };
@@ -56,9 +57,7 @@ export function ScenarioSetEditor({ contextGroupId, onChanged }: { contextGroupI
   }
 
   const topics = active?.course && active.course in COURSE_TOPICS ? COURSE_TOPICS[active.course as keyof typeof COURSE_TOPICS].topics : [];
-  return <>
-    <button className="outline-button" type="button" onClick={() => { void load(); }}>Edit full scenario set</button>
-    {open && <><div className="modal-backdrop scenario-set-backdrop" aria-hidden="true" /><section className="panel scenario-set-editor" role="dialog" aria-modal="true" aria-label="Edit full scenario set">
+  const editor = open && typeof document !== "undefined" ? createPortal(<><div className="modal-backdrop scenario-set-backdrop" aria-hidden="true" /><section className="panel scenario-set-editor" role="dialog" aria-modal="true" aria-label="Edit full scenario set">
       <button className="modal-close-button" type="button" aria-label="Close scenario editor" onClick={() => setOpen(false)}>×</button>
       <p className="eyebrow">Full scenario set</p>
       {loading ? <p className="muted">Loading linked questions…</p> : error && !questions.length ? <p className="error">{error}</p> : <>
@@ -69,6 +68,9 @@ export function ScenarioSetEditor({ contextGroupId, onChanged }: { contextGroupI
         </div>
         {error && <p className="error">{error}</p>}<div className="button-row"><button className="primary-button" type="button" disabled={saving || !active} onClick={() => { void save(); }}>{saving ? "Publishing…" : "Publish full scenario set"}</button></div>
       </>}
-    </section></>}
+    </section></>, document.body) : null;
+  return <>
+    <button className="outline-button" type="button" onClick={() => { void load(); }}>Edit full scenario set</button>
+    {editor}
   </>;
 }
