@@ -7,6 +7,7 @@ import { cleanQuestionStem } from "@/lib/question-text";
 import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS, topicsForCourse } from "@/lib/course-topics";
 import { SourceMaterialSearch } from "@/components/source-material-search";
 import { QuestionCreator } from "@/components/question-creator";
+import { ScenarioSetEditor } from "@/components/scenario-set-editor";
 
 type Item = {
   id: string;
@@ -701,6 +702,12 @@ export default function AdminPage() {
                             question.context_group_id ===
                             bankEditing.context_group_id,
                         )
+                        .sort(
+                          (a, b) =>
+                            (a.context_position ?? Number.MAX_SAFE_INTEGER) -
+                              (b.context_position ?? Number.MAX_SAFE_INTEGER) ||
+                            a.id - b.id,
+                        )
                         .map((question) => (
                           <button
                             key={question.id}
@@ -715,6 +722,15 @@ export default function AdminPage() {
                             Question {question.context_position ?? ""}
                           </button>
                         ))}
+                    </div>
+                  )}
+                  {bankEditing.context_group_id && (
+                    <div className="scenario-order-launch">
+                      <ScenarioSetEditor
+                        contextGroupId={bankEditing.context_group_id}
+                        onChanged={() => { void loadBank(bankPage); }}
+                      />
+                      <span className="muted">Reorder questions with the arrow controls, then publish the full set.</span>
                     </div>
                   )}
                 </div>

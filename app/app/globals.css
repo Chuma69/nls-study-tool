@@ -379,6 +379,9 @@ form .primary-button { margin-top: 14px; }
 .linked-question-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .linked-question-list .secondary { min-height: 34px; padding: 6px 10px; }
 .active-linked-question { border-color: var(--accent); color: var(--accent); }
+.scenario-order-launch { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.scenario-order-launch .outline-button { margin: 0; }
+.scenario-order-launch .muted { font-size: 12px; }
 .option-edit { align-items: center; display: grid; gap: 10px; grid-template-columns: 22px 1fr; margin-top: 10px; }
 .source { margin-top: 20px; }
 
