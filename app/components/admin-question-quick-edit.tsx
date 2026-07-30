@@ -5,8 +5,9 @@ import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS } from "@/lib/course-topics";
 import { SourceMaterialSearch } from "@/components/source-material-search";
 
 type Option = { key: string; text: string };
-export type QuickEditQuestion = { id: number; course: string; topic: string | null; stem: string; options: Option[]; material_supported_key: string | null; explanation: string | null; shared_context: string | null };
+export type QuickEditQuestion = { id: number; course: string; topic: string | null; stem: string; options: Option[]; material_supported_key: string | null; explanation: string | null; shared_context: string | null; context_group_id: string | null; context_position: number | null };
 type ExistingScenario = { context_group_id: string; shared_context: string; course: string; question_count: number };
+type CandidateQuestion = { id: number; stem: string; topic: string | null; verification_status: string; context_group_id: string | null };
 
 export function AdminQuestionQuickEdit({ questionId, onSaved }: { questionId: number; onSaved?: (question: QuickEditQuestion) => void }) {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -18,6 +19,9 @@ export function AdminQuestionQuickEdit({ questionId, onSaved }: { questionId: nu
   const [scenarioSearch, setScenarioSearch] = useState("");
   const [scenarios, setScenarios] = useState<ExistingScenario[]>([]);
   const [searchingScenarios, setSearchingScenarios] = useState(false);
+  const [questionSearch, setQuestionSearch] = useState("");
+  const [candidateQuestions, setCandidateQuestions] = useState<CandidateQuestion[]>([]);
+  const [searchingQuestions, setSearchingQuestions] = useState(false);
 
   useEffect(() => { void fetch("/api/session").then((response) => response.ok ? response.json() : null).then((data) => setIsAdmin(data?.user?.role === "admin")); }, []);
   useEffect(() => {
@@ -40,7 +44,8 @@ export function AdminQuestionQuickEdit({ questionId, onSaved }: { questionId: nu
     const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, scenario: question.shared_context ?? "" }) });
     const data = await response.json(); setSaving(false);
     if (!response.ok) { setError(data.error ?? "Could not publish this edit."); return; }
-    onSaved?.(question); setOpen(false);
+    const updated = data.question ? { ...question, ...data.question } : question;
+    setQuestion(updated); onSaved?.(updated); setOpen(false);
   }
   async function unpublish() {
     const comment = unpublishComment.trim();
@@ -67,7 +72,24 @@ export function AdminQuestionQuickEdit({ questionId, onSaved }: { questionId: nu
     const response = await fetch("/api/admin/scenarios", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, contextGroupId: scenario.context_group_id }) });
     const data = await response.json(); setSaving(false);
     if (!response.ok) { setError(data.error ?? "Could not add this question to the case study."); return; }
-    const updated = { ...question, shared_context: data.sharedContext }; setQuestion(updated); onSaved?.(updated); setScenarios([]); setScenarioSearch("");
+    const updated = { ...question, shared_context: data.sharedContext, context_group_id: data.contextGroupId }; setQuestion(updated); onSaved?.(updated); setScenarios([]); setScenarioSearch("");
+  }
+  async function findCandidateQuestions() {
+    if (!question?.context_group_id) return;
+    setSearchingQuestions(true); setError("");
+    const params = new URLSearchParams({ contextGroupId: question.context_group_id, search: questionSearch.trim() });
+    const response = await fetch(`/api/admin/scenarios?${params}`); const data = await response.json();
+    setSearchingQuestions(false);
+    if (!response.ok) { setError(data.error ?? "Could not search the question bank."); return; }
+    setCandidateQuestions(data.questions ?? []);
+  }
+  async function attachCandidate(candidate: CandidateQuestion) {
+    if (!question?.context_group_id) return;
+    setSaving(true); setError("");
+    const response = await fetch("/api/admin/scenarios", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: candidate.id, contextGroupId: question.context_group_id }) });
+    const data = await response.json(); setSaving(false);
+    if (!response.ok) { setError(data.error ?? "Could not add this question to the case study."); return; }
+    setCandidateQuestions((current) => current.filter((item) => item.id !== candidate.id));
   }
 
   if (!isAdmin) return null;
@@ -86,6 +108,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved }: { questionId: nu
         <label>Explanation</label><textarea value={question.explanation ?? ""} onChange={(event) => update({ explanation: event.target.value })} />
         <div className="existing-scenario-picker"><label>Find an existing case study</label><p className="muted">Search case studies in {COURSE_NAMES[question.course as keyof typeof COURSE_NAMES] ?? "this course"}, then add this question to the matching set.</p><div className="scenario-search-row"><input value={scenarioSearch} onChange={(event) => setScenarioSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void findScenarios(); } }} placeholder="Search scenario text…" /><button type="button" disabled={searchingScenarios} onClick={() => { void findScenarios(); }}>{searchingScenarios ? "Searching…" : "Search"}</button></div>{scenarios.length > 0 && <div className="scenario-search-results">{scenarios.map((scenario) => <article key={scenario.context_group_id}><p>{scenario.shared_context}</p><div><span className="muted">{scenario.question_count} linked question{scenario.question_count === 1 ? "" : "s"}</span><button type="button" disabled={saving} onClick={() => { void attachScenario(scenario); }}>Add to this case study</button></div></article>)}</div>}{!searchingScenarios && scenarios.length === 0 && scenarioSearch && <p className="muted scenario-empty">No matching case studies found.</p>}</div>
         <label>Create or edit case study <span className="muted">(optional)</span></label><textarea value={question.shared_context ?? ""} onChange={(event) => update({ shared_context: event.target.value })} placeholder="Add a new shared scenario for this question. Changes apply to every linked question." />
+        {question.context_group_id && <div className="existing-scenario-picker"><label>Find more questions for this case study</label><p className="muted">Search this course’s question bank and add any other question that relies on the same scenario.</p><div className="scenario-search-row"><input value={questionSearch} onChange={(event) => setQuestionSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void findCandidateQuestions(); } }} placeholder="Search question wording…" /><button type="button" disabled={searchingQuestions} onClick={() => { void findCandidateQuestions(); }}>{searchingQuestions ? "Searching…" : "Search questions"}</button></div>{candidateQuestions.length > 0 && <div className="scenario-search-results">{candidateQuestions.map((candidate) => <article key={candidate.id}><p>{candidate.stem}</p><div><span className="muted">{candidate.topic || "No topic"} · {candidate.verification_status === "material_supported" || candidate.verification_status === "staff_corrected" ? "Live" : "Not live"}</span><button type="button" disabled={saving} onClick={() => { void attachCandidate(candidate); }}>Add to case study</button></div></article>)}</div>}{!searchingQuestions && candidateQuestions.length === 0 && questionSearch && <p className="muted scenario-empty">No matching questions found.</p>}</div>}
         {error && <p className="error">{error}</p>}<div className="button-row"><button className="primary-button" type="button" disabled={saving} onClick={() => { void save(); }}>{saving ? "Publishing…" : "Publish changes"}</button></div>
         <div className="critical-admin-action"><p><strong>Critical issue?</strong> Remove this question from learner circulation immediately and leave a follow-up note.</p><textarea value={unpublishComment} onChange={(event) => setUnpublishComment(event.target.value)} placeholder="Describe what is wrong and what needs review…" /><button className="danger-button" type="button" disabled={saving || !unpublishComment.trim()} onClick={() => { void unpublish(); }}>Unpublish immediately</button></div>
       </>}

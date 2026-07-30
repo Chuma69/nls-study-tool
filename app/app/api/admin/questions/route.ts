@@ -139,5 +139,6 @@ export async function PATCH(request: Request) {
     else if (groupId && !scenarioText) await getSql()`UPDATE questions SET context_group_id=NULL,shared_context=NULL,context_position=NULL,updated_at=now() WHERE context_group_id=${groupId}`;
     else if (scenarioText) await getSql()`UPDATE questions SET context_group_id=${crypto.randomUUID()},shared_context=${scenarioText},context_position=1,updated_at=now() WHERE id=${questionId}`;
   }
-  return NextResponse.json({ ok: true });
+  const saved = await getSql()`SELECT context_group_id,shared_context,context_position FROM questions WHERE id=${questionId} LIMIT 1` as { context_group_id: string | null; shared_context: string | null; context_position: number | null }[];
+  return NextResponse.json({ ok: true, question: saved[0] ?? null });
 }
