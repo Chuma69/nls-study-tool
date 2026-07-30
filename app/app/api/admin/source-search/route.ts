@@ -16,20 +16,26 @@ export async function GET(request: Request) {
 
   const terms = [...new Set((query.toLowerCase().match(/[a-z][a-z'-]{2,}/g) ?? []).map((word) => word.replaceAll("'", "")).filter((word) => word.length > 3 && !STOP_WORDS.has(word)))].slice(0, 16);
   if (!terms.length) return NextResponse.json({ error: "Use a more distinctive word or phrase." }, { status: 400 });
-  const tsQuery = terms.join(" | ");
   const phrasePattern = `%${query}%`;
+  const termPatterns = terms.slice(0, 5).map((term) => `%${term}%`);
   const rows = await getSql()`
     WITH target AS (SELECT source_document_id,course FROM questions WHERE id=${questionId} LIMIT 1)
-    SELECT c.id,c.content,c.page_locator,c.chunk_index,
+    SELECT c.id,c.content,ps.page_locator,ps.chunk_index,
            COALESCE(s.display_name,s.rel_source_path,'Unknown document') AS document,
            s.rel_source_path,
-           ts_rank_cd(c.tsv,to_tsquery('english',${tsQuery}),32)
-             + CASE WHEN c.source_document_id=(SELECT source_document_id FROM target) THEN .8 ELSE 0 END
-             + CASE WHEN c.course=(SELECT course FROM target) THEN .2 ELSE 0 END
+           CASE WHEN ps.source_document_id=(SELECT source_document_id FROM target) THEN 1.5 ELSE 0 END
+             + CASE WHEN s.course=(SELECT course FROM target) THEN .2 ELSE 0 END
              + CASE WHEN c.content ILIKE ${phrasePattern} THEN 1 ELSE 0 END AS rank
-    FROM chunks c JOIN source_documents s ON s.id=c.source_document_id
-    WHERE c.tsv @@ to_tsquery('english',${tsQuery}) OR c.content ILIKE ${phrasePattern}
-    ORDER BY rank DESC,c.id LIMIT 20
+    FROM past_question_text_chunks c
+    JOIN past_question_text_sources ps ON ps.chunk_id=c.id
+    JOIN source_documents s ON s.id=ps.source_document_id
+    WHERE c.content ILIKE ${phrasePattern}
+       OR (${termPatterns[0] ?? phrasePattern}<>${phrasePattern} AND c.content ILIKE ${termPatterns[0] ?? phrasePattern})
+       OR (${termPatterns[1] ?? phrasePattern}<>${phrasePattern} AND c.content ILIKE ${termPatterns[1] ?? phrasePattern})
+       OR (${termPatterns[2] ?? phrasePattern}<>${phrasePattern} AND c.content ILIKE ${termPatterns[2] ?? phrasePattern})
+       OR (${termPatterns[3] ?? phrasePattern}<>${phrasePattern} AND c.content ILIKE ${termPatterns[3] ?? phrasePattern})
+       OR (${termPatterns[4] ?? phrasePattern}<>${phrasePattern} AND c.content ILIKE ${termPatterns[4] ?? phrasePattern})
+    ORDER BY rank DESC,c.id,ps.source_document_id LIMIT 20
   `;
   return NextResponse.json({ results: rows });
 }

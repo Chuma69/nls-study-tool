@@ -22,9 +22,9 @@ export function SourceMaterialSearch({ questionId, initialQuery, onUseAsScenario
   }
 
   return <div className="source-material-search">
-    <button className="secondary source-search-toggle" type="button" onClick={() => setOpen((current) => !current)}>{open ? "Close source search" : "Search source materials"}</button>
+    <button className="secondary source-search-toggle" type="button" onClick={() => setOpen((current) => !current)}>{open ? "Close past-question search" : "Search original past questions"}</button>
     {open && <div className="source-search-panel">
-      <p className="muted">Searches the indexed text extracted from the original study-material folder. No AI credits are used.</p>
+      <p className="muted">Searches only the original past-question papers to recover exact wording, missing context and case studies. It does not search textbooks or use AI credits.</p>
       <div className="source-search-controls"><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void search(); } }} placeholder="Paste a distinctive phrase from the question…" /><button type="button" disabled={loading || query.trim().length < 3} onClick={() => { void search(); }}>{loading ? "Searching…" : "Search"}</button></div>
       {error && <p className="error">{error}</p>}
       {!loading && searched && !error && results.length === 0 && <p className="muted">No matching passages found. Try a shorter or more distinctive phrase.</p>}

@@ -113,6 +113,16 @@ def cmd_load(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_load_past_question_search(_: argparse.Namespace) -> int:
+    from . import load_past_question_search
+    print("Loading past-question source text into the separate search index …")
+    result = load_past_question_search.load()
+    print("\n✓ Past-question source search index loaded — no AI calls were made.")
+    for key, value in result.items():
+        print(f"  {key:24} {value}")
+    return 0
+
+
 def cmd_stats(_: argparse.Namespace) -> int:
     from .kbindex import KnowledgeBase
     if not config.KB_INDEX_PATH.exists():
@@ -266,6 +276,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("chunks", help="Build chunk artifact from Codex corpus + measure size.").set_defaults(func=cmd_chunks)
     sub.add_parser("migrate", help="Apply db/migrations/*.sql to Neon.").set_defaults(func=cmd_migrate)
     sub.add_parser("load", help="Load chunk artifact into Neon (needs DATABASE_URL).").set_defaults(func=cmd_load)
+    sub.add_parser("load-past-question-search", help="Load extracted past-paper text into its separate Neon search index; no AI calls.").set_defaults(func=cmd_load_past_question_search)
 
     pq = sub.add_parser("extract-questions", help="Extract structured MCQ + theory prompts from past papers.")
     pq.add_argument("--dry-run", action="store_true", help="Estimate cost and write a review report; never calls OpenAI.")
