@@ -4,6 +4,28 @@ import { getSql } from "@/lib/db";
 import { COURSE_IDS, isCourse, isTopicForCourse } from "@/lib/course-topics";
 
 export const runtime = "nodejs";
+export async function POST(request: Request) {
+  const auth = await requireRole("admin"); if (auth.response) return auth.response;
+  const body = await request.json() as { questionType?: string; structure?: "standalone" | "scenario"; contextGroupId?: string; scenario?: string; course?: string; topic?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string };
+  if (body.questionType !== "mcq") return NextResponse.json({ error: "Only multiple-choice questions can be created while the MCQ bank is active." }, { status: 400 });
+  const course = body.course ?? ""; const topic = body.topic ?? ""; const stem = (body.stem ?? "").trim(); const explanation = (body.explanation ?? "").trim();
+  const options = (body.options ?? []).map((option) => ({ key: option.key.toUpperCase(), text: option.text.trim() })).filter((option) => option.text);
+  const answerKey = (body.answerKey ?? "").toUpperCase();
+  if (!isCourse(course) || !isTopicForCourse(course, topic)) return NextResponse.json({ error: "Choose a valid course and official topic." }, { status: 400 });
+  if (!stem || options.length < 2 || !options.some((option) => option.key === answerKey) || !explanation) return NextResponse.json({ error: "Add the question, at least two options, the correct answer, and an explanation." }, { status: 400 });
+  let contextGroupId = (body.contextGroupId ?? "").trim() || null; let sharedContext = (body.scenario ?? "").trim() || null; let position: number | null = null;
+  if (contextGroupId) {
+    const group = await getSql()`SELECT course,shared_context,COALESCE(max(context_position),0)::int AS last_position FROM questions WHERE context_group_id=${contextGroupId} GROUP BY course,shared_context LIMIT 1` as { course: string | null; shared_context: string | null; last_position: number }[];
+    if (!group.length || group[0].course !== course) return NextResponse.json({ error: "The selected case study belongs to a different course." }, { status: 400 });
+    sharedContext = group[0].shared_context; position = group[0].last_position + 1;
+  } else if (body.structure === "scenario") {
+    if (!sharedContext) return NextResponse.json({ error: "Add the case study text." }, { status: 400 });
+    contextGroupId = crypto.randomUUID(); position = 1;
+  }
+  const fingerprint = `admin:${crypto.randomUUID()}`;
+  const inserted = await getSql()`INSERT INTO questions(question_fingerprint,question_type,course,topic,stem,options,material_supported_key,verification_status,explanation,source_locator,context_group_id,shared_context,context_position) VALUES(${fingerprint},'mcq',${course},${topic},${stem},${JSON.stringify(options)}::jsonb,${answerKey},'staff_corrected',${explanation},'admin-created',${contextGroupId},${sharedContext},${position}) RETURNING id,course,topic,stem,options,material_supported_key,explanation,verification_status,context_group_id,shared_context,context_position`;
+  return NextResponse.json({ ok: true, question: inserted[0] }, { status: 201 });
+}
 export async function GET(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
   const url = new URL(request.url); const requestedQuestionId = Number(url.searchParams.get("questionId")); const search = (url.searchParams.get("search") ?? "").trim().slice(0, 200); const course = url.searchParams.get("course") ?? ""; const topic = url.searchParams.get("topic") ?? ""; const status = url.searchParams.get("status") ?? ""; const review = url.searchParams.get("review") ?? ""; const scenario = url.searchParams.get("scenario") ?? ""; const page = Math.max(1, Number(url.searchParams.get("page")) || 1); const requestedLimit = Number(url.searchParams.get("limit")) || 25; const limit = [10,25,50,100].includes(requestedLimit) ? requestedLimit : 25; const offset = (page - 1) * limit;

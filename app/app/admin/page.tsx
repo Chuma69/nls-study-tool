@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { cleanQuestionStem } from "@/lib/question-text";
 import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS, topicsForCourse } from "@/lib/course-topics";
 import { SourceMaterialSearch } from "@/components/source-material-search";
+import { QuestionCreator } from "@/components/question-creator";
 
 type Item = {
   id: string;
@@ -521,7 +522,10 @@ export default function AdminPage() {
       {tab === "questions" && (
         <>
           <section className="panel question-bank">
-            <p className="question-bank-heading">Question bank</p>
+            <div className="question-bank-title-row">
+              <p className="question-bank-heading">Question bank</p>
+              <QuestionCreator onCreated={() => { void loadBank(1); }} />
+            </div>
             <p className="muted">
               Select a row to see its options and review it before publishing.
             </p>

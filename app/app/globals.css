@@ -345,6 +345,11 @@ form .primary-button { margin-top: 14px; }
 .question-bank-pages { align-items: center; }
 .page-size-control { align-items: center; color: var(--muted); display: inline-flex; font-size: 13px; gap: 8px; margin-left: auto; }
 .page-size-control select { min-height: 38px; padding: 6px 28px 6px 10px; width: auto; }
+.question-bank-title-row { align-items: center; display: flex; gap: 16px; justify-content: space-between; }
+.question-bank-title-row .question-bank-heading { margin: 0; }
+.question-bank-title-row .primary-button { margin: 0; }
+.question-creator-backdrop { z-index: 1200; }
+.question-creator-modal { left: 50%; max-height: calc(100vh - 32px); overflow-y: auto; position: fixed; top: 50%; transform: translate(-50%, -50%); width: min(820px, calc(100vw - 32px)); z-index: 1201; }
 .question-bank-pages span { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
 .bank-page-numbers { align-items: center; display: flex; gap: 6px; }
 .bank-page-numbers > span { align-items: center; display: inline-flex; gap: 6px; }
