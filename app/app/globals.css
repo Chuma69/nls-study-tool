@@ -289,6 +289,8 @@ form .primary-button { margin-top: 14px; }
 .case-study-side-panel { background: oklch(.96 .02 235); border: 1px solid var(--line); border-radius: 14px; max-height: calc(100vh - 48px); overflow-y: auto; padding: 24px; position: sticky; top: 24px; }
 .case-study-side-copy { font-family: Newsreader, Georgia, serif; font-size: clamp(1.12rem, 1.8vw, 1.38rem); line-height: 1.55; margin-top: 14px; white-space: pre-wrap; }
 .question-admin-heading { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+.question-heading-actions { align-items: center; display: flex; gap: 12px; }
+.question-skip-button { margin: 0; white-space: nowrap; }
 .admin-quick-edit-button { align-items: center; background: transparent; border: 1px solid var(--line); border-radius: 8px; color: var(--accent); display: inline-flex; height: 34px; justify-content: center; min-height: 34px; padding: 7px; width: 34px; }
 .admin-quick-edit-button svg { fill: none; height: 17px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 17px; }
 .admin-quick-editor { left: 50%; max-height: min(88vh, 820px); overflow-y: auto; position: fixed; top: 50%; transform: translate(-50%, -50%); width: min(780px, calc(100vw - 36px)); z-index: 1001; }
@@ -299,6 +301,8 @@ form .primary-button { margin-top: 14px; }
 .critical-admin-action .danger-button { margin-top: 10px; }
 .existing-scenario-picker { background: var(--page); border: 1px solid var(--line); border-radius: 12px; margin: 20px 0; padding: 16px; }
 .existing-scenario-picker > p { margin: 4px 0 12px; }
+.scenario-picker-heading { align-items: center; display: flex; gap: 16px; justify-content: space-between; }
+.scenario-picker-heading .text-button { margin: 0; }
 .scenario-search-row { display: grid; gap: 10px; grid-template-columns: 1fr auto; }
 .scenario-search-row button, .scenario-search-results button { white-space: nowrap; }
 .scenario-search-results { display: grid; gap: 10px; margin-top: 12px; max-height: 260px; overflow: auto; }
@@ -306,6 +310,25 @@ form .primary-button { margin-top: 14px; }
 .scenario-search-results article > p { display: -webkit-box; margin: 0 0 10px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .scenario-search-results article > div { align-items: center; display: flex; gap: 16px; justify-content: space-between; }
 .scenario-empty { margin: 12px 0 0 !important; }
+.existing-scenario-picker hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
+.scenario-result-actions { align-items: center; display: flex; gap: 8px; }
+.admin-quick-edit-button.labeled { height: auto; padding: 8px 12px; width: auto; }
+.admin-quick-edit-button.labeled span { white-space: nowrap; }
+.scenario-set-launch { display: flex; justify-content: flex-end; margin: 10px 0 20px; }
+.scenario-set-backdrop { z-index: 1100; }
+.scenario-set-editor { left: 50%; max-height: calc(100vh - 32px); overflow: auto; position: fixed; top: 50%; transform: translate(-50%, -50%); width: min(1180px, calc(100vw - 32px)); z-index: 1101; }
+.scenario-set-context { min-height: 150px; }
+.scenario-set-workspace { display: grid; gap: 18px; grid-template-columns: minmax(250px, 34%) 1fr; margin-top: 20px; }
+.scenario-set-sidebar { border: 1px solid var(--line); border-radius: 12px; max-height: 620px; overflow: auto; padding: 10px; }
+.scenario-set-sidebar > div:first-child { display: flex; flex-direction: column; gap: 4px; padding: 8px; }
+.scenario-set-item { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 6px; grid-template-columns: 1fr auto; padding: 8px 0; }
+.scenario-set-item.active { background: var(--pale-blue); }
+.scenario-set-select { align-items: flex-start; background: transparent; border: 0; display: grid; gap: 8px; grid-template-columns: 24px 1fr; padding: 10px; text-align: left; }
+.scenario-set-select span:last-child { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.scenario-order-actions { display: flex; flex-direction: column; gap: 4px; padding-right: 6px; }
+.scenario-order-actions button { min-height: 32px; min-width: 34px; padding: 2px; }
+.scenario-set-question-editor { min-width: 0; }
+@media (max-width: 800px) { .scenario-set-workspace { grid-template-columns: 1fr; } .scenario-set-sidebar { max-height: 280px; } }
 .source-material-search { margin: 10px 0 18px; }
 .source-search-toggle { min-height: 40px; }
 .source-search-panel { background: var(--page); border: 1px solid var(--line); border-radius: 12px; margin-top: 10px; padding: 14px; }

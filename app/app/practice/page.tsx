@@ -196,7 +196,7 @@ function PracticeContent() {
             <div className="case-study-side-copy">{question.shared_context}</div>
           </aside>}
           <section className="panel question-panel">
-          <div className="question-admin-heading"><p className="question-meta">{question.topic ?? courseTitle} · {yearsLabel(question.exam_years)}</p><AdminQuestionQuickEdit questionId={question.id} onSaved={(updated) => setQuestion((current) => current ? { ...current, course: updated.course, topic: updated.topic, stem: updated.stem, options: updated.options, explanation: updated.explanation, shared_context: updated.shared_context } : current)} /></div>
+          <div className="question-admin-heading"><p className="question-meta">{question.topic ?? courseTitle} · {yearsLabel(question.exam_years)}</p><div className="question-heading-actions">{!result && <button className="text-button question-skip-button" type="button" onClick={nextQuestion}>Skip question →</button>}<AdminQuestionQuickEdit questionId={question.id} onSaved={(updated) => setQuestion((current) => current ? { ...current, course: updated.course, topic: updated.topic, stem: updated.stem, options: updated.options, explanation: updated.explanation, shared_context: updated.shared_context } : current)} /></div></div>
           <div className="practice-progress" aria-hidden="true"><span /></div>
           <p className="stem">{cleanQuestionStem(question.stem)}</p>
           <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { if (!saved) void saveFlag(true); setShowSaveNote(true); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-6-4-6 4v-17Z" /></svg>{saved ? "Saved for later" : "Save for later"}</button>
@@ -218,7 +218,7 @@ function PracticeContent() {
           {error && <p className="error" role="alert">{error}</p>}
           {!result ? <div className="button-row practice-actions">{previousQuestions.length > 0 && <button className="outline-button" type="button" onClick={previousQuestion}>← Previous question</button>}<button className="primary-button" type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
             {chosenKey ? "Check answer" : "Choose an option above first"}
-          </button><button className="outline-button" type="button" onClick={nextQuestion}>Skip question</button></div> : (
+          </button></div> : (
             <div className={`result ${result.matchesMaterialKey ? "" : "incorrect"}`} role="status">
               <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}: ${question.options.find((option) => option.key === result.materialSupportedKey)?.text ?? ""}`}</strong></p>
               <p>{question.explanation?.replace(/^(The materials (expressly )?(state|say) that|According to the materials,?\s*)/i, "") ?? "A fuller tutor explanation is being prepared for this verified answer."}</p>

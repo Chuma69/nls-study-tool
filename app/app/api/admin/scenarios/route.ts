@@ -15,6 +15,13 @@ export async function GET(request: Request) {
   if (contextGroupId) {
     const scenario = await getSql()`SELECT context_group_id,course FROM questions WHERE context_group_id=${contextGroupId} LIMIT 1` as { context_group_id: string; course: string | null }[];
     if (!scenario.length) return NextResponse.json({ error: "The case study could not be found." }, { status: 404 });
+    const linkedQuestions = await getSql()`
+      SELECT q.id,q.course,q.stem,q.topic,q.verification_status,q.context_group_id,q.context_position,
+             q.shared_context,q.options,q.material_supported_key,q.explanation
+      FROM questions q
+      WHERE q.question_type='mcq' AND q.context_group_id=${contextGroupId}
+      ORDER BY q.context_position NULLS LAST,q.id
+    `;
     const questions = await getSql()`
       SELECT q.id,q.stem,q.topic,q.verification_status,q.context_group_id
       FROM questions q
@@ -25,7 +32,7 @@ export async function GET(request: Request) {
       ORDER BY CASE WHEN q.verification_status IN ('material_supported','staff_corrected') THEN 0 ELSE 1 END,q.id DESC
       LIMIT 20
     `;
-    return NextResponse.json({ questions });
+    return NextResponse.json({ questions, linkedQuestions });
   }
   const scenarios = await getSql()`
     SELECT q.context_group_id, max(q.shared_context) AS shared_context,
@@ -43,10 +50,18 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const auth = await requireRole("admin");
   if (auth.response) return auth.response;
-  const body = await request.json() as { questionId?: number; contextGroupId?: string };
+  const body = await request.json() as { questionId?: number; contextGroupId?: string; action?: "reorder"; questionIds?: number[]; sharedContext?: string };
   const questionId = Number(body.questionId);
   const contextGroupId = (body.contextGroupId ?? "").trim();
-  if (!Number.isSafeInteger(questionId) || !contextGroupId) return NextResponse.json({ error: "Choose a question and case study." }, { status: 400 });
+  if (!contextGroupId) return NextResponse.json({ error: "Choose a case study." }, { status: 400 });
+  if (body.action === "reorder") {
+    const questionIds = [...new Set((body.questionIds ?? []).map(Number).filter(Number.isSafeInteger))].slice(0, 100);
+    const existing = await getSql()`SELECT id FROM questions WHERE context_group_id=${contextGroupId}` as { id: number }[];
+    if (!questionIds.length || existing.length !== questionIds.length || existing.some((row) => !questionIds.includes(Number(row.id)))) return NextResponse.json({ error: "The scenario order does not match its linked questions." }, { status: 400 });
+    await getSql()`UPDATE questions q SET context_position=chosen.position,shared_context=${(body.sharedContext ?? "").trim()},updated_at=now() FROM (SELECT value::bigint AS id,ordinality::int AS position FROM jsonb_array_elements_text(${JSON.stringify(questionIds)}::jsonb) WITH ORDINALITY) chosen WHERE q.id=chosen.id AND q.context_group_id=${contextGroupId}`;
+    return NextResponse.json({ ok: true });
+  }
+  if (!Number.isSafeInteger(questionId)) return NextResponse.json({ error: "Choose a question." }, { status: 400 });
 
   const question = await getSql()`SELECT id,course FROM questions WHERE id=${questionId} AND question_type='mcq' LIMIT 1` as { id: number; course: string | null }[];
   const scenario = await getSql()`SELECT context_group_id,shared_context,course FROM questions WHERE context_group_id=${contextGroupId} AND NULLIF(trim(shared_context),'') IS NOT NULL ORDER BY context_position NULLS LAST,id LIMIT 1` as { context_group_id: string; shared_context: string; course: string | null }[];
