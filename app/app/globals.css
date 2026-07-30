@@ -325,6 +325,9 @@ form .primary-button { margin-top: 14px; }
 .scenario-set-item.active { background: var(--pale-blue); }
 .scenario-set-select { align-items: flex-start; background: transparent; border: 0; display: grid; gap: 8px; grid-template-columns: 24px 1fr; padding: 10px; text-align: left; }
 .scenario-set-select span:last-child { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.scenario-set-item-controls { align-items: center; display: flex; flex-direction: column; gap: 6px; padding-right: 6px; }
+.scenario-question-live-toggle { align-items: center; display: flex; font-size: .82rem; gap: 5px; margin: 0; white-space: nowrap; }
+.scenario-question-live-toggle input { height: 16px; margin: 0; width: 16px; }
 .scenario-order-actions { display: flex; flex-direction: column; gap: 4px; padding-right: 6px; }
 .scenario-order-actions button { min-height: 32px; min-width: 34px; padding: 2px; }
 .scenario-set-question-editor { min-width: 0; }
