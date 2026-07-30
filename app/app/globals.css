@@ -297,6 +297,26 @@ form .primary-button { margin-top: 14px; }
 .critical-admin-action p { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .critical-admin-action textarea { min-height: 78px; }
 .critical-admin-action .danger-button { margin-top: 10px; }
+.existing-scenario-picker { background: var(--page); border: 1px solid var(--line); border-radius: 12px; margin: 20px 0; padding: 16px; }
+.existing-scenario-picker > p { margin: 4px 0 12px; }
+.scenario-search-row { display: grid; gap: 10px; grid-template-columns: 1fr auto; }
+.scenario-search-row button, .scenario-search-results button { white-space: nowrap; }
+.scenario-search-results { display: grid; gap: 10px; margin-top: 12px; max-height: 260px; overflow: auto; }
+.scenario-search-results article { background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 12px; }
+.scenario-search-results article > p { display: -webkit-box; margin: 0 0 10px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.scenario-search-results article > div { align-items: center; display: flex; gap: 16px; justify-content: space-between; }
+.scenario-empty { margin: 12px 0 0 !important; }
+.source-material-search { margin: 10px 0 18px; }
+.source-search-toggle { min-height: 40px; }
+.source-search-panel { background: var(--page); border: 1px solid var(--line); border-radius: 12px; margin-top: 10px; padding: 14px; }
+.source-search-panel > p:first-child { margin-top: 0; }
+.source-search-controls { display: grid; gap: 10px; grid-template-columns: 1fr auto; }
+.source-search-results { display: grid; gap: 12px; margin-top: 14px; max-height: 420px; overflow-y: auto; }
+.source-search-results article { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.source-result-heading { align-items: baseline; display: flex; gap: 12px; justify-content: space-between; }
+.source-result-heading strong { overflow-wrap: anywhere; }
+.source-result-path { color: var(--muted); font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+.source-search-results article > p:not(.source-result-path) { white-space: pre-wrap; }
 .admin-review-note { background: oklch(.96 .04 60); border-left: 3px solid var(--mid); margin-top: 18px; padding: 12px 14px; }
 .admin-review-note p { color: var(--muted); font-size: 13px; margin-top: 4px; white-space: pre-wrap; }
 .question-bank-pages { align-items: center; }

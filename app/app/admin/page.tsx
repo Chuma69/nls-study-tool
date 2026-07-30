@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { cleanQuestionStem } from "@/lib/question-text";
 import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS, topicsForCourse } from "@/lib/course-topics";
+import { SourceMaterialSearch } from "@/components/source-material-search";
 
 type Item = {
   id: string;
@@ -719,6 +720,7 @@ export default function AdminPage() {
                 value={editStem}
                 onChange={(event) => setEditStem(event.target.value)}
               />
+              <SourceMaterialSearch questionId={bankEditing.id} initialQuery={editStem} />
               <label>Course</label>
               <select
                 value={editCourse}
