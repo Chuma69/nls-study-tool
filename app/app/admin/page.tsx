@@ -59,6 +59,7 @@ type BankQuestion = {
   context_position: number | null;
   display_name: string | null;
   admin_flagged: boolean;
+  admin_flag_note: string | null;
 };
 type AdminUser = {
   id: number;
@@ -682,6 +683,7 @@ export default function AdminPage() {
             <><div className="modal-backdrop" aria-hidden="true" /><section id="bank-question-editor" className="panel report-editor" role="dialog" aria-modal="true" aria-labelledby="bank-question-editor-title">
               <button className="modal-close-button" type="button" aria-label="Close question review" onClick={() => setBankEditing(null)}>×</button>
               <p className="eyebrow" id="bank-question-editor-title">Reviewing question #{bankEditing.id}</p>
+              {bankEditing.admin_flag_note && <div className="admin-review-note"><strong>Review comment</strong><p>{bankEditing.admin_flag_note}</p></div>}
               {bankEditing.shared_context && (
                 <div className="shared-context">
                   <p className="case-study-label">Case-study set</p>

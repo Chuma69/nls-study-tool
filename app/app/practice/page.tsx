@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { cleanQuestionStem } from "@/lib/question-text";
 import { QuestionReport } from "@/components/question-report";
 import { StudyFooter } from "@/components/study-footer";
+import { AdminQuestionQuickEdit } from "@/components/admin-question-quick-edit";
 import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS } from "@/lib/course-topics";
 
 type Question = {
@@ -195,7 +196,7 @@ function PracticeContent() {
             <div className="case-study-side-copy">{question.shared_context}</div>
           </aside>}
           <section className="panel question-panel">
-          <p className="question-meta">{question.topic ?? courseTitle} · {yearsLabel(question.exam_years)}</p>
+          <div className="question-admin-heading"><p className="question-meta">{question.topic ?? courseTitle} · {yearsLabel(question.exam_years)}</p><AdminQuestionQuickEdit questionId={question.id} onSaved={(updated) => setQuestion((current) => current ? { ...current, course: updated.course, topic: updated.topic, stem: updated.stem, options: updated.options, explanation: updated.explanation, shared_context: updated.shared_context } : current)} /></div>
           <div className="practice-progress" aria-hidden="true"><span /></div>
           <p className="stem">{cleanQuestionStem(question.stem)}</p>
           <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { if (!saved) void saveFlag(true); setShowSaveNote(true); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-6-4-6 4v-17Z" /></svg>{saved ? "Saved for later" : "Save for later"}</button>

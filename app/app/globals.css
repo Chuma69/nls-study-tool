@@ -288,6 +288,17 @@ form .primary-button { margin-top: 14px; }
 .scenario-question-layout > .question-panel { margin: 0; }
 .case-study-side-panel { background: oklch(.96 .02 235); border: 1px solid var(--line); border-radius: 14px; max-height: calc(100vh - 48px); overflow-y: auto; padding: 24px; position: sticky; top: 24px; }
 .case-study-side-copy { font-family: Newsreader, Georgia, serif; font-size: clamp(1.12rem, 1.8vw, 1.38rem); line-height: 1.55; margin-top: 14px; white-space: pre-wrap; }
+.question-admin-heading { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+.admin-quick-edit-button { align-items: center; background: transparent; border: 1px solid var(--line); border-radius: 8px; color: var(--accent); display: inline-flex; height: 34px; justify-content: center; min-height: 34px; padding: 7px; width: 34px; }
+.admin-quick-edit-button svg { fill: none; height: 17px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 17px; }
+.admin-quick-editor { left: 50%; max-height: min(88vh, 820px); overflow-y: auto; position: fixed; top: 50%; transform: translate(-50%, -50%); width: min(780px, calc(100vw - 36px)); z-index: 1001; }
+.admin-edit-grid { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+.critical-admin-action { border-top: 1px solid var(--line); margin-top: 28px; padding-top: 20px; }
+.critical-admin-action p { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.critical-admin-action textarea { min-height: 78px; }
+.critical-admin-action .danger-button { margin-top: 10px; }
+.admin-review-note { background: oklch(.96 .04 60); border-left: 3px solid var(--mid); margin-top: 18px; padding: 12px 14px; }
+.admin-review-note p { color: var(--muted); font-size: 13px; margin-top: 4px; white-space: pre-wrap; }
 .question-bank-pages { align-items: center; }
 .page-size-control { align-items: center; color: var(--muted); display: inline-flex; font-size: 13px; gap: 8px; margin-left: auto; }
 .page-size-control select { min-height: 38px; padding: 6px 28px 6px 10px; width: auto; }
@@ -346,6 +357,7 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "I
   .question-bank .bank-controls input { grid-column: 1 / -1; }
   .scenario-question-layout.has-case-study { grid-template-columns: 1fr; }
   .case-study-side-panel { max-height: none; position: static; }
+  .admin-edit-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
   .nav-links { gap: 0; width: 100%; }
