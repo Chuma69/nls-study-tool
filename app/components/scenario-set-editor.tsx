@@ -14,6 +14,7 @@ export function ScenarioSetEditor({ contextGroupId, onChanged }: { contextGroupI
   const [scenario, setScenario] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [keepOffline, setKeepOffline] = useState(false);
   const [error, setError] = useState("");
   const active = questions.find((question) => question.id === activeId) ?? null;
 
@@ -45,14 +46,14 @@ export function ScenarioSetEditor({ contextGroupId, onChanged }: { contextGroupI
     if (!active) return;
     setSaving(true); setError("");
     for (const question of questions) {
-      const questionResponse = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic }) });
+      const questionResponse = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, publish: !keepOffline }) });
       const questionData = await questionResponse.json();
       if (!questionResponse.ok) { setSaving(false); setError(`Question ${question.id}: ${questionData.error ?? "Could not publish this question."}`); return; }
     }
     const orderResponse = await fetch("/api/admin/scenarios", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "reorder", contextGroupId, questionIds: questions.map((question) => question.id), sharedContext: scenario }) });
     const orderData = await orderResponse.json(); setSaving(false);
     if (!orderResponse.ok) { setError(orderData.error ?? "The question was saved, but the scenario order could not be updated."); return; }
-    setQuestions((current) => current.map((question, index) => ({ ...question, shared_context: scenario, context_position: index + 1 })));
+    setQuestions((current) => current.map((question, index) => ({ ...question, shared_context: scenario, context_position: index + 1, verification_status: keepOffline ? "unreviewed" : "staff_corrected" })));
     onChanged?.();
   }
 
@@ -66,7 +67,7 @@ export function ScenarioSetEditor({ contextGroupId, onChanged }: { contextGroupI
           <aside className="scenario-set-sidebar"><div><strong>{questions.length} linked questions</strong><span className="muted">Use the arrows to set learner order</span></div>{questions.map((question, index) => <div className={`scenario-set-item ${question.id === activeId ? "active" : ""}`} key={question.id}><button type="button" className="scenario-set-select" onClick={() => setActiveId(question.id)}><span>{index + 1}</span><span>{question.stem}</span></button><div className="scenario-order-actions"><button type="button" aria-label="Move question up" disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" aria-label="Move question down" disabled={index === questions.length - 1} onClick={() => move(index, 1)}>↓</button></div></div>)}</aside>
           {active && <div className="scenario-set-question-editor"><p className="eyebrow">Question {questions.findIndex((question) => question.id === active.id) + 1} · {active.verification_status === "material_supported" || active.verification_status === "staff_corrected" ? "Live" : "Not live"}</p><label>Question wording</label><textarea value={active.stem} onChange={(event) => updateActive({ stem: event.target.value })} /><div className="admin-edit-grid"><div><label>Course</label><input value={COURSE_NAMES[active.course as keyof typeof COURSE_NAMES] ?? active.course} disabled /></div><div><label>Topic</label><select value={active.topic ?? ""} onChange={(event) => updateActive({ topic: event.target.value })}><option value="" disabled>Choose a topic</option>{topics.map((topic) => <option key={topic}>{topic}</option>)}</select></div></div>{active.options.map((option, index) => <div className="option-edit" key={option.key}><strong>{option.key}</strong><input value={option.text} onChange={(event) => updateActive({ options: active.options.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item) })} /></div>)}<label>Correct answer</label><select value={active.material_supported_key ?? ""} onChange={(event) => updateActive({ material_supported_key: event.target.value })}><option value="" disabled>Choose the correct answer</option>{active.options.map((option) => <option key={option.key} value={option.key}>{option.key} — {option.text}</option>)}</select><label>Explanation</label><textarea value={active.explanation ?? ""} onChange={(event) => updateActive({ explanation: event.target.value })} /></div>}
         </div>
-        {error && <p className="error">{error}</p>}<div className="button-row"><button className="primary-button" type="button" disabled={saving || !active} onClick={() => { void save(); }}>{saving ? "Publishing…" : "Publish full scenario set"}</button></div>
+        {error && <p className="error">{error}</p>}<label className="scenario-offline-toggle"><input type="checkbox" checked={keepOffline} onChange={(event) => setKeepOffline(event.target.checked)} /><span><strong>Keep this set offline</strong><small>Save all edits and ordering without showing any question to learners.</small></span></label><div className="button-row"><button className="primary-button" type="button" disabled={saving || !active} onClick={() => { void save(); }}>{saving ? "Saving…" : keepOffline ? "Save full set offline" : "Publish full scenario set"}</button></div>
       </>}
     </section></>, document.body) : null;
   return <>

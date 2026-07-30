@@ -328,6 +328,10 @@ form .primary-button { margin-top: 14px; }
 .scenario-order-actions { display: flex; flex-direction: column; gap: 4px; padding-right: 6px; }
 .scenario-order-actions button { min-height: 32px; min-width: 34px; padding: 2px; }
 .scenario-set-question-editor { min-width: 0; }
+.scenario-offline-toggle { align-items: flex-start; border: 1px solid var(--line); border-radius: 9px; display: flex; gap: 12px; margin-top: 18px; padding: 14px; }
+.scenario-offline-toggle input { margin-top: 2px; min-height: auto; width: auto; }
+.scenario-offline-toggle span { display: flex; flex-direction: column; gap: 3px; }
+.scenario-offline-toggle small { color: var(--muted); font-size: 12px; }
 @media (max-width: 800px) { .scenario-set-workspace { grid-template-columns: 1fr; } .scenario-set-sidebar { max-height: 280px; } }
 .source-material-search { margin: 10px 0 18px; }
 .source-search-toggle { min-height: 40px; }

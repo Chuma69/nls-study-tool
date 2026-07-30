@@ -91,7 +91,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; action?: "unpublish" | "delete" | "flag" | "unflag" | "group_scenario" | "ungroup_scenario" | "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag"; scenario?: string; comment?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string };
+  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; action?: "unpublish" | "delete" | "flag" | "unflag" | "group_scenario" | "ungroup_scenario" | "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag"; scenario?: string; comment?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string; publish?: boolean };
   if (["bulk_publish", "bulk_unpublish", "bulk_flag", "bulk_unflag"].includes(body.action ?? "")) {
     const questionIds = [...new Set((body.questionIds ?? []).map(Number).filter(Number.isSafeInteger))].slice(0, 250);
     if (!questionIds.length) return NextResponse.json({ error: "Select at least one question." }, { status: 400 });
@@ -151,8 +151,9 @@ export async function PATCH(request: Request) {
   if (!stem || !explanation || !options.length || !body.answerKey || !options.some((option) => option.key === body.answerKey && option.text.trim())) return NextResponse.json({ error: "Keep a question, answer options, the correct answer, and an explanation." }, { status: 400 });
   if (!body.course || !isCourse(body.course)) return NextResponse.json({ error: "Choose one of the five courses." }, { status: 400 });
   if (!body.topic || !isTopicForCourse(body.course, body.topic)) return NextResponse.json({ error: "Choose an official topic for the selected course." }, { status: 400 });
-  if (citations) await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status='staff_corrected',explanation=${explanation},explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
-  else await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status='staff_corrected',explanation=${explanation},updated_at=now() WHERE id=${questionId}`;
+  const publishStatus = body.publish === false ? "unreviewed" : "staff_corrected";
+  if (citations) await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status=${publishStatus},explanation=${explanation},explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
+  else await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status=${publishStatus},explanation=${explanation},updated_at=now() WHERE id=${questionId}`;
   if (body.scenario !== undefined) {
     const scenarioText = body.scenario.trim();
     const existing = await getSql()`SELECT context_group_id FROM questions WHERE id=${questionId} LIMIT 1` as { context_group_id: string | null }[];
