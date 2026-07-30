@@ -34,18 +34,22 @@ def _cost(inp:int, out:int)->float: return inp*INPUT_PRICE/1_000_000 + out*OUTPU
 
 def _retry_neon(operation):
     """Retry short idempotent saves after the long-haul Neon connection drops."""
-    for attempt in range(5):
+    for attempt in range(12):
         try:
             return operation()
         except psycopg.OperationalError:
-            if attempt == 4:
+            if attempt == 11:
                 raise
-            delay = 2 ** attempt
+            delay = min(60, 2 ** attempt)
             print(f"  Neon connection reset; retrying save in {delay}s", flush=True)
             time.sleep(delay)
 
-def _clean_rows(skip_completed=True):
-    completed = "AND NOT EXISTS (SELECT 1 FROM question_verification_items vi WHERE vi.question_id=q.id AND vi.status='completed')" if skip_completed else ""
+def _clean_rows(skip_completed=True, untouched_only=False):
+    if untouched_only:
+        completed = """AND NOT EXISTS (SELECT 1 FROM question_verification_items vi WHERE vi.question_id=q.id)
+        AND NOT EXISTS (SELECT 1 FROM reasoning_calibration_items ri WHERE ri.question_id=q.id)"""
+    else:
+        completed = "AND NOT EXISTS (SELECT 1 FROM question_verification_items vi WHERE vi.question_id=q.id AND vi.status='completed')" if skip_completed else ""
     with db.connect() as conn:
       with conn.cursor() as cur:
         cur.execute(f"""SELECT q.id,q.stem,q.options,q.course FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id
@@ -61,14 +65,14 @@ def _chunk_stats():
         cur.execute("SELECT COALESCE(percentile_cont(.9) WITHIN GROUP (ORDER BY token_est),750) FROM chunks")
         return int(cur.fetchone()[0])
 
-def dry_run():
-    rows=_clean_rows(); p90=_chunk_stats()
+def dry_run(untouched_only=False):
+    rows=_clean_rows(untouched_only=untouched_only); p90=_chunk_stats()
     question_tokens=sum((len(x['stem'])+len(json.dumps(x['options']))+3)//4 for x in rows)
     each=min(config.QUESTION_VERIFICATION_MAX_CONTEXT_TOKENS,6*p90)+PROMPT_TOKENS
     inp=len(rows)*each+question_tokens; out=len(rows)*EXPLANATION_TOKENS
-    signature={"model":config.QUESTION_VERIFICATION_MODEL,"ids":[x['id'] for x in rows],"inp":inp,"out":out}
+    signature={"model":config.QUESTION_VERIFICATION_MODEL,"ids":[x['id'] for x in rows],"inp":inp,"out":out,"untouched_only":untouched_only}
     report_id=hashlib.sha256(json.dumps(signature,sort_keys=True).encode()).hexdigest()[:20]
-    report={"report_id":report_id,"generated_at":datetime.now(timezone.utc).isoformat(),"dry_run":True,"model_id":config.QUESTION_VERIFICATION_MODEL,"questions_planned":len(rows),"questions_excluded":9741-len(rows),"estimated_input_tokens":inp,"estimated_output_tokens":out,"estimated_cost_usd":round(_cost(inp,out),4),"recommended_cap_usd":round(_cost(inp,out)*1.15,2),"context_assumption":{"chunks":6,"p90_tokens_per_chunk":p90,"max_context_tokens":config.QUESTION_VERIFICATION_MAX_CONTEXT_TOKENS}}
+    report={"report_id":report_id,"generated_at":datetime.now(timezone.utc).isoformat(),"dry_run":True,"model_id":config.QUESTION_VERIFICATION_MODEL,"questions_planned":len(rows),"questions_excluded":9741-len(rows),"untouched_only":untouched_only,"estimated_input_tokens":inp,"estimated_output_tokens":out,"estimated_cost_usd":round(_cost(inp,out),4),"recommended_cap_usd":round(_cost(inp,out)*1.15,2),"context_assumption":{"chunks":6,"p90_tokens_per_chunk":p90,"max_context_tokens":config.QUESTION_VERIFICATION_MAX_CONTEXT_TOKENS}}
     config.BUILD_DIR.mkdir(parents=True,exist_ok=True); config.QUESTION_VERIFICATION_DRY_RUN_PATH.write_text(json.dumps(report,indent=2)+"\n")
     return report
 
@@ -138,11 +142,17 @@ def _evidence(question):
 
 def _verify_one(question):
     from openai import OpenAI, RateLimitError
-    evidence=_evidence(question)
-    if not evidence: return question,None,0,0,"no_retrieval"
-    snippets="\n\n".join(f"[EXCERPT {x['id']}] {x['document']} {x['locator'] or ''}\n{x['content']}" for x in evidence)
-    prompt="Question:\n"+question['stem']+"\n\nOptions:\n"+json.dumps(question['options'],ensure_ascii=False)+"\n\n<evidence>\n"+snippets+"\n</evidence>"
     try:
+      for attempt in range(12):
+       try:
+        evidence=_evidence(question)
+        break
+       except psycopg.OperationalError:
+        if attempt==11: raise
+        time.sleep(min(60,2**attempt))
+      if not evidence: return question,None,0,0,"no_retrieval"
+      snippets="\n\n".join(f"[EXCERPT {x['id']}] {x['document']} {x['locator'] or ''}\n{x['content']}" for x in evidence)
+      prompt="Question:\n"+question['stem']+"\n\nOptions:\n"+json.dumps(question['options'],ensure_ascii=False)+"\n\n<evidence>\n"+snippets+"\n</evidence>"
       client=OpenAI(api_key=config.require_openai_key())
       for attempt in range(6):
         try:
@@ -159,12 +169,14 @@ def _verify_one(question):
       return question,{"status":status,"key":key,"explanation":payload.get('explanation'),"citations":[{"chunk_id":x['id'],"document":x['document'],"locator":x['locator']} for x in citations]},int(response.usage.prompt_tokens),int(response.usage.completion_tokens),None
     except Exception as exc: return question,None,0,0,type(exc).__name__
 
-def run(report_id:str, cap:float):
+def run(report_id:str, cap:float, untouched_only=False):
     report=json.loads(config.QUESTION_VERIFICATION_DRY_RUN_PATH.read_text())
     if report.get('report_id')!=report_id: raise RuntimeError('Approval ID does not match latest verification dry-run.')
     estimate=float(report['estimated_cost_usd'])
     if cap<estimate*1.15: raise RuntimeError(f'Cap ${cap:.2f} is below required reserve ${estimate*1.15:.2f}.')
-    config.require_openai_key(); rows=_clean_rows()
+    if bool(report.get('untouched_only')) != bool(untouched_only):
+        raise RuntimeError('Run mode does not match the approved dry run.')
+    config.require_openai_key(); rows=_clean_rows(untouched_only=untouched_only)
     if not rows: return {"questions_processed":0,"actual_cost_usd":0.0}
     def create():
       with db.connect() as conn:
@@ -172,19 +184,38 @@ def run(report_id:str, cap:float):
         cur.execute("UPDATE question_verification_runs SET status='stopped',completed_at=now() WHERE report_id=%s AND status='running'",(report_id,))
         cur.execute("INSERT INTO question_verification_runs(report_id,model_id,requested_cap_usd,estimated_input_tokens,estimated_output_tokens,estimated_cost_usd,questions_planned,status) VALUES(%s,%s,%s,%s,%s,%s,%s,'running') RETURNING id",(report_id,config.QUESTION_VERIFICATION_MODEL,cap,report['estimated_input_tokens'],report['estimated_output_tokens'],estimate,len(rows))); return cur.fetchone()[0]
     run_id=_retry_neon(create); total_i=total_o=done=0; spent=0.0
-    with ThreadPoolExecutor(max_workers=max(1,config.QUESTION_VERIFICATION_WORKERS)) as pool:
-      futures=[pool.submit(_verify_one,q) for q in rows]
-      for fut in as_completed(futures):
-       q,result,inp,out,error=fut.result(); cost=_cost(inp,out)
-       def persist():
-        with db.connect() as conn:
-         with conn.cursor() as cur:
-          if result:
-           cur.execute("UPDATE questions SET material_supported_key=%s,verification_status=%s,explanation=%s,explanation_version=1,explanation_citations=%s::jsonb,updated_at=now() WHERE id=%s",(result['key'],result['status'],result['explanation'],json.dumps(result['citations']),q['id']))
-          cur.execute("INSERT INTO question_verification_items(run_id,question_id,status,input_tokens,output_tokens,actual_cost_usd,error_code) VALUES(%s,%s,%s,%s,%s,%s,%s)",(run_id,q['id'],'failed' if error else 'completed',inp,out,cost,error))
-       _retry_neon(persist)
-       total_i+=inp; total_o+=out; spent+=cost; done+=not bool(error); print(f"  verified {done}/{len(rows)}; ${spent:.4f}",flush=True)
-    status='completed' if done==len(rows) else 'stopped'
+    workers=max(1,config.QUESTION_VERIFICATION_WORKERS)
+    # Reserve the maximum possible cost of every submitted request before it
+    # enters the pool. This keeps the approved cap meaningful even with
+    # concurrent requests and unexpectedly long completions.
+    max_request_cost=_cost(
+        config.QUESTION_VERIFICATION_MAX_CONTEXT_TOKENS + PROMPT_TOKENS,
+        700,
+    )
+    remaining=iter(rows)
+    exhausted=False
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+      while not exhausted:
+       affordable=max(0, int((cap-spent) // max_request_cost))
+       batch=[]
+       for _ in range(min(workers, affordable)):
+        try: batch.append(next(remaining))
+        except StopIteration:
+         exhausted=True; break
+       if not batch:
+        break
+       futures=[pool.submit(_verify_one,q) for q in batch]
+       for fut in as_completed(futures):
+        q,result,inp,out,error=fut.result(); cost=_cost(inp,out)
+        def persist():
+         with db.connect() as conn:
+          with conn.cursor() as cur:
+           if result:
+            cur.execute("UPDATE questions SET material_supported_key=%s,verification_status=%s,explanation=%s,explanation_version=1,explanation_citations=%s::jsonb,updated_at=now() WHERE id=%s",(result['key'],result['status'],result['explanation'],json.dumps(result['citations']),q['id']))
+           cur.execute("INSERT INTO question_verification_items(run_id,question_id,status,input_tokens,output_tokens,actual_cost_usd,error_code) VALUES(%s,%s,%s,%s,%s,%s,%s)",(run_id,q['id'],'failed' if error else 'completed',inp,out,cost,error))
+        _retry_neon(persist)
+        total_i+=inp; total_o+=out; spent+=cost; done+=not bool(error); print(f"  verified {done}/{len(rows)}; ${spent:.4f}",flush=True)
+    status='completed' if exhausted and done==len(rows) else 'stopped'
     def close():
      with db.connect() as conn:
       with conn.cursor() as cur: cur.execute("UPDATE question_verification_runs SET status=%s,questions_processed=%s,actual_input_tokens=%s,actual_output_tokens=%s,actual_cost_usd=%s,completed_at=now() WHERE id=%s",(status,done,total_i,total_o,spent,run_id))

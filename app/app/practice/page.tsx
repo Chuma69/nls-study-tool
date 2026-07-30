@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { cleanQuestionStem } from "@/lib/question-text";
 import { QuestionReport } from "@/components/question-report";
 import { StudyFooter } from "@/components/study-footer";
-import { CaseStudy } from "@/components/case-study";
 import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS } from "@/lib/course-topics";
 
 type Question = {
@@ -27,6 +26,15 @@ type Question = {
 };
 type Result = { matchesMaterialKey: boolean; materialSupportedKey: string; verificationStatus: string };
 type PracticeSession = { id: number; answers_count: number; total_seconds: number; last_question_id: number | null };
+type QuestionView = {
+  question: Question;
+  scenarioQueue: Question[];
+  chosenKey: string;
+  result: Result | null;
+  questionNumber: number;
+  saved: boolean;
+  note: string;
+};
 
 function yearsLabel(years: string[]) {
   return years.length ? `Exam year${years.length === 1 ? "" : "s"}: ${years.join(", ")}` : "Exam year: not identified in source";
@@ -59,11 +67,11 @@ function PracticeContent() {
   const [showSaveNote, setShowSaveNote] = useState(false);
   const [topicDraft, setTopicDraft] = useState<string[]>(selectedTopics);
   const [showTopics, setShowTopics] = useState(false);
-  const [introducedScenarios, setIntroducedScenarios] = useState<Set<string>>(new Set());
-  const [showCaseStudy, setShowCaseStudy] = useState(false);
+  const [previousQuestions, setPreviousQuestions] = useState<QuestionView[]>([]);
+  const [nextQuestions, setNextQuestions] = useState<QuestionView[]>([]);
 
   const loadQuestion = useCallback(async (sessionId: number, excludeQuestionId?: number, questionId?: number) => {
-    setQuestion(undefined); setChosenKey(""); setResult(null); setError(""); setShowCaseStudy(false);
+    setQuestion(undefined); setChosenKey(""); setResult(null); setError("");
     const params = new URLSearchParams();
     if (course) params.set("course", course);
     selectedTopics.forEach((topic) => params.append("topic", topic));
@@ -98,7 +106,7 @@ function PracticeContent() {
   useEffect(() => {
     let cancelled = false;
     if (!course || !selectedTopics.length) { setQuestion(null); setPracticeSession(null); return; }
-    setQuestion(undefined); setQuestionNumber(1); setPracticeSession(null);
+    setQuestion(undefined); setQuestionNumber(1); setPracticeSession(null); setPreviousQuestions([]); setNextQuestions([]);
     void fetch("/api/practice-sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ course }) })
       .then((response) => response.json().then((data) => ({ response, data })))
       .then(({ response, data }) => {
@@ -133,8 +141,38 @@ function PracticeContent() {
     setResult(data);
   }
 
+  function currentView(): QuestionView | null {
+    if (!question) return null;
+    return { question, scenarioQueue, chosenKey, result, questionNumber, saved, note };
+  }
+
+  function restoreView(view: QuestionView) {
+    setQuestion(view.question); setScenarioQueue(view.scenarioQueue); setChosenKey(view.chosenKey); setResult(view.result);
+    setQuestionNumber(view.questionNumber); setSaved(view.saved); setNote(view.note); setShowSaveNote(false); setError("");
+    setQuestionStartedAt(view.result ? null : Date.now()); setCurrentQuestionSeconds(0);
+  }
+
+  function previousQuestion() {
+    const current = currentView();
+    const previous = previousQuestions.at(-1);
+    if (!current || !previous) return;
+    setPreviousQuestions((items) => items.slice(0, -1));
+    setNextQuestions((items) => [current, ...items]);
+    restoreView(previous);
+  }
+
   function nextQuestion() {
     if (!practiceSession || !question) return;
+    const current = currentView();
+    if (!current) return;
+    if (nextQuestions.length) {
+      const [next, ...remaining] = nextQuestions;
+      setPreviousQuestions((items) => [...items, current]);
+      setNextQuestions(remaining);
+      restoreView(next);
+      return;
+    }
+    setPreviousQuestions((items) => [...items, current]);
     if (scenarioQueue.length) {
       const [next, ...remaining] = scenarioQueue;
       setScenarioQueue(remaining); setQuestion(next); setChosenKey(""); setResult(null); setError("");
@@ -145,29 +183,19 @@ function PracticeContent() {
     void loadQuestion(practiceSession.id, question.id);
   }
 
-  const scenarioNeedsIntroduction = Boolean(question?.context_group_id && question.shared_context && !introducedScenarios.has(question.context_group_id));
-  function beginScenario() {
-    if (!question?.context_group_id) return;
-    setIntroducedScenarios((groups) => new Set(groups).add(question.context_group_id as string));
-  }
-
   return (
-    <main className="narrow">
+    <main className="narrow practice-run-shell">
       <Link className="back-link" href="/">← Back to home</Link>
       <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><p className="meta">{course && selectedTopics.length ? <>Question {questionNumber} / {totalQuestions}<br />Session {clock((practiceSession?.total_seconds ?? 0) + currentQuestionSeconds)}</> : "Choose topics to begin"}</p></div>
       {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : <section className="topic-filter panel"><div className="course-checklist-heading"><div><p className="eyebrow">Topics</p><p className="muted">{selectedTopics.length ? `${selectedTopics.length} selected` : "Choose at least one topic to begin"}</p></div><div className="topic-heading-actions"><button className="text-button" type="button" onClick={() => setTopicDraft(courseTopics)}>Select all</button><button className="text-button" type="button" onClick={() => setShowTopics((open) => !open)}>{showTopics || !selectedTopics.length ? "Close" : "Choose topics"}</button></div></div>{(showTopics || !selectedTopics.length) && <><div className="course-checklist">{courseTopics.map((topic) => <label className="course-check" key={topic}><input type="checkbox" checked={topicDraft.includes(topic)} onChange={() => toggleTopic(topic)} /><span>{topic}</span></label>)}</div><div className="button-row"><button className="primary-button" type="button" disabled={!topicDraft.length} onClick={applyTopics}>Start practice</button></div></>}</section>}
-      {course && selectedTopics.length > 0 && (question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>No live questions match this topic selection yet. Choose different topics or ask an administrator to assign questions to these topics.</p> : scenarioNeedsIntroduction ? (
-        <section className="panel case-study-intro">
-          <p className="eyebrow">Read this first</p>
-          <h2>Case study</h2>
-          <CaseStudy text={question.shared_context as string} />
-          <button className="primary-button" type="button" onClick={beginScenario}>Continue to question 1</button>
-        </section>
-      ) : (
-        <section className="panel question-panel">
+      {course && selectedTopics.length > 0 && (question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>No live questions match this topic selection yet. Choose different topics or ask an administrator to assign questions to these topics.</p> : (
+        <div className={`scenario-question-layout ${question.shared_context ? "has-case-study" : ""}`}>
+          {question.shared_context && <aside className="case-study-side-panel" aria-label="Case study">
+            <p className="case-study-label">Case study</p>
+            <div className="case-study-side-copy">{question.shared_context}</div>
+          </aside>}
+          <section className="panel question-panel">
           <p className="question-meta">{question.topic ?? courseTitle} · {yearsLabel(question.exam_years)}</p>
-          {question.shared_context && <button className="case-study-link" type="button" onClick={() => setShowCaseStudy(true)}>See case study</button>}
-          {showCaseStudy && question.shared_context && <CaseStudy text={question.shared_context} modal onClose={() => setShowCaseStudy(false)} />}
           <div className="practice-progress" aria-hidden="true"><span /></div>
           <p className="stem">{cleanQuestionStem(question.stem)}</p>
           <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { if (!saved) void saveFlag(true); setShowSaveNote(true); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-6-4-6 4v-17Z" /></svg>{saved ? "Saved for later" : "Save for later"}</button>
@@ -187,17 +215,18 @@ function PracticeContent() {
           </div>
           <QuestionReport questionId={question.id} />
           {error && <p className="error" role="alert">{error}</p>}
-          {!result ? <div className="button-row practice-actions"><button className="primary-button" type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
+          {!result ? <div className="button-row practice-actions">{previousQuestions.length > 0 && <button className="outline-button" type="button" onClick={previousQuestion}>← Previous question</button>}<button className="primary-button" type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
             {chosenKey ? "Check answer" : "Choose an option above first"}
           </button><button className="outline-button" type="button" onClick={nextQuestion}>Skip question</button></div> : (
             <div className={`result ${result.matchesMaterialKey ? "" : "incorrect"}`} role="status">
               <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}: ${question.options.find((option) => option.key === result.materialSupportedKey)?.text ?? ""}`}</strong></p>
               <p>{question.explanation?.replace(/^(The materials (expressly )?(state|say) that|According to the materials,?\s*)/i, "") ?? "A fuller tutor explanation is being prepared for this verified answer."}</p>
               <div className="note-box"><label htmlFor="question-note">Your note</label><textarea id="question-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a reminder for later revision…" /><button type="button" className="outline-button" onClick={() => { void saveFlag(true, note); }}>Save note</button></div>
-              <button className="primary-button" type="button" onClick={nextQuestion}>Next question</button>
+              <div className="button-row practice-actions">{previousQuestions.length > 0 && <button className="outline-button" type="button" onClick={previousQuestion}>← Previous question</button>}<button className="primary-button" type="button" onClick={nextQuestion}>Next question</button></div>
             </div>
           )}
-        </section>
+          </section>
+        </div>
       ))}
       <StudyFooter />
     </main>

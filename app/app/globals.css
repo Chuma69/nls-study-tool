@@ -282,6 +282,12 @@ form .primary-button { margin-top: 14px; }
 .scenario-builder { margin: 18px 0; }
 .scenario-builder textarea { margin-top: 8px; min-height: 150px; }
 .student-scenario { margin: 20px 0 28px; }
+.practice-run-shell { max-width: 1120px; }
+.scenario-question-layout { margin-top: 28px; }
+.scenario-question-layout.has-case-study { align-items: start; display: grid; gap: 22px; grid-template-columns: minmax(280px, .78fr) minmax(0, 1.35fr); }
+.scenario-question-layout > .question-panel { margin: 0; }
+.case-study-side-panel { background: oklch(.96 .02 235); border: 1px solid var(--line); border-radius: 14px; max-height: calc(100vh - 48px); overflow-y: auto; padding: 24px; position: sticky; top: 24px; }
+.case-study-side-copy { font-family: Newsreader, Georgia, serif; font-size: clamp(1.12rem, 1.8vw, 1.38rem); line-height: 1.55; margin-top: 14px; white-space: pre-wrap; }
 .question-bank-pages { align-items: center; }
 .page-size-control { align-items: center; color: var(--muted); display: inline-flex; font-size: 13px; gap: 8px; margin-left: auto; }
 .page-size-control select { min-height: 38px; padding: 6px 28px 6px 10px; width: auto; }
@@ -338,6 +344,8 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "I
   .picker-grid { grid-template-columns: 1fr; }
   .question-bank .bank-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .question-bank .bank-controls input { grid-column: 1 / -1; }
+  .scenario-question-layout.has-case-study { grid-template-columns: 1fr; }
+  .case-study-side-panel { max-height: none; position: static; }
 }
 @media (max-width: 560px) {
   .nav-links { gap: 0; width: 100%; }

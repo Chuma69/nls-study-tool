@@ -819,7 +819,9 @@ export default function AdminPage() {
                 {reports.map((report) => (
                   <article className="review-row" key={report.id}>
                     <p className="eyebrow">
-                      {report.category} · reported by {report.reporter}
+                      {report.category === "missing_case_study"
+                        ? "Missing case study or scenario"
+                        : report.category} · reported by {report.reporter}
                     </p>
                     <p>{report.stem}</p>
                     {report.details && (

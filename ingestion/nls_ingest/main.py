@@ -163,7 +163,7 @@ def cmd_extract_questions(args: argparse.Namespace) -> int:
 def cmd_verify_questions(args: argparse.Namespace) -> int:
     from . import question_verify
     if args.dry_run:
-        report = question_verify.dry_run()
+        report = question_verify.dry_run(args.untouched_only)
         print("✓ Verification dry-run complete — no OpenAI API calls were made.")
         for key in ("report_id", "model_id", "questions_planned", "questions_excluded",
                     "estimated_input_tokens", "estimated_output_tokens", "estimated_cost_usd",
@@ -173,7 +173,7 @@ def cmd_verify_questions(args: argparse.Namespace) -> int:
     if not args.approve_dry_run or args.max_cost_usd is None:
         print("Paid verification is blocked. First run --dry-run, then approve its report ID and cap.", file=sys.stderr)
         return 2
-    result = question_verify.run(args.approve_dry_run, args.max_cost_usd)
+    result = question_verify.run(args.approve_dry_run, args.max_cost_usd, args.untouched_only)
     print("✓ Question verification run finished.")
     for key, value in result.items(): print(f"  {key:26} {value}")
     return 0
@@ -277,6 +277,7 @@ def build_parser() -> argparse.ArgumentParser:
     vq.add_argument("--dry-run", action="store_true", help="Estimate cost without calling OpenAI.")
     vq.add_argument("--approve-dry-run", help="Exact verification report ID approved by the owner.")
     vq.add_argument("--max-cost-usd", type=float, help="Hard spend ceiling for verification.")
+    vq.add_argument("--untouched-only", action="store_true", help="Exclude every question already attempted by either verification pipeline.")
     vq.set_defaults(func=cmd_verify_questions)
 
     cp = sub.add_parser("calibrate-reasoning", help="Estimate a stronger materials-only reasoning pilot.")
