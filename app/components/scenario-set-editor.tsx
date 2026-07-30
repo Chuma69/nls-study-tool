@@ -48,12 +48,16 @@ export function ScenarioSetEditor({ contextGroupId, onChanged, triggerClassName,
       ? { ...question, verification_status: live ? "staff_corrected" : "unreviewed" }
       : question));
   }
-  async function save(unpublishActive = false) {
+  async function save(action: "save" | "publish" | "unpublish") {
     if (!active) return;
     setSaving(true); setError("");
     for (const question of questions) {
       const isCurrentlyLive = question.verification_status === "material_supported" || question.verification_status === "staff_corrected";
-      const publish = question.id === active.id && unpublishActive ? false : isCurrentlyLive;
+      const publish = question.id === active.id && action === "publish"
+        ? true
+        : question.id === active.id && action === "unpublish"
+          ? false
+          : isCurrentlyLive;
       const questionResponse = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, publish }) });
       const questionData = await questionResponse.json();
       if (!questionResponse.ok) { setSaving(false); setError(`Question ${question.id}: ${questionData.error ?? "Could not publish this question."}`); return; }
@@ -61,7 +65,7 @@ export function ScenarioSetEditor({ contextGroupId, onChanged, triggerClassName,
     const orderResponse = await fetch("/api/admin/scenarios", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "reorder", contextGroupId, questionIds: questions.map((question) => question.id), sharedContext: scenario }) });
     const orderData = await orderResponse.json(); setSaving(false);
     if (!orderResponse.ok) { setError(orderData.error ?? "The question was saved, but the scenario order could not be updated."); return; }
-    setQuestions((current) => current.map((question, index) => ({ ...question, shared_context: scenario, context_position: index + 1, verification_status: question.id === active.id && unpublishActive ? "unreviewed" : question.verification_status })));
+    setQuestions((current) => current.map((question, index) => ({ ...question, shared_context: scenario, context_position: index + 1, verification_status: question.id === active.id && action === "publish" ? "staff_corrected" : question.id === active.id && action === "unpublish" ? "unreviewed" : question.verification_status })));
     onChanged?.();
   }
 
@@ -75,7 +79,7 @@ export function ScenarioSetEditor({ contextGroupId, onChanged, triggerClassName,
           <aside className="scenario-set-sidebar"><div><strong>{questions.length} linked questions</strong><span className="muted">Set each question live or offline, then arrange the learner order.</span><QuestionCreator contextGroupId={contextGroupId} fixedCourse={questions[0]?.course} label="Add question to this set" onCreated={(question) => { void load(question.id); }} /></div>{questions.map((question, index) => { const isLive = question.verification_status === "material_supported" || question.verification_status === "staff_corrected"; return <div className={`scenario-set-item ${question.id === activeId ? "active" : ""}`} key={question.id}><button type="button" className="scenario-set-select" onClick={() => setActiveId(question.id)}><span>{index + 1}</span><span>{question.stem}</span></button><div className="scenario-set-item-controls"><label className="scenario-question-live-toggle"><input type="checkbox" checked={isLive} onChange={(event) => setQuestionLive(question.id, event.target.checked)} /><span>Live</span></label><div className="scenario-order-actions"><button type="button" aria-label="Move question up" disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" aria-label="Move question down" disabled={index === questions.length - 1} onClick={() => move(index, 1)}>↓</button></div></div></div>; })}</aside>
           {active && <div className="scenario-set-question-editor"><p className="eyebrow">Question {questions.findIndex((question) => question.id === active.id) + 1} · {active.verification_status === "material_supported" || active.verification_status === "staff_corrected" ? "Live" : "Not live"}</p><label>Question wording</label><textarea value={active.stem} onChange={(event) => updateActive({ stem: event.target.value })} /><div className="admin-edit-grid"><div><label>Course</label><input value={COURSE_NAMES[active.course as keyof typeof COURSE_NAMES] ?? active.course} disabled /></div><div><label>Topic</label><select value={active.topic ?? ""} onChange={(event) => updateActive({ topic: event.target.value })}><option value="" disabled>Choose a topic</option>{topics.map((topic) => <option key={topic}>{topic}</option>)}</select></div></div>{active.options.map((option, index) => <div className="option-edit" key={option.key}><strong>{option.key}</strong><input value={option.text} onChange={(event) => updateActive({ options: active.options.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item) })} /></div>)}<label>Correct answer</label><select value={active.material_supported_key ?? ""} onChange={(event) => updateActive({ material_supported_key: event.target.value })}><option value="" disabled>Choose the correct answer</option>{active.options.map((option) => <option key={option.key} value={option.key}>{option.key} — {option.text}</option>)}</select><label>Explanation</label><textarea value={active.explanation ?? ""} onChange={(event) => updateActive({ explanation: event.target.value })} /></div>}
         </div>
-        {error && <p className="error">{error}</p>}<p className="muted scenario-publish-note">Save and publish follows the Live checkbox beside every question. Unchecked questions stay offline and do not need an answer or explanation. Unpublish immediately keeps the selected question offline.</p><div className="button-row"><button className="primary-button" type="button" disabled={saving || !active} onClick={() => { void save(); }}>{saving ? "Saving…" : "Save and publish"}</button><button className="outline-button" type="button" disabled={saving || !active} onClick={() => { void save(true); }}>{saving ? "Saving…" : "Unpublish"}</button></div>
+        {error && <p className="error">{error}</p>}<p className="muted scenario-publish-note">Save stores your editing progress without forcing the selected question live. Publish and Unpublish change the selected question’s status. The Live checkboxes control the other questions in the set.</p><div className="button-row"><button className="outline-button" type="button" disabled={saving || !active} onClick={() => { void save("save"); }}>{saving ? "Saving…" : "Save"}</button><button className="primary-button" type="button" disabled={saving || !active} onClick={() => { void save("publish"); }}>{saving ? "Saving…" : "Publish"}</button><button className="outline-button" type="button" disabled={saving || !active} onClick={() => { void save("unpublish"); }}>{saving ? "Saving…" : "Unpublish"}</button></div>
       </>}
     </section></>, document.body) : null;
   return <>
