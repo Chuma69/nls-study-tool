@@ -620,7 +620,7 @@ export default function AdminPage() {
               <div className="review-list">
                 {bankQuestionGroups.map((group) => (
                   <section className={group.questions[0]?.context_group_id ? "admin-scenario-group" : undefined} key={group.id}>
-                    {group.questions[0]?.context_group_id && <div className="admin-scenario-context"><p className="case-study-label">Case-study set · {group.questions.length} linked questions</p><p>{group.questions[0].shared_context}</p></div>}
+                    {group.questions[0]?.context_group_id && <div className="admin-scenario-context"><ScenarioSetEditor contextGroupId={group.questions[0].context_group_id} onChanged={() => { void loadBank(bankPage); }} triggerClassName="admin-scenario-context-trigger" triggerChildren={<><p className="case-study-label">Case-study set · {group.questions.length} linked questions</p><p>{group.questions[0].shared_context}</p></>} /></div>}
                     <div className="admin-scenario-questions">
                       {group.questions.map((question, index) => (
                         <article

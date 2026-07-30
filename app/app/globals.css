@@ -328,10 +328,7 @@ form .primary-button { margin-top: 14px; }
 .scenario-order-actions { display: flex; flex-direction: column; gap: 4px; padding-right: 6px; }
 .scenario-order-actions button { min-height: 32px; min-width: 34px; padding: 2px; }
 .scenario-set-question-editor { min-width: 0; }
-.scenario-offline-toggle { align-items: flex-start; border: 1px solid var(--line); border-radius: 9px; display: flex; gap: 12px; margin-top: 18px; padding: 14px; }
-.scenario-offline-toggle input { margin-top: 2px; min-height: auto; width: auto; }
-.scenario-offline-toggle span { display: flex; flex-direction: column; gap: 3px; }
-.scenario-offline-toggle small { color: var(--muted); font-size: 12px; }
+.scenario-publish-note { font-size: 12px; margin-top: 18px; }
 @media (max-width: 800px) { .scenario-set-workspace { grid-template-columns: 1fr; } .scenario-set-sidebar { max-height: 280px; } }
 .source-material-search { margin: 10px 0 18px; }
 .source-search-toggle { min-height: 40px; }
@@ -365,6 +362,9 @@ form .primary-button { margin-top: 14px; }
 .admin-scenario-context { background: oklch(.95 .025 235); border-bottom: 1px solid var(--line); padding: 22px 24px; }
 .admin-scenario-context .case-study-label { margin-top: 0; }
 .admin-scenario-context > p:last-child { line-height: 1.65; margin-bottom: 0; }
+.admin-scenario-context-trigger { background: transparent; border: 0; color: inherit; cursor: pointer; display: block; padding: 0; text-align: left; width: 100%; }
+.admin-scenario-context-trigger > p:last-child { line-height: 1.65; margin-bottom: 0; }
+.admin-scenario-context-trigger:hover .case-study-label, .admin-scenario-context-trigger:focus-visible .case-study-label { text-decoration: underline; text-underline-offset: 3px; }
 .admin-scenario-questions { padding: 0 24px; }
 .admin-scenario-questions .review-row:last-child { border-bottom: 0; }
 .scenario-question-number { color: var(--accent); display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; margin-bottom: 8px; text-transform: uppercase; }
