@@ -67,6 +67,7 @@ export function ScenarioSetEditor({ contextGroupId, onChanged, triggerClassName,
     if (!orderResponse.ok) { setError(orderData.error ?? "The question was saved, but the scenario order could not be updated."); return; }
     setQuestions((current) => current.map((question, index) => ({ ...question, shared_context: scenario, context_position: index + 1, verification_status: question.id === active.id && action === "publish" ? "staff_corrected" : question.id === active.id && action === "unpublish" ? "unreviewed" : question.verification_status })));
     onChanged?.();
+    if (action === "publish") setOpen(false);
   }
 
   const topics = active?.course && active.course in COURSE_TOPICS ? COURSE_TOPICS[active.course as keyof typeof COURSE_TOPICS].topics : [];
