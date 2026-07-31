@@ -11,8 +11,9 @@ export async function POST(request: Request) {
   const course = body.course ?? ""; const topic = body.topic ?? ""; const stem = (body.stem ?? "").trim(); const explanation = (body.explanation ?? "").trim();
   const options = (body.options ?? []).map((option) => ({ key: option.key.toUpperCase(), text: option.text.trim() })).filter((option) => option.text);
   const answerKey = (body.answerKey ?? "").toUpperCase();
-  if (!isCourse(course) || !isTopicForCourse(course, topic)) return NextResponse.json({ error: "Choose a valid course and official topic." }, { status: 400 });
   const wantsPublish = body.publish !== false;
+  if (!isCourse(course)) return NextResponse.json({ error: "Choose one of the five courses." }, { status: 400 });
+  if ((wantsPublish && !isTopicForCourse(course, topic)) || (topic && !isTopicForCourse(course, topic))) return NextResponse.json({ error: "Choose a valid official topic before publishing." }, { status: 400 });
   if (!stem || options.length < 2) return NextResponse.json({ error: "Add the question and at least two options." }, { status: 400 });
   if (wantsPublish && (!options.some((option) => option.key === answerKey) || !explanation)) return NextResponse.json({ error: "Choose the correct answer and add an explanation before publishing." }, { status: 400 });
   let contextGroupId = (body.contextGroupId ?? "").trim() || null; let sharedContext = (body.scenario ?? "").trim() || null; let position: number | null = null;
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     contextGroupId = crypto.randomUUID(); position = 1;
   }
   const fingerprint = `admin:${crypto.randomUUID()}`;
-  const inserted = await getSql()`INSERT INTO questions(question_fingerprint,question_type,course,topic,stem,options,material_supported_key,verification_status,explanation,source_locator,context_group_id,shared_context,context_position) VALUES(${fingerprint},'mcq',${course},${topic},${stem},${JSON.stringify(options)}::jsonb,${answerKey || null},${wantsPublish ? "staff_corrected" : "unreviewed"},${explanation || null},'admin-created',${contextGroupId},${sharedContext},${position}) RETURNING id,course,topic,stem,options,material_supported_key,explanation,verification_status,context_group_id,shared_context,context_position`;
+  const inserted = await getSql()`INSERT INTO questions(question_fingerprint,question_type,course,topic,stem,options,material_supported_key,verification_status,explanation,source_locator,context_group_id,shared_context,context_position) VALUES(${fingerprint},'mcq',${course},${topic || null},${stem},${JSON.stringify(options)}::jsonb,${answerKey || null},${wantsPublish ? "staff_corrected" : "unreviewed"},${explanation || null},'admin-created',${contextGroupId},${sharedContext},${position}) RETURNING id,course,topic,stem,options,material_supported_key,explanation,verification_status,context_group_id,shared_context,context_position`;
   return NextResponse.json({ ok: true, question: inserted[0] }, { status: 201 });
 }
 export async function GET(request: Request) {
@@ -182,10 +183,10 @@ export async function PATCH(request: Request) {
   if (!stem || !options.length) return NextResponse.json({ error: "Keep the question and its answer options." }, { status: 400 });
   if (wantsPublish && (!explanation || !body.answerKey || !options.some((option) => option.key === body.answerKey && option.text.trim()))) return NextResponse.json({ error: "Choose the correct answer and add an explanation before publishing." }, { status: 400 });
   if (!body.course || !isCourse(body.course)) return NextResponse.json({ error: "Choose one of the five courses." }, { status: 400 });
-  if (!body.topic || !isTopicForCourse(body.course, body.topic)) return NextResponse.json({ error: "Choose an official topic for the selected course." }, { status: 400 });
+  if ((wantsPublish && (!body.topic || !isTopicForCourse(body.course, body.topic))) || (body.topic && !isTopicForCourse(body.course, body.topic))) return NextResponse.json({ error: "Choose an official topic before publishing." }, { status: 400 });
   const publishStatus = body.preserveStatus ? (current[0]?.verification_status ?? "unreviewed") : body.publish === false ? "unreviewed" : "staff_corrected";
-  if (citations) await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status=${publishStatus},explanation=${explanation},explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
-  else await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status=${publishStatus},explanation=${explanation},updated_at=now() WHERE id=${questionId}`;
+  if (citations) await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic || null},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey || null},verification_status=${publishStatus},explanation=${explanation || null},explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
+  else await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic || null},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey || null},verification_status=${publishStatus},explanation=${explanation || null},updated_at=now() WHERE id=${questionId}`;
   if (body.scenario !== undefined) {
     const scenarioText = body.scenario.trim();
     const existing = await getSql()`SELECT context_group_id FROM questions WHERE id=${questionId} LIMIT 1` as { context_group_id: string | null }[];
