@@ -80,6 +80,25 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
     if (!response.ok) { setError(data.error ?? "Could not unpublish this question."); return; }
     setOpen(false); window.location.reload();
   }
+  async function deleteQuestion() {
+    if (!question) return;
+    if (!window.confirm("Permanently delete this question? Its attempts, learner reports, review flags, expert reviews, and scenario link will also be removed. This cannot be undone.")) return;
+    setSaving(true); setError(""); setNotice("");
+    const response = await fetch("/api/admin/questions", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ questionId: question.id, action: "delete" }),
+    });
+    const data = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setError(data.error ?? "Could not permanently delete this question.");
+      return;
+    }
+    setOpen(false);
+    onReviewResolved?.();
+    onSaved?.(question);
+  }
   async function resolveReviewFlag(flagId: number) {
     if (!question) return;
     setSaving(true); setError("");
@@ -156,6 +175,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
         {question.context_group_id && <div className="existing-scenario-picker"><label>Questions linked to this case study</label><p className="muted">Review every question learners will receive with this scenario.</p><button className="text-button" type="button" disabled={searchingQuestions} onClick={() => { void findCandidateQuestions(); }}>{linkedQuestions.length ? "Refresh linked questions" : "Show linked questions"}</button>{linkedQuestions.length > 0 && <div className="scenario-search-results linked-question-results">{linkedQuestions.map((linked) => <article key={linked.id}><p>{linked.stem}</p><div><span className="muted">{linked.topic || "No topic"} · {linked.verification_status === "material_supported" || linked.verification_status === "staff_corrected" ? "Live" : "Not live"}</span>{linked.id !== question.id && <AdminQuestionQuickEdit questionId={linked.id} triggerLabel="Review now" />}</div></article>)}</div>}<hr />{showQuestionSearch ? <><div className="scenario-picker-heading"><label>Find more questions for this case study</label><button className="text-button" type="button" onClick={() => setShowQuestionSearch(false)}>Close</button></div><p className="muted">Search all questions in this course, including questions that are not live yet. Review or correct them here before adding them.</p><div className="scenario-search-row"><input value={questionSearch} onChange={(event) => setQuestionSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void findCandidateQuestions(); } }} placeholder="Search question wording…" /><button type="button" disabled={searchingQuestions} onClick={() => { void findCandidateQuestions(); }}>{searchingQuestions ? "Searching…" : "Search questions"}</button></div>{candidateQuestions.length > 0 && <div className="scenario-search-results">{candidateQuestions.map((candidate) => <article key={candidate.id}><p>{candidate.stem}</p><div><span className="muted">{candidate.topic || "No topic"} · {candidate.verification_status === "material_supported" || candidate.verification_status === "staff_corrected" ? "Live" : "Not live"}</span><div className="scenario-result-actions"><AdminQuestionQuickEdit questionId={candidate.id} triggerLabel="Review now" /><button type="button" disabled={saving} onClick={() => { void attachCandidate(candidate); }}>Add to case study</button></div></div></article>)}</div>}{!searchingQuestions && candidateQuestions.length === 0 && questionSearch && <p className="muted scenario-empty">No matching questions found.</p>}<QuestionCreator contextGroupId={question.context_group_id} fixedCourse={question.course} label="Create and add to this case study" onCreated={() => { void findCandidateQuestions(); }} /></> : <button className="text-button" type="button" onClick={() => setShowQuestionSearch(true)}>Find more questions for this case study</button>}</div>}
         {error && <p className="error">{error}</p>}{notice && <p className="success-text">{notice}</p>}<div className="button-row"><button className="outline-button" type="button" disabled={saving} onClick={() => { void save("save"); }}>{saving ? "Saving…" : "Save"}</button><button className="primary-button" type="button" disabled={saving} onClick={() => { void save("publish"); }}>{saving ? "Publishing…" : "Publish changes"}</button></div>
         <div className="critical-admin-action"><p><strong>Critical issue?</strong> Remove this question from learner circulation immediately and leave a follow-up note.</p><textarea value={unpublishComment} onChange={(event) => setUnpublishComment(event.target.value)} placeholder="Describe what is wrong and what needs review…" /><button className="danger-button" type="button" disabled={saving || !unpublishComment.trim()} onClick={() => { void unpublish(); }}>Unpublish immediately</button></div>
+        <div className="critical-admin-action"><p><strong>Delete permanently</strong></p><p className="muted">This removes the question and its associated attempts, reports, reviews, flags, and scenario link. It cannot be undone.</p><button className="danger-button" type="button" disabled={saving} onClick={() => { void deleteQuestion(); }}>Delete question permanently</button></div>
       </>}
     </section></>}
     {scenarioEditorGroupId && <ScenarioSetEditor contextGroupId={scenarioEditorGroupId} initialQuestionId={scenarioEditorQuestionId} openOnMount hideTrigger />}
