@@ -36,6 +36,7 @@ type ActivityUser = {
 };
 type Report = {
   id: number;
+  review_source: "learner_report" | "admin_flag";
   question_id: number;
   category: string;
   details: string | null;
@@ -109,6 +110,10 @@ export default function AdminPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [users, setUsers] = useState<ActivityUser[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
+  const [reviewPage, setReviewPage] = useState(1);
+  const [reviewTotal, setReviewTotal] = useState(0);
+  const reviewPageSize = 10;
+  const reviewPageCount = Math.max(1, Math.ceil(reviewTotal / reviewPageSize));
   const [editing, setEditing] = useState<Report | null>(null);
   const [bankEditing, setBankEditing] = useState<BankQuestion | null>(null);
   const [bankSelected, setBankSelected] = useState<number[]>([]);
@@ -159,7 +164,7 @@ export default function AdminPage() {
         await Promise.all([
           fetch("/api/admin/consensus"),
           fetch("/api/admin/activity"),
-          fetch("/api/admin/question-reports"),
+          fetch(`/api/admin/question-reports?page=${reviewPage}&limit=${reviewPageSize}`),
           fetch("/api/admin/admins"),
         ]);
       const [consensusData, activityData, reportData, adminData] =
@@ -172,6 +177,7 @@ export default function AdminPage() {
       setItems(consensusData.items ?? []);
       setUsers(activityData.users ?? []);
       setReports(reportData.reports ?? []);
+      setReviewTotal(reportData.total ?? 0);
       setAdmins(adminData.admins ?? []);
     } catch {
       setMsg(
@@ -182,6 +188,16 @@ export default function AdminPage() {
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    if (reviewPage === 1) return;
+    void fetch(`/api/admin/question-reports?page=${reviewPage}&limit=${reviewPageSize}`)
+      .then((response) => response.json())
+      .then((data) => {
+        setReports(data.reports ?? []);
+        setReviewTotal(data.total ?? 0);
+      })
+      .catch(() => setMsg("The review queue could not load."));
+  }, [reviewPage]);
   useEffect(() => {
     const routeTab = pathname.split("/")[2];
     if (routeTab === "reports") {
@@ -861,7 +877,7 @@ export default function AdminPage() {
             ) : (
               <div className="review-list">
                 {reports.map((report) => (
-                  <article className="review-row" key={report.id}>
+                  <article className="review-row" key={`${report.review_source}-${report.id}`}>
                     <AdminQuestionQuickEdit
                       questionId={report.question_id}
                       forceAdmin
@@ -870,20 +886,22 @@ export default function AdminPage() {
                         void load();
                       }}
                       onReviewResolved={() => {
-                        setMsg("Learner review resolved.");
+                        setMsg("Review resolved.");
                         void load();
                       }}
-                      learnerReview={{
+                      learnerReview={report.review_source === "learner_report" ? {
                         id: report.id,
                         category: report.category,
                         details: report.details,
                         reporter: report.reporter,
                         created_at: report.created_at,
-                      }}
+                      } : undefined}
                       triggerChildren={
                         <div className="submitted-review-summary">
                           <p className="eyebrow">
-                            {report.category === "missing_case_study"
+                            {report.review_source === "admin_flag"
+                              ? "Flagged for review"
+                              : report.category === "missing_case_study"
                               ? "Missing case study or scenario"
                               : report.category} · submitted by {report.reporter}
                           </p>
@@ -898,6 +916,13 @@ export default function AdminPage() {
                   </article>
                 ))}
               </div>
+            )}
+            {reviewTotal > 0 && (
+              <nav className="bank-pagination" aria-label="Review pages">
+                <button className="secondary" type="button" disabled={reviewPage <= 1} onClick={() => setReviewPage((page) => Math.max(1, page - 1))}>Previous</button>
+                <span className="source">Page {reviewPage} of {reviewPageCount} · {reviewTotal} open reviews</span>
+                <button className="secondary" type="button" disabled={reviewPage >= reviewPageCount} onClick={() => setReviewPage((page) => Math.min(reviewPageCount, page + 1))}>Next</button>
+              </nav>
             )}
           </section>
           {editing && (

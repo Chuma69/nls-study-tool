@@ -4,15 +4,36 @@ import { getSql } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const reports = await getSql()`
-    SELECT r.id,r.question_id,r.category,r.details,r.status,r.created_at,u.username AS reporter,
-           q.stem,q.options,q.material_supported_key,q.explanation,q.course,q.topic
-    FROM question_reports r JOIN questions q ON q.id=r.question_id JOIN users u ON u.id=r.user_id
-    WHERE r.status='open' ORDER BY r.created_at ASC LIMIT 100
+  const url = new URL(request.url);
+  const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
+  const limit = Math.min(50, Math.max(5, Number(url.searchParams.get("limit") ?? 10) || 10));
+  const offset = (page - 1) * limit;
+  const sql = getSql();
+  const reports = await sql`
+    WITH review_queue AS (
+      SELECT r.id,'learner_report'::text AS review_source,r.question_id,r.category,r.details,r.created_at,
+             COALESCE(NULLIF(u.username,''),NULLIF(u.email,''),'Learner') AS reporter
+      FROM question_reports r JOIN users u ON u.id=r.user_id
+      WHERE r.status='open'
+      UNION ALL
+      SELECT f.id,'admin_flag'::text AS review_source,f.question_id,'flagged_for_review'::text AS category,f.note AS details,f.created_at,
+             COALESCE(NULLIF(u.username,''),NULLIF(u.email,''),'Admin') AS reporter
+      FROM question_flags f LEFT JOIN users u ON u.id=f.user_id
+      WHERE f.kind='admin_review' AND f.resolved_at IS NULL
+    )
+    SELECT queue.*,q.stem,q.options,q.material_supported_key,q.explanation,q.course,q.topic
+    FROM review_queue queue JOIN questions q ON q.id=queue.question_id
+    ORDER BY queue.created_at ASC,queue.id ASC LIMIT ${limit} OFFSET ${offset}
   `;
-  return NextResponse.json({ reports });
+  const counts = await sql`
+    SELECT (
+      (SELECT count(*) FROM question_reports WHERE status='open') +
+      (SELECT count(*) FROM question_flags WHERE kind='admin_review' AND resolved_at IS NULL)
+    )::int AS total
+  ` as { total: number }[];
+  return NextResponse.json({ reports, page, limit, total: counts[0]?.total ?? 0 });
 }
 
 export async function PATCH(request: Request) {

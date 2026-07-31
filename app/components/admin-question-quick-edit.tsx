@@ -86,6 +86,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
     const data = await response.json(); setSaving(false);
     if (!response.ok) { setError(data.error ?? "Could not resolve this review item."); return; }
     setReviewFlags((current) => current.filter((flag) => flag.id !== flagId));
+    onReviewResolved?.();
   }
   async function resolveLearnerReview() {
     if (!learnerReview) return;
