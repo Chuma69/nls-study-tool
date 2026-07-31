@@ -325,6 +325,8 @@ form .primary-button { margin-top: 14px; }
 .scenario-empty { margin: 12px 0 0 !important; }
 .existing-scenario-picker hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
 .scenario-result-actions { align-items: center; display: flex; gap: 8px; }
+.scenario-candidate-select { align-items: start; cursor: pointer; display: grid; gap: 10px; grid-template-columns: auto 1fr; }
+.scenario-candidate-select input { margin: 4px 0 0; width: auto; }
 .admin-quick-edit-button.labeled { height: auto; padding: 8px 12px; width: auto; }
 .admin-quick-edit-button.labeled span { white-space: nowrap; }
 .scenario-set-launch { display: flex; justify-content: flex-end; margin: 10px 0 20px; }

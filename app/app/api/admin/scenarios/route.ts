@@ -60,7 +60,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const auth = await requireRole("admin");
   if (auth.response) return auth.response;
-  const body = await request.json() as { questionId?: number; contextGroupId?: string; action?: "reorder"; questionIds?: number[]; sharedContext?: string };
+  const body = await request.json() as { questionId?: number; contextGroupId?: string; action?: "reorder" | "detach"; questionIds?: number[]; sharedContext?: string };
   const questionId = Number(body.questionId);
   const contextGroupId = (body.contextGroupId ?? "").trim();
   if (!contextGroupId) return NextResponse.json({ error: "Choose a case study." }, { status: 400 });
@@ -72,6 +72,16 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   }
   if (!Number.isSafeInteger(questionId)) return NextResponse.json({ error: "Choose a question." }, { status: 400 });
+  if (body.action === "detach") {
+    const linked = await getSql()`SELECT id FROM questions WHERE id=${questionId} AND context_group_id=${contextGroupId} LIMIT 1`;
+    if (!linked.length) return NextResponse.json({ error: "This question is not linked to the case study." }, { status: 404 });
+    await getSql()`UPDATE questions SET context_group_id=NULL,shared_context=NULL,context_position=NULL,updated_at=now() WHERE id=${questionId} AND context_group_id=${contextGroupId}`;
+    const remaining = await getSql()`SELECT id FROM questions WHERE context_group_id=${contextGroupId} ORDER BY context_position NULLS LAST,id` as { id: number }[];
+    if (remaining.length) {
+      await getSql()`UPDATE questions q SET context_position=chosen.position,updated_at=now() FROM (SELECT value::bigint AS id,ordinality::int AS position FROM jsonb_array_elements_text(${JSON.stringify(remaining.map((row) => row.id))}::jsonb) WITH ORDINALITY) chosen WHERE q.id=chosen.id`;
+    }
+    return NextResponse.json({ ok: true });
+  }
 
   const question = await getSql()`SELECT id,NULLIF(NULLIF(trim(course),''),'general') AS course FROM questions WHERE id=${questionId} AND question_type='mcq' LIMIT 1` as { id: number; course: string | null }[];
   const scenario = await getSql()`
