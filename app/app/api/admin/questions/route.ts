@@ -34,7 +34,17 @@ export async function GET(request: Request) {
   if (Number.isSafeInteger(requestedQuestionId) && requestedQuestionId > 0) {
     const rows = await getSql()`SELECT q.id,COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'),'') AS course,q.topic,q.stem,q.options,q.material_supported_key,q.explanation,q.verification_status,q.shared_context,q.context_group_id,q.context_position FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id WHERE q.id=${requestedQuestionId} AND q.question_type='mcq' LIMIT 1`;
     if (!rows.length) return NextResponse.json({ error: "Question not found." }, { status: 404 });
-    return NextResponse.json({ question: rows[0] });
+    const reviewFlags = await getSql()`
+      SELECT qf.id,qf.note,qf.created_at,
+             COALESCE(NULLIF(u.username,''),NULLIF(u.email,''),'Admin') AS reviewer
+      FROM question_flags qf
+      LEFT JOIN users u ON u.id=qf.user_id
+      WHERE qf.question_id=${requestedQuestionId}
+        AND qf.kind='admin_review'
+        AND qf.resolved_at IS NULL
+      ORDER BY qf.created_at DESC,qf.id DESC
+    `;
+    return NextResponse.json({ question: rows[0], reviewFlags });
   }
   if (course && course !== "none" && !isCourse(course)) return NextResponse.json({ error: "Unknown course." }, { status: 400 });
   if (topic && topic !== "none" && !COURSE_IDS.some((id) => isTopicForCourse(id, topic))) return NextResponse.json({ error: "Unknown topic." }, { status: 400 });
@@ -93,7 +103,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; action?: "unpublish" | "delete" | "flag" | "unflag" | "group_scenario" | "ungroup_scenario" | "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag" | "bulk_delete"; scenario?: string; comment?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string; publish?: boolean };
+  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; flagId?: number | string; action?: "unpublish" | "delete" | "flag" | "unflag" | "resolve_review_flag" | "group_scenario" | "ungroup_scenario" | "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag" | "bulk_delete"; scenario?: string; comment?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string; publish?: boolean };
   if (["bulk_publish", "bulk_unpublish", "bulk_flag", "bulk_unflag", "bulk_delete"].includes(body.action ?? "")) {
     const questionIds = [...new Set((body.questionIds ?? []).map(Number).filter(Number.isSafeInteger))].slice(0, 250);
     if (!questionIds.length) return NextResponse.json({ error: "Select at least one question." }, { status: 400 });
@@ -135,6 +145,18 @@ export async function PATCH(request: Request) {
   }
   const questionId = Number(body.questionId);
   if (!Number.isSafeInteger(questionId)) return NextResponse.json({ error: "Choose a question." }, { status: 400 });
+  if (body.action === "resolve_review_flag") {
+    const flagId = Number(body.flagId);
+    if (!Number.isSafeInteger(flagId)) return NextResponse.json({ error: "Choose a review item." }, { status: 400 });
+    const resolved = await getSql()`
+      UPDATE question_flags
+      SET resolved_at=now(),resolved_by=${String(auth.user.id)}
+      WHERE id=${flagId} AND question_id=${questionId} AND kind='admin_review' AND resolved_at IS NULL
+      RETURNING id
+    ` as { id: number }[];
+    if (!resolved.length) return NextResponse.json({ error: "That review item is no longer open." }, { status: 404 });
+    return NextResponse.json({ ok: true, resolvedId: flagId });
+  }
   if (body.action === "flag") {
     await getSql()`INSERT INTO question_flags(question_id,user_id,kind) VALUES(${questionId},${auth.user.id},'admin_review') ON CONFLICT (user_id,question_id,kind) WHERE resolved_at IS NULL DO NOTHING`;
     return NextResponse.json({ ok: true, flagged: true });

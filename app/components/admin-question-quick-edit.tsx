@@ -10,6 +10,7 @@ type Option = { key: string; text: string };
 export type QuickEditQuestion = { id: number; course: string; topic: string | null; stem: string; options: Option[]; material_supported_key: string | null; explanation: string | null; shared_context: string | null; context_group_id: string | null; context_position: number | null };
 type ExistingScenario = { context_group_id: string; shared_context: string; course: string; question_count: number };
 type CandidateQuestion = { id: number; stem: string; topic: string | null; verification_status: string; context_group_id: string | null; context_position?: number | null };
+type ReviewFlag = { id: number; note: string | null; created_at: string; reviewer: string };
 
 export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, triggerChildren, triggerClassName, forceAdmin = false }: { questionId: number; onSaved?: (question: QuickEditQuestion) => void; triggerLabel?: string; triggerChildren?: ReactNode; triggerClassName?: string; forceAdmin?: boolean }) {
   const [isAdmin, setIsAdmin] = useState(forceAdmin);
@@ -29,6 +30,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
   const [showQuestionSearch, setShowQuestionSearch] = useState(false);
   const [scenarioEditorGroupId, setScenarioEditorGroupId] = useState<string | null>(null);
   const [scenarioEditorQuestionId, setScenarioEditorQuestionId] = useState<number | undefined>();
+  const [reviewFlags, setReviewFlags] = useState<ReviewFlag[]>([]);
 
   useEffect(() => {
     if (forceAdmin) { setIsAdmin(true); return; }
@@ -47,6 +49,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
     const response = await fetch(`/api/admin/questions?questionId=${questionId}`); const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not load this question."); return; }
     setQuestion({ ...data.question, options: Array.isArray(data.question.options) ? data.question.options : [] });
+    setReviewFlags(Array.isArray(data.reviewFlags) ? data.reviewFlags : []);
     if (data.question.context_group_id) {
       const linkedResponse = await fetch(`/api/admin/scenarios?${new URLSearchParams({ contextGroupId: data.question.context_group_id })}`);
       if (linkedResponse.ok) { const linkedData = await linkedResponse.json(); setLinkedQuestions(linkedData.linkedQuestions ?? []); }
@@ -72,6 +75,14 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
     const data = await response.json(); setSaving(false);
     if (!response.ok) { setError(data.error ?? "Could not unpublish this question."); return; }
     setOpen(false); window.location.reload();
+  }
+  async function resolveReviewFlag(flagId: number) {
+    if (!question) return;
+    setSaving(true); setError("");
+    const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, flagId, action: "resolve_review_flag" }) });
+    const data = await response.json(); setSaving(false);
+    if (!response.ok) { setError(data.error ?? "Could not resolve this review item."); return; }
+    setReviewFlags((current) => current.filter((flag) => flag.id !== flagId));
   }
   async function findScenarios() {
     if (!question) return;
@@ -118,6 +129,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
       <button className="modal-close-button" type="button" aria-label="Close editor" onClick={() => setOpen(false)}>×</button>
       <p className="eyebrow">Admin edit · Question #{questionId}</p>
       {!question ? <p className={error ? "error" : "muted"}>{error || "Loading question…"}</p> : <>
+        {reviewFlags.length > 0 && <section className="admin-review-items"><div className="scenario-picker-heading"><div><strong>Open review items</strong><p className="muted">Resolve each item after checking or correcting the question.</p></div><span className="eyebrow">{reviewFlags.length} open</span></div><div className="admin-review-item-list">{reviewFlags.map((flag) => <article key={flag.id}><div><p>{flag.note?.trim() || "Flagged for review without a comment."}</p><span className="muted">{flag.reviewer} · {new Date(flag.created_at).toLocaleString()}</span></div><button className="outline-button" type="button" disabled={saving} onClick={() => { void resolveReviewFlag(flag.id); }}>Resolve</button></article>)}</div></section>}
         <label>Question wording</label><textarea value={question.stem} onChange={(event) => update({ stem: event.target.value })} />
         <SourceMaterialSearch questionId={question.id} initialQuery={question.stem} onUseAsScenario={(text) => update({ shared_context: text })} />
         <div className="admin-edit-grid"><div><label>Course</label><select value={question.course} onChange={(event) => update({ course: event.target.value, topic: "" })}><option value="" disabled>Choose a course</option>{COURSE_IDS.map((id) => <option key={id} value={id}>{COURSE_NAMES[id]}</option>)}</select></div><div><label>Topic</label><select value={question.topic ?? ""} onChange={(event) => update({ topic: event.target.value })}><option value="" disabled>Choose a topic</option>{topics.map((topic) => <option key={topic} value={topic}>{topic}</option>)}</select></div></div>

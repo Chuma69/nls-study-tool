@@ -312,6 +312,11 @@ form .primary-button { margin-top: 14px; }
 .scenario-search-results article { background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 12px; }
 .scenario-search-results article > p { display: -webkit-box; margin: 0 0 10px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .scenario-search-results article > div { align-items: center; display: flex; gap: 16px; justify-content: space-between; }
+.admin-review-items { background: oklch(0.95 0.025 235); border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 12px; margin-bottom: 24px; padding: 16px; }
+.admin-review-items .scenario-picker-heading p { margin: 4px 0 0; }
+.admin-review-item-list { display: grid; gap: 10px; }
+.admin-review-item-list article { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; display: flex; gap: 16px; justify-content: space-between; padding: 12px; }
+.admin-review-item-list article p { margin: 0 0 4px; }
 .scenario-empty { margin: 12px 0 0 !important; }
 .existing-scenario-picker hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
 .scenario-result-actions { align-items: center; display: flex; gap: 8px; }
