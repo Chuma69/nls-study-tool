@@ -37,6 +37,7 @@ type ActivityUser = {
 type Report = {
   id: number;
   review_source: "learner_report" | "admin_flag";
+  queue_status: "open" | "resolved";
   question_id: number;
   category: string;
   details: string | null;
@@ -112,7 +113,10 @@ export default function AdminPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [reviewPage, setReviewPage] = useState(1);
   const [reviewTotal, setReviewTotal] = useState(0);
+  const [reviewOpenTotal, setReviewOpenTotal] = useState(0);
   const [reviewPageSize, setReviewPageSize] = useState(10);
+  const [reviewStatus, setReviewStatus] = useState<"open" | "resolved" | "all">("open");
+  const [reviewCourse, setReviewCourse] = useState("");
   const reviewPageCount = Math.max(1, Math.ceil(reviewTotal / reviewPageSize));
   const reviewVisiblePages = Array.from(
     new Set([
@@ -124,6 +128,15 @@ export default function AdminPage() {
       reviewPageCount,
     ]),
   ).sort((first, second) => first - second);
+  function reviewQueueUrl(page = reviewPage, limit = reviewPageSize) {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      status: reviewStatus,
+    });
+    if (reviewCourse) params.set("course", reviewCourse);
+    return `/api/admin/question-reports?${params}`;
+  }
   const [editing, setEditing] = useState<Report | null>(null);
   const [bankEditing, setBankEditing] = useState<BankQuestion | null>(null);
   const [bankSelected, setBankSelected] = useState<number[]>([]);
@@ -174,7 +187,7 @@ export default function AdminPage() {
         await Promise.all([
           fetch("/api/admin/consensus"),
           fetch("/api/admin/activity"),
-          fetch(`/api/admin/question-reports?page=${reviewPage}&limit=${reviewPageSize}`),
+          fetch(reviewQueueUrl()),
           fetch("/api/admin/admins"),
         ]);
       const [consensusData, activityData, reportData, adminData] =
@@ -188,6 +201,7 @@ export default function AdminPage() {
       setUsers(activityData.users ?? []);
       setReports(reportData.reports ?? []);
       setReviewTotal(reportData.total ?? 0);
+      setReviewOpenTotal(reportData.openTotal ?? 0);
       setAdmins(adminData.admins ?? []);
     } catch {
       setMsg(
@@ -199,14 +213,15 @@ export default function AdminPage() {
     void load();
   }, []);
   useEffect(() => {
-    void fetch(`/api/admin/question-reports?page=${reviewPage}&limit=${reviewPageSize}`)
+    void fetch(reviewQueueUrl())
       .then((response) => response.json())
       .then((data) => {
         setReports(data.reports ?? []);
         setReviewTotal(data.total ?? 0);
+        setReviewOpenTotal(data.openTotal ?? 0);
       })
       .catch(() => setMsg("The review queue could not load."));
-  }, [reviewPage, reviewPageSize]);
+  }, [reviewPage, reviewPageSize, reviewStatus, reviewCourse]);
   useEffect(() => {
     const routeTab = pathname.split("/")[2];
     if (routeTab === "reports") {
@@ -881,8 +896,48 @@ export default function AdminPage() {
           <section className="panel report-queue">
             <p className="eyebrow">Learner reports</p>
             <h2>Review reported questions.</h2>
+            <div className="review-queue-summary">
+              <div>
+                <strong>{reviewOpenTotal.toLocaleString()}</strong>
+                <span> open review{reviewOpenTotal === 1 ? "" : "s"}</span>
+              </div>
+              <div className="review-queue-filters">
+                <label>
+                  Status
+                  <select
+                    value={reviewStatus}
+                    onChange={(event) => {
+                      setReviewPage(1);
+                      setReviewStatus(event.target.value as "open" | "resolved" | "all");
+                    }}
+                  >
+                    <option value="open">Open</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="all">All reviews</option>
+                  </select>
+                </label>
+                <label>
+                  Course
+                  <select
+                    value={reviewCourse}
+                    onChange={(event) => {
+                      setReviewPage(1);
+                      setReviewCourse(event.target.value);
+                    }}
+                  >
+                    <option value="">All courses</option>
+                    {COURSE_IDS.map((id) => (
+                      <option key={id} value={id}>{COURSE_NAMES[id]}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+            <p className="muted review-filter-count">
+              {reviewTotal.toLocaleString()} {reviewStatus === "all" ? "" : reviewStatus} review{reviewTotal === 1 ? "" : "s"} match these filters.
+            </p>
             {!reports.length ? (
-              <p className="muted">No question reports awaiting review.</p>
+              <p className="muted">No reviews match these filters.</p>
             ) : (
               <div className="review-list">
                 {reports.map((report) => (
@@ -904,10 +959,12 @@ export default function AdminPage() {
                         details: report.details,
                         reporter: report.reporter,
                         created_at: report.created_at,
+                        status: report.queue_status,
                       } : undefined}
                       triggerChildren={
                         <div className="submitted-review-summary">
                           <p className="eyebrow">
+                            {report.queue_status} ·{" "}
                             {report.review_source === "admin_flag"
                               ? "Flagged for review"
                               : report.category === "missing_case_study"

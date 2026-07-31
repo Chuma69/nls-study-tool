@@ -263,6 +263,13 @@ form .primary-button { margin-top: 14px; }
 .invite-controls { align-items: center; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) auto; margin-top: 18px; }
 .invite-controls .primary-button { margin: 0; white-space: nowrap; }
 .review-queue .review-row:last-child { padding-bottom: 0; }
+.review-queue-summary { align-items: end; border-bottom: 1px solid var(--line); display: flex; gap: 24px; justify-content: space-between; margin: 20px 0 0; padding-bottom: 18px; }
+.review-queue-summary > div:first-child strong { color: var(--accent); font-family: "Newsreader", serif; font-size: 44px; font-weight: 500; line-height: 1; }
+.review-queue-summary > div:first-child span { color: var(--muted); }
+.review-queue-filters { display: flex; gap: 12px; }
+.review-queue-filters label { margin: 0; min-width: 190px; }
+.review-queue-filters select { margin-top: 6px; }
+.review-filter-count { margin: 14px 0 4px; }
 .bank-controls { display: grid; gap: 10px; grid-template-columns: minmax(200px, 1fr) minmax(170px, .6fr) auto; margin: 16px 0 10px; }
 .question-bank-heading { font-family: "IBM Plex Sans", sans-serif; font-size: 18px; font-weight: 700; margin: 0 0 6px; }
 .question-bank .bank-controls { grid-template-columns: minmax(260px, 1.35fr) repeat(4, minmax(150px, .62fr)) auto; }
@@ -288,6 +295,11 @@ form .primary-button { margin-top: 14px; }
 .practice-run-shell { max-width: 1120px; }
 .scenario-question-layout { margin-top: 28px; }
 .scenario-question-layout.has-case-study { align-items: start; display: grid; gap: 22px; grid-template-columns: minmax(280px, .78fr) minmax(0, 1.35fr); }
+@media (max-width: 720px) {
+  .review-queue-summary { align-items: stretch; flex-direction: column; }
+  .review-queue-filters { flex-direction: column; }
+  .review-queue-filters label { min-width: 0; }
+}
 .scenario-question-layout > .question-panel { margin: 0; }
 .case-study-side-panel { background: oklch(.96 .02 235); border: 1px solid var(--line); border-radius: 14px; max-height: calc(100vh - 48px); overflow-y: auto; padding: 24px; position: sticky; top: 24px; }
 .case-study-side-copy { font-family: Newsreader, Georgia, serif; font-size: clamp(1.12rem, 1.8vw, 1.38rem); line-height: 1.55; margin-top: 14px; white-space: pre-wrap; }

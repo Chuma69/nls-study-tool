@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/authorization";
 import { getSql } from "@/lib/db";
+import { isCourse } from "@/lib/course-topics";
 
 export const runtime = "nodejs";
 
@@ -8,32 +9,45 @@ export async function GET(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
   const url = new URL(request.url);
   const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
-  const limit = Math.min(50, Math.max(5, Number(url.searchParams.get("limit") ?? 10) || 10));
+  const limit = Math.min(100, Math.max(5, Number(url.searchParams.get("limit") ?? 10) || 10));
+  const status = ["open", "resolved", "all"].includes(url.searchParams.get("status") ?? "") ? (url.searchParams.get("status") as "open" | "resolved" | "all") : "open";
+  const requestedCourse = url.searchParams.get("course") ?? "";
+  const course = isCourse(requestedCourse) ? requestedCourse : "";
   const offset = (page - 1) * limit;
   const sql = getSql();
   const reports = await sql`
     WITH review_queue AS (
       SELECT r.id,'learner_report'::text AS review_source,r.question_id,r.category,r.details,r.created_at,
+             CASE WHEN r.status='open' THEN 'open' ELSE 'resolved' END::text AS queue_status,
              COALESCE(NULLIF(u.username,''),NULLIF(u.email,''),'Learner') AS reporter
       FROM question_reports r JOIN users u ON u.id=r.user_id
-      WHERE r.status='open'
       UNION ALL
       SELECT f.id,'admin_flag'::text AS review_source,f.question_id,'flagged_for_review'::text AS category,f.note AS details,f.created_at,
+             CASE WHEN f.resolved_at IS NULL THEN 'open' ELSE 'resolved' END::text AS queue_status,
              COALESCE(NULLIF(u.username,''),NULLIF(u.email,''),'Admin') AS reporter
       FROM question_flags f LEFT JOIN users u ON u.id=f.user_id
-      WHERE f.kind='admin_review' AND f.resolved_at IS NULL
+      WHERE f.kind='admin_review'
     )
     SELECT queue.*,q.stem,q.options,q.material_supported_key,q.explanation,q.course,q.topic
     FROM review_queue queue JOIN questions q ON q.id=queue.question_id
+    WHERE (${status}='all' OR queue.queue_status=${status})
+      AND (${course}='' OR q.course=${course})
     ORDER BY queue.created_at ASC,queue.id ASC LIMIT ${limit} OFFSET ${offset}
   `;
   const counts = await sql`
-    SELECT (
-      (SELECT count(*) FROM question_reports WHERE status='open') +
-      (SELECT count(*) FROM question_flags WHERE kind='admin_review' AND resolved_at IS NULL)
-    )::int AS total
-  ` as { total: number }[];
-  return NextResponse.json({ reports, page, limit, total: counts[0]?.total ?? 0 });
+    WITH review_queue AS (
+      SELECT r.question_id,CASE WHEN r.status='open' THEN 'open' ELSE 'resolved' END::text AS queue_status
+      FROM question_reports r
+      UNION ALL
+      SELECT f.question_id,CASE WHEN f.resolved_at IS NULL THEN 'open' ELSE 'resolved' END::text AS queue_status
+      FROM question_flags f WHERE f.kind='admin_review'
+    )
+    SELECT
+      count(*) FILTER (WHERE (${status}='all' OR queue.queue_status=${status}) AND (${course}='' OR q.course=${course}))::int AS total,
+      count(*) FILTER (WHERE queue.queue_status='open')::int AS open_total
+    FROM review_queue queue JOIN questions q ON q.id=queue.question_id
+  ` as { total: number; open_total: number }[];
+  return NextResponse.json({ reports, page, limit, status, course, total: counts[0]?.total ?? 0, openTotal: counts[0]?.open_total ?? 0 });
 }
 
 export async function PATCH(request: Request) {
