@@ -406,6 +406,10 @@ form .primary-button { margin-top: 14px; }
 .scenario-order-launch .outline-button { margin: 0; }
 .scenario-order-launch .muted { font-size: 12px; }
 .option-edit { align-items: center; display: grid; gap: 10px; grid-template-columns: 22px 1fr; margin-top: 10px; }
+.option-edit.modular-option-row { grid-template-columns: 22px minmax(0, 1fr) 44px; }
+.option-count-button { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 9px; display: inline-flex; font-size: 1.3rem; height: 44px; justify-content: center; min-width: 44px; padding: 0 12px; }
+.option-count-button:disabled { cursor: not-allowed; opacity: .4; }
+.add-option-button { font-size: .95rem; gap: 8px; margin-top: 12px; width: auto; }
 .source { margin-top: 20px; }
 
 label { display: block; font-size: 13px; margin: 18px 0 6px; }
