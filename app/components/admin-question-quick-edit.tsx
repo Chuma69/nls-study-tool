@@ -131,6 +131,6 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
         <div className="critical-admin-action"><p><strong>Critical issue?</strong> Remove this question from learner circulation immediately and leave a follow-up note.</p><textarea value={unpublishComment} onChange={(event) => setUnpublishComment(event.target.value)} placeholder="Describe what is wrong and what needs review…" /><button className="danger-button" type="button" disabled={saving || !unpublishComment.trim()} onClick={() => { void unpublish(); }}>Unpublish immediately</button></div>
       </>}
     </section></>}
-    {scenarioEditorGroupId && <ScenarioSetEditor contextGroupId={scenarioEditorGroupId} initialQuestionId={scenarioEditorQuestionId} openOnMount hideTrigger onChanged={() => onSaved?.(question!)} />}
+    {scenarioEditorGroupId && <ScenarioSetEditor contextGroupId={scenarioEditorGroupId} initialQuestionId={scenarioEditorQuestionId} openOnMount hideTrigger />}
   </>;
 }

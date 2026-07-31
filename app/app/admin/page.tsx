@@ -633,7 +633,14 @@ export default function AdminPage() {
                           <AdminQuestionQuickEdit
                             questionId={question.id}
                             forceAdmin
-                            onSaved={() => { void loadBank(bankPage); }}
+                            onSaved={(updated) => {
+                              // Moving a standalone question into a scenario changes its list grouping.
+                              // Keep this row mounted so the full-set editor can open successfully.
+                              if (updated.context_group_id !== question.context_group_id) return;
+                              setBankQuestions((current) => current.map((item) => item.id === updated.id
+                                ? { ...item, ...updated, verification_status: "staff_corrected" }
+                                : item));
+                            }}
                             triggerChildren={<>
                               {question.context_group_id && <span className="scenario-question-number">Question {index + 1}</span>}
                               <p className="eyebrow">
