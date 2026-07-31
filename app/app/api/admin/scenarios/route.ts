@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       FROM questions q
       WHERE q.question_type='mcq'
         AND q.course=${scenario[0].course}
-        AND q.context_group_id IS DISTINCT FROM ${contextGroupId}
+        AND q.context_group_id IS NULL
         AND (${search}='' OR q.stem ILIKE ${pattern})
       ORDER BY CASE WHEN q.verification_status IN ('material_supported','staff_corrected') THEN 0 ELSE 1 END,q.id DESC
       LIMIT 20

@@ -8,6 +8,7 @@ import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS, topicsForCourse } from "@/lib/
 import { SourceMaterialSearch } from "@/components/source-material-search";
 import { QuestionCreator } from "@/components/question-creator";
 import { ScenarioSetEditor } from "@/components/scenario-set-editor";
+import { AdminQuestionQuickEdit } from "@/components/admin-question-quick-edit";
 
 type Item = {
   id: string;
@@ -399,11 +400,12 @@ export default function AdminPage() {
     setMsg(response.ok ? `${bankSelected.length} questions grouped into one scenario set.` : (data.error ?? "Could not group these questions."));
     if (response.ok) { setBankSelected([]); setScenarioDraft(""); setShowScenarioBuilder(false); void loadBank(); }
   }
-  async function runBulkQuestionAction(action: "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag") {
+  async function runBulkQuestionAction(action: "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag" | "bulk_delete") {
     if (action === "bulk_unpublish" && !window.confirm(`Unpublish ${bankSelected.length} selected questions? Students will no longer see them.`)) return;
+    if (action === "bulk_delete" && !window.confirm(`Permanently delete ${bankSelected.length} selected questions? Their related attempts, reports, reviews, and scenario links will also be removed. This cannot be undone.`)) return;
     const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, questionIds: bankSelected }) });
     const data = await response.json();
-    const labels = { bulk_publish: "published", bulk_unpublish: "unpublished", bulk_flag: "flagged for review", bulk_unflag: "removed from review flags" };
+    const labels = { bulk_publish: "published", bulk_unpublish: "unpublished", bulk_flag: "flagged for review", bulk_unflag: "removed from review flags", bulk_delete: "permanently deleted" };
     setMsg(response.ok ? `${data.updated ?? 0} questions ${labels[action]}.${data.skipped ? ` ${data.skipped} skipped because they were ineligible or already updated.` : ""}` : (data.error ?? "Could not update the selected questions."));
     if (response.ok) { setBankSelected([]); void loadBank(); }
   }
@@ -614,7 +616,7 @@ export default function AdminPage() {
                 Clear filters
               </button>
             </div>
-            {bankSelected.length > 0 && <div className="scenario-selection-bar"><strong>{bankSelected.length} selected</strong><button className="primary-button" type="button" disabled={bankSelected.length < 2} onClick={() => setShowScenarioBuilder(true)}>Group into scenario</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_publish")}>Publish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unpublish")}>Unpublish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_flag")}>Flag for review</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unflag")}>Remove flags</button><button className="text-button" type="button" onClick={() => setBankSelected([])}>Clear selection</button><span className="muted selection-order-note">Selection order becomes scenario question order.</span></div>}
+            {bankSelected.length > 0 && <div className="scenario-selection-bar"><strong>{bankSelected.length} selected</strong><button className="primary-button" type="button" disabled={bankSelected.length < 2} onClick={() => setShowScenarioBuilder(true)}>Group into scenario</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_publish")}>Publish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unpublish")}>Unpublish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_flag")}>Flag for review</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unflag")}>Remove flags</button><button className="danger-button" type="button" onClick={() => void runBulkQuestionAction("bulk_delete")}>Delete</button><button className="text-button" type="button" onClick={() => setBankSelected([])}>Clear selection</button><span className="muted selection-order-note">Selection order becomes scenario question order.</span></div>}
             {showScenarioBuilder && <div className="shared-context scenario-builder"><label htmlFor="scenario-text">Shared scenario</label><textarea id="scenario-text" value={scenarioDraft} onChange={(event) => setScenarioDraft(event.target.value)} placeholder="Paste or write the scenario students must read before answering these questions…" /><div className="button-row"><button className="primary-button" type="button" disabled={bankSelected.length < 2 || !scenarioDraft.trim()} onClick={() => void groupSelectedQuestions()}>Save scenario group</button><button className="text-button" type="button" onClick={() => setShowScenarioBuilder(false)}>Cancel</button></div></div>}
             {bankQuestions.length > 0 && (
               <div className="review-list">
@@ -626,15 +628,21 @@ export default function AdminPage() {
                         <article
                           key={question.id}
                           className={`review-row question-bank-row ${bankSelected.includes(question.id) ? "selected-bank-row" : ""}`}
-                          onClick={() => beginBankEdit(question)}
                         >
                           <label className="bank-question-select" onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`Select question ${question.id}`} checked={bankSelected.includes(question.id)} onChange={() => toggleBankSelection(question.id)} /></label>
-                          {question.context_group_id && <span className="scenario-question-number">Question {index + 1}</span>}
-                          <p className="eyebrow">
-                            #{question.id} · {courseLabel(question.course)}{question.topic ? ` · ${question.topic}` : " · Topic not assigned"} ·{" "}
-                            {["material_supported", "staff_corrected"].includes(question.verification_status) && question.material_supported_key ? "live" : "not live"}{question.admin_flagged ? " · flagged for review" : ""}
-                          </p>
-                          <p>{cleanQuestionStem(question.stem)}</p>
+                          <AdminQuestionQuickEdit
+                            questionId={question.id}
+                            forceAdmin
+                            onSaved={() => { void loadBank(bankPage); }}
+                            triggerChildren={<>
+                              {question.context_group_id && <span className="scenario-question-number">Question {index + 1}</span>}
+                              <p className="eyebrow">
+                                #{question.id} · {courseLabel(question.course)}{question.topic ? ` · ${question.topic}` : " · Topic not assigned"} ·{" "}
+                                {["material_supported", "staff_corrected"].includes(question.verification_status) && question.material_supported_key ? "live" : "not live"}{question.admin_flagged ? " · flagged for review" : ""}
+                              </p>
+                              <p>{cleanQuestionStem(question.stem)}</p>
+                            </>}
+                          />
                         </article>
                       ))}
                     </div>

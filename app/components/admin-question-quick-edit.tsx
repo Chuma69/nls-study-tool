@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS } from "@/lib/course-topics";
 import { SourceMaterialSearch } from "@/components/source-material-search";
 import { ScenarioSetEditor } from "@/components/scenario-set-editor";
@@ -11,8 +11,8 @@ export type QuickEditQuestion = { id: number; course: string; topic: string | nu
 type ExistingScenario = { context_group_id: string; shared_context: string; course: string; question_count: number };
 type CandidateQuestion = { id: number; stem: string; topic: string | null; verification_status: string; context_group_id: string | null; context_position?: number | null };
 
-export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel }: { questionId: number; onSaved?: (question: QuickEditQuestion) => void; triggerLabel?: string }) {
-  const [isAdmin, setIsAdmin] = useState(false);
+export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, triggerChildren, triggerClassName, forceAdmin = false }: { questionId: number; onSaved?: (question: QuickEditQuestion) => void; triggerLabel?: string; triggerChildren?: ReactNode; triggerClassName?: string; forceAdmin?: boolean }) {
+  const [isAdmin, setIsAdmin] = useState(forceAdmin);
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState<QuickEditQuestion | null>(null);
   const [error, setError] = useState("");
@@ -27,8 +27,13 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel }: { 
   const [linkedQuestions, setLinkedQuestions] = useState<CandidateQuestion[]>([]);
   const [searchingQuestions, setSearchingQuestions] = useState(false);
   const [showQuestionSearch, setShowQuestionSearch] = useState(false);
+  const [scenarioEditorGroupId, setScenarioEditorGroupId] = useState<string | null>(null);
+  const [scenarioEditorQuestionId, setScenarioEditorQuestionId] = useState<number | undefined>();
 
-  useEffect(() => { void fetch("/api/session").then((response) => response.ok ? response.json() : null).then((data) => setIsAdmin(data?.user?.role === "admin")); }, []);
+  useEffect(() => {
+    if (forceAdmin) { setIsAdmin(true); return; }
+    void fetch("/api/session").then((response) => response.ok ? response.json() : null).then((data) => setIsAdmin(data?.user?.role === "admin"));
+  }, [forceAdmin]);
   useEffect(() => {
     if (!open) return;
     const previous = document.body.style.overflow; document.body.style.overflow = "hidden";
@@ -50,11 +55,13 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel }: { 
   function update(patch: Partial<QuickEditQuestion>) { setQuestion((current) => current ? { ...current, ...patch } : current); }
   async function save() {
     if (!question) return; setSaving(true); setError("");
+    const previousGroupId = question.context_group_id;
     const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, scenario: question.shared_context ?? "" }) });
     const data = await response.json(); setSaving(false);
     if (!response.ok) { setError(data.error ?? "Could not publish this edit."); return; }
     const updated = data.question ? { ...question, ...data.question } : question;
     setQuestion(updated); onSaved?.(updated); setOpen(false);
+    if (!previousGroupId && updated.context_group_id) { setScenarioEditorQuestionId(question.id); setScenarioEditorGroupId(updated.context_group_id); }
   }
   async function unpublish() {
     const comment = unpublishComment.trim();
@@ -81,7 +88,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel }: { 
     const response = await fetch("/api/admin/scenarios", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, contextGroupId: scenario.context_group_id }) });
     const data = await response.json(); setSaving(false);
     if (!response.ok) { setError(data.error ?? "Could not add this question to the case study."); return; }
-    const updated = { ...question, shared_context: data.sharedContext, context_group_id: data.contextGroupId }; setQuestion(updated); onSaved?.(updated); setScenarios([]); setScenarioSearch("");
+    const updated = { ...question, shared_context: data.sharedContext, context_group_id: data.contextGroupId }; setQuestion(updated); onSaved?.(updated); setScenarios([]); setScenarioSearch(""); setOpen(false); setScenarioEditorQuestionId(question.id); setScenarioEditorGroupId(data.contextGroupId);
   }
   async function findCandidateQuestions() {
     if (!question?.context_group_id) return;
@@ -105,7 +112,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel }: { 
   if (!isAdmin) return null;
   const topics = question?.course && question.course in COURSE_TOPICS ? COURSE_TOPICS[question.course as keyof typeof COURSE_TOPICS].topics : [];
   return <>
-    <button className={`admin-quick-edit-button ${triggerLabel ? "labeled" : ""}`} type="button" aria-label="Edit this question" title="Edit this question" onClick={() => { void beginEdit(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Zm9.5-13.5 4 4" /></svg>{triggerLabel && <span>{triggerLabel}</span>}</button>
+    <button className={`${triggerChildren ? "admin-question-row-editor-trigger" : "admin-quick-edit-button"} ${triggerLabel ? "labeled" : ""} ${triggerClassName ?? ""}`} type="button" aria-label="Edit this question" title="Edit this question" onClick={() => { void beginEdit(); }}>{triggerChildren ?? <><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Zm9.5-13.5 4 4" /></svg>{triggerLabel && <span>{triggerLabel}</span>}</>}</button>
     {open && <><div className="modal-backdrop" aria-hidden="true" onClick={() => setOpen(false)} /><section className="panel admin-quick-editor" role="dialog" aria-modal="true" aria-label="Edit question">
       <button className="modal-close-button" type="button" aria-label="Close editor" onClick={() => setOpen(false)}>×</button>
       <p className="eyebrow">Admin edit · Question #{questionId}</p>
@@ -124,5 +131,6 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel }: { 
         <div className="critical-admin-action"><p><strong>Critical issue?</strong> Remove this question from learner circulation immediately and leave a follow-up note.</p><textarea value={unpublishComment} onChange={(event) => setUnpublishComment(event.target.value)} placeholder="Describe what is wrong and what needs review…" /><button className="danger-button" type="button" disabled={saving || !unpublishComment.trim()} onClick={() => { void unpublish(); }}>Unpublish immediately</button></div>
       </>}
     </section></>}
+    {scenarioEditorGroupId && <ScenarioSetEditor contextGroupId={scenarioEditorGroupId} initialQuestionId={scenarioEditorQuestionId} openOnMount hideTrigger onChanged={() => onSaved?.(question!)} />}
   </>;
 }

@@ -274,6 +274,9 @@ form .primary-button { margin-top: 14px; }
 .question-bank-row { cursor: pointer; transition: background .15s ease, padding .15s ease; }
 .question-bank-row:hover { background: oklch(.97 .02 235); padding-left: 12px; padding-right: 12px; }
 .question-bank-row.selected-bank-row { background: oklch(.94 .035 235); }
+.admin-question-row-editor-trigger { background: transparent; border: 0; color: inherit; cursor: pointer; display: block; min-height: 0; padding: 0; text-align: left; width: 100%; }
+.admin-question-row-editor-trigger > p:last-child { margin-bottom: 0; }
+.admin-question-row-editor-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
 .bank-question-select { display: inline-flex; align-items: center; margin-bottom: 10px; cursor: pointer; }
 .bank-question-select input { accent-color: var(--accent); border-radius: 3px; min-height: 0; padding: 0; width: 18px; height: 18px; }
 .scenario-selection-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
@@ -328,6 +331,9 @@ form .primary-button { margin-top: 14px; }
 .scenario-set-item-controls { align-items: center; display: flex; flex-direction: column; gap: 6px; padding-right: 6px; }
 .scenario-question-live-toggle { align-items: center; display: flex; font-size: .82rem; gap: 5px; margin: 0; white-space: nowrap; }
 .scenario-question-live-toggle input { height: 16px; margin: 0; width: 16px; }
+.scenario-add-question { background: var(--pale-blue); border: 1px solid var(--line); border-radius: 9px; display: grid; gap: 10px; margin-top: 8px; padding: 10px; }
+.scenario-add-question .button-row { margin: 0; }
+.scenario-add-question .outline-button, .scenario-add-question .primary-button { padding: 8px 10px; }
 .scenario-order-actions { display: flex; flex-direction: column; gap: 4px; padding-right: 6px; }
 .scenario-order-actions button { min-height: 32px; min-width: 34px; padding: 2px; }
 .scenario-set-question-editor { min-width: 0; }

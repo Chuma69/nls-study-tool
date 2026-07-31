@@ -93,8 +93,8 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; action?: "unpublish" | "delete" | "flag" | "unflag" | "group_scenario" | "ungroup_scenario" | "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag"; scenario?: string; comment?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string; publish?: boolean };
-  if (["bulk_publish", "bulk_unpublish", "bulk_flag", "bulk_unflag"].includes(body.action ?? "")) {
+  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; action?: "unpublish" | "delete" | "flag" | "unflag" | "group_scenario" | "ungroup_scenario" | "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag" | "bulk_delete"; scenario?: string; comment?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string; publish?: boolean };
+  if (["bulk_publish", "bulk_unpublish", "bulk_flag", "bulk_unflag", "bulk_delete"].includes(body.action ?? "")) {
     const questionIds = [...new Set((body.questionIds ?? []).map(Number).filter(Number.isSafeInteger))].slice(0, 250);
     if (!questionIds.length) return NextResponse.json({ error: "Select at least one question." }, { status: 400 });
     if (body.action === "bulk_publish") {
@@ -108,6 +108,10 @@ export async function PATCH(request: Request) {
     if (body.action === "bulk_flag") {
       await getSql()`INSERT INTO question_flags(question_id,user_id,kind) SELECT selected.selected_id,${auth.user.id},'admin_review' FROM unnest(${questionIds}::bigint[]) AS selected(selected_id) ON CONFLICT (user_id,question_id,kind) WHERE resolved_at IS NULL DO NOTHING`;
       return NextResponse.json({ ok: true, updated: questionIds.length, skipped: 0 });
+    }
+    if (body.action === "bulk_delete") {
+      const deleted = await getSql()`DELETE FROM questions WHERE id=ANY(${questionIds}) RETURNING id` as { id: number }[];
+      return NextResponse.json({ ok: true, updated: deleted.length, skipped: questionIds.length - deleted.length });
     }
     const updated = await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=ANY(${questionIds}) AND user_id=${auth.user.id} AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[];
     return NextResponse.json({ ok: true, updated: updated.length, skipped: questionIds.length - updated.length });
