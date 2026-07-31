@@ -76,7 +76,8 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
   async function findScenarios() {
     if (!question) return;
     setSearchingScenarios(true); setError("");
-    const params = new URLSearchParams({ course: question.course, search: scenarioSearch.trim() });
+    const params = new URLSearchParams({ search: scenarioSearch.trim() });
+    if (question.course && question.course !== "general") params.set("course", question.course);
     const response = await fetch(`/api/admin/scenarios?${params}`); const data = await response.json();
     setSearchingScenarios(false);
     if (!response.ok) { setError(data.error ?? "Could not search case studies."); return; }
@@ -88,7 +89,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
     const response = await fetch("/api/admin/scenarios", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, contextGroupId: scenario.context_group_id }) });
     const data = await response.json(); setSaving(false);
     if (!response.ok) { setError(data.error ?? "Could not add this question to the case study."); return; }
-    const updated = { ...question, shared_context: data.sharedContext, context_group_id: data.contextGroupId }; setQuestion(updated); onSaved?.(updated); setScenarios([]); setScenarioSearch(""); setOpen(false); setScenarioEditorQuestionId(question.id); setScenarioEditorGroupId(data.contextGroupId);
+    const updated = { ...question, course: data.course ?? question.course, shared_context: data.sharedContext, context_group_id: data.contextGroupId }; setQuestion(updated); onSaved?.(updated); setScenarios([]); setScenarioSearch(""); setOpen(false); setScenarioEditorQuestionId(question.id); setScenarioEditorGroupId(data.contextGroupId);
   }
   async function findCandidateQuestions() {
     if (!question?.context_group_id) return;

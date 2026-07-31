@@ -13,7 +13,14 @@ export async function GET(request: Request) {
   const contextGroupId = (url.searchParams.get("contextGroupId") ?? "").trim();
   const pattern = `%${search}%`;
   if (contextGroupId) {
-    const scenario = await getSql()`SELECT context_group_id,course FROM questions WHERE context_group_id=${contextGroupId} LIMIT 1` as { context_group_id: string; course: string | null }[];
+    const scenario = await getSql()`
+      SELECT context_group_id,
+             max(NULLIF(NULLIF(trim(course),''),'general')) AS course
+      FROM questions
+      WHERE context_group_id=${contextGroupId}
+      GROUP BY context_group_id
+      LIMIT 1
+    ` as { context_group_id: string; course: string | null }[];
     if (!scenario.length) return NextResponse.json({ error: "The case study could not be found." }, { status: 404 });
     const linkedQuestions = await getSql()`
       SELECT q.id,q.course,q.stem,q.topic,q.verification_status,q.context_group_id,q.context_position,
@@ -26,7 +33,10 @@ export async function GET(request: Request) {
       SELECT q.id,q.stem,q.topic,q.verification_status,q.context_group_id
       FROM questions q
       WHERE q.question_type='mcq'
-        AND q.course=${scenario[0].course}
+        AND (
+          q.course=${scenario[0].course}
+          OR NULLIF(NULLIF(trim(q.course),''),'general') IS NULL
+        )
         AND q.context_group_id IS NULL
         AND (${search}='' OR q.stem ILIKE ${pattern})
       ORDER BY CASE WHEN q.verification_status IN ('material_supported','staff_corrected') THEN 0 ELSE 1 END,q.id DESC
@@ -63,12 +73,31 @@ export async function PATCH(request: Request) {
   }
   if (!Number.isSafeInteger(questionId)) return NextResponse.json({ error: "Choose a question." }, { status: 400 });
 
-  const question = await getSql()`SELECT id,course FROM questions WHERE id=${questionId} AND question_type='mcq' LIMIT 1` as { id: number; course: string | null }[];
-  const scenario = await getSql()`SELECT context_group_id,shared_context,course FROM questions WHERE context_group_id=${contextGroupId} AND NULLIF(trim(shared_context),'') IS NOT NULL ORDER BY context_position NULLS LAST,id LIMIT 1` as { context_group_id: string; shared_context: string; course: string | null }[];
+  const question = await getSql()`SELECT id,NULLIF(NULLIF(trim(course),''),'general') AS course FROM questions WHERE id=${questionId} AND question_type='mcq' LIMIT 1` as { id: number; course: string | null }[];
+  const scenario = await getSql()`
+    SELECT context_group_id,
+           max(shared_context) FILTER (WHERE NULLIF(trim(shared_context),'') IS NOT NULL) AS shared_context,
+           max(NULLIF(NULLIF(trim(course),''),'general')) AS course
+    FROM questions
+    WHERE context_group_id=${contextGroupId}
+    GROUP BY context_group_id
+    LIMIT 1
+  ` as { context_group_id: string; shared_context: string; course: string | null }[];
   if (!question.length || !scenario.length) return NextResponse.json({ error: "The question or case study could not be found." }, { status: 404 });
   if (question[0].course && scenario[0].course && question[0].course !== scenario[0].course) return NextResponse.json({ error: "A question can only join a case study from the same course." }, { status: 400 });
 
   const positions = await getSql()`SELECT COALESCE(max(context_position),0)::int AS position FROM questions WHERE context_group_id=${contextGroupId}` as { position: number }[];
-  await getSql()`UPDATE questions SET context_group_id=${contextGroupId},shared_context=${scenario[0].shared_context},context_position=${(positions[0]?.position ?? 0) + 1},updated_at=now() WHERE id=${questionId}`;
-  return NextResponse.json({ ok: true, sharedContext: scenario[0].shared_context, contextGroupId });
+  await getSql()`
+    UPDATE questions
+    SET context_group_id=${contextGroupId},
+        shared_context=${scenario[0].shared_context},
+        context_position=${(positions[0]?.position ?? 0) + 1},
+        course=CASE
+          WHEN NULLIF(NULLIF(trim(course),''),'general') IS NULL THEN ${scenario[0].course}
+          ELSE course
+        END,
+        updated_at=now()
+    WHERE id=${questionId}
+  `;
+  return NextResponse.json({ ok: true, sharedContext: scenario[0].shared_context, contextGroupId, course: question[0].course ?? scenario[0].course });
 }
