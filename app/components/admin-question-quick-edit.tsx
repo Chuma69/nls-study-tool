@@ -11,8 +11,9 @@ export type QuickEditQuestion = { id: number; course: string; topic: string | nu
 type ExistingScenario = { context_group_id: string; shared_context: string; course: string; question_count: number };
 type CandidateQuestion = { id: number; stem: string; topic: string | null; verification_status: string; context_group_id: string | null; context_position?: number | null };
 type ReviewFlag = { id: number; note: string | null; created_at: string; reviewer: string };
+type LearnerReview = { id: number; category: string; details: string | null; reporter: string; created_at: string };
 
-export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, triggerChildren, triggerClassName, forceAdmin = false }: { questionId: number; onSaved?: (question: QuickEditQuestion) => void; triggerLabel?: string; triggerChildren?: ReactNode; triggerClassName?: string; forceAdmin?: boolean }) {
+export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, learnerReview, triggerLabel, triggerChildren, triggerClassName, forceAdmin = false }: { questionId: number; onSaved?: (question: QuickEditQuestion) => void; onReviewResolved?: () => void; learnerReview?: LearnerReview; triggerLabel?: string; triggerChildren?: ReactNode; triggerClassName?: string; forceAdmin?: boolean }) {
   const [isAdmin, setIsAdmin] = useState(forceAdmin);
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState<QuickEditQuestion | null>(null);
@@ -31,6 +32,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
   const [scenarioEditorGroupId, setScenarioEditorGroupId] = useState<string | null>(null);
   const [scenarioEditorQuestionId, setScenarioEditorQuestionId] = useState<number | undefined>();
   const [reviewFlags, setReviewFlags] = useState<ReviewFlag[]>([]);
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     if (forceAdmin) { setIsAdmin(true); return; }
@@ -56,14 +58,15 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
     } else setLinkedQuestions([]);
   }
   function update(patch: Partial<QuickEditQuestion>) { setQuestion((current) => current ? { ...current, ...patch } : current); }
-  async function save() {
-    if (!question) return; setSaving(true); setError("");
+  async function save(mode: "save" | "publish") {
+    if (!question) return; setSaving(true); setError(""); setNotice("");
     const previousGroupId = question.context_group_id;
-    const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, scenario: question.shared_context ?? "" }) });
+    const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, scenario: question.shared_context ?? "", preserveStatus: mode === "save", publish: mode === "publish" }) });
     const data = await response.json(); setSaving(false);
     if (!response.ok) { setError(data.error ?? "Could not publish this edit."); return; }
     const updated = data.question ? { ...question, ...data.question } : question;
-    setQuestion(updated); onSaved?.(updated); setOpen(false);
+    setQuestion(updated); onSaved?.(updated);
+    if (mode === "publish") setOpen(false); else setNotice("Changes saved without changing the question's live status.");
     if (!previousGroupId && updated.context_group_id) { setScenarioEditorQuestionId(question.id); setScenarioEditorGroupId(updated.context_group_id); }
   }
   async function unpublish() {
@@ -83,6 +86,14 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
     const data = await response.json(); setSaving(false);
     if (!response.ok) { setError(data.error ?? "Could not resolve this review item."); return; }
     setReviewFlags((current) => current.filter((flag) => flag.id !== flagId));
+  }
+  async function resolveLearnerReview() {
+    if (!learnerReview) return;
+    setSaving(true); setError("");
+    const response = await fetch("/api/admin/question-reports", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ reportId: learnerReview.id, action: "dismiss" }) });
+    const data = await response.json(); setSaving(false);
+    if (!response.ok) { setError(data.error ?? "Could not resolve this learner review."); return; }
+    onReviewResolved?.(); setOpen(false);
   }
   async function findScenarios() {
     if (!question) return;
@@ -129,6 +140,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
       <button className="modal-close-button" type="button" aria-label="Close editor" onClick={() => setOpen(false)}>×</button>
       <p className="eyebrow">Admin edit · Question #{questionId}</p>
       {!question ? <p className={error ? "error" : "muted"}>{error || "Loading question…"}</p> : <>
+        {learnerReview && <section className="admin-review-items"><div className="scenario-picker-heading"><div><strong>Learner-submitted review</strong><p className="muted">{learnerReview.category.replaceAll("_", " ")} · {learnerReview.reporter}</p></div><button className="outline-button" type="button" disabled={saving} onClick={() => { void resolveLearnerReview(); }}>Resolve</button></div>{learnerReview.details && <p>{learnerReview.details}</p>}</section>}
         {reviewFlags.length > 0 && <section className="admin-review-items"><div className="scenario-picker-heading"><div><strong>Open review items</strong><p className="muted">Resolve each item after checking or correcting the question.</p></div><span className="eyebrow">{reviewFlags.length} open</span></div><div className="admin-review-item-list">{reviewFlags.map((flag) => <article key={flag.id}><div><p>{flag.note?.trim() || "Flagged for review without a comment."}</p><span className="muted">{flag.reviewer} · {new Date(flag.created_at).toLocaleString()}</span></div><button className="outline-button" type="button" disabled={saving} onClick={() => { void resolveReviewFlag(flag.id); }}>Resolve</button></article>)}</div></section>}
         <label>Question wording</label><textarea value={question.stem} onChange={(event) => update({ stem: event.target.value })} />
         <SourceMaterialSearch questionId={question.id} initialQuery={question.stem} onUseAsScenario={(text) => update({ shared_context: text })} />
@@ -140,7 +152,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, triggerLabel, trig
         <label>Create or edit case study <span className="muted">(optional)</span></label><textarea value={question.shared_context ?? ""} onChange={(event) => update({ shared_context: event.target.value })} placeholder="Add a new shared scenario for this question. Changes apply to every linked question." />
         {question.context_group_id && <div className="scenario-set-launch"><ScenarioSetEditor contextGroupId={question.context_group_id} onChanged={() => { void findCandidateQuestions(); }} /></div>}
         {question.context_group_id && <div className="existing-scenario-picker"><label>Questions linked to this case study</label><p className="muted">Review every question learners will receive with this scenario.</p><button className="text-button" type="button" disabled={searchingQuestions} onClick={() => { void findCandidateQuestions(); }}>{linkedQuestions.length ? "Refresh linked questions" : "Show linked questions"}</button>{linkedQuestions.length > 0 && <div className="scenario-search-results linked-question-results">{linkedQuestions.map((linked) => <article key={linked.id}><p>{linked.stem}</p><div><span className="muted">{linked.topic || "No topic"} · {linked.verification_status === "material_supported" || linked.verification_status === "staff_corrected" ? "Live" : "Not live"}</span>{linked.id !== question.id && <AdminQuestionQuickEdit questionId={linked.id} triggerLabel="Review now" />}</div></article>)}</div>}<hr />{showQuestionSearch ? <><div className="scenario-picker-heading"><label>Find more questions for this case study</label><button className="text-button" type="button" onClick={() => setShowQuestionSearch(false)}>Close</button></div><p className="muted">Search all questions in this course, including questions that are not live yet. Review or correct them here before adding them.</p><div className="scenario-search-row"><input value={questionSearch} onChange={(event) => setQuestionSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void findCandidateQuestions(); } }} placeholder="Search question wording…" /><button type="button" disabled={searchingQuestions} onClick={() => { void findCandidateQuestions(); }}>{searchingQuestions ? "Searching…" : "Search questions"}</button></div>{candidateQuestions.length > 0 && <div className="scenario-search-results">{candidateQuestions.map((candidate) => <article key={candidate.id}><p>{candidate.stem}</p><div><span className="muted">{candidate.topic || "No topic"} · {candidate.verification_status === "material_supported" || candidate.verification_status === "staff_corrected" ? "Live" : "Not live"}</span><div className="scenario-result-actions"><AdminQuestionQuickEdit questionId={candidate.id} triggerLabel="Review now" /><button type="button" disabled={saving} onClick={() => { void attachCandidate(candidate); }}>Add to case study</button></div></div></article>)}</div>}{!searchingQuestions && candidateQuestions.length === 0 && questionSearch && <p className="muted scenario-empty">No matching questions found.</p>}<QuestionCreator contextGroupId={question.context_group_id} fixedCourse={question.course} label="Create and add to this case study" onCreated={() => { void findCandidateQuestions(); }} /></> : <button className="text-button" type="button" onClick={() => setShowQuestionSearch(true)}>Find more questions for this case study</button>}</div>}
-        {error && <p className="error">{error}</p>}<div className="button-row"><button className="primary-button" type="button" disabled={saving} onClick={() => { void save(); }}>{saving ? "Publishing…" : "Publish changes"}</button></div>
+        {error && <p className="error">{error}</p>}{notice && <p className="success-text">{notice}</p>}<div className="button-row"><button className="outline-button" type="button" disabled={saving} onClick={() => { void save("save"); }}>{saving ? "Saving…" : "Save"}</button><button className="primary-button" type="button" disabled={saving} onClick={() => { void save("publish"); }}>{saving ? "Publishing…" : "Publish changes"}</button></div>
         <div className="critical-admin-action"><p><strong>Critical issue?</strong> Remove this question from learner circulation immediately and leave a follow-up note.</p><textarea value={unpublishComment} onChange={(event) => setUnpublishComment(event.target.value)} placeholder="Describe what is wrong and what needs review…" /><button className="danger-button" type="button" disabled={saving || !unpublishComment.trim()} onClick={() => { void unpublish(); }}>Unpublish immediately</button></div>
       </>}
     </section></>}

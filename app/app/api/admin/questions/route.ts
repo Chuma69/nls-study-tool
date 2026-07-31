@@ -103,7 +103,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; flagId?: number | string; action?: "unpublish" | "delete" | "flag" | "unflag" | "resolve_review_flag" | "group_scenario" | "ungroup_scenario" | "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag" | "bulk_delete"; scenario?: string; comment?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string; publish?: boolean };
+  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; flagId?: number | string; action?: "unpublish" | "delete" | "flag" | "unflag" | "resolve_review_flag" | "group_scenario" | "ungroup_scenario" | "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag" | "bulk_delete"; scenario?: string; comment?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string; publish?: boolean; preserveStatus?: boolean };
   if (["bulk_publish", "bulk_unpublish", "bulk_flag", "bulk_unflag", "bulk_delete"].includes(body.action ?? "")) {
     const questionIds = [...new Set((body.questionIds ?? []).map(Number).filter(Number.isSafeInteger))].slice(0, 250);
     if (!questionIds.length) return NextResponse.json({ error: "Select at least one question." }, { status: 400 });
@@ -176,12 +176,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   }
   const stem = (body.stem ?? "").trim(); const explanation = (body.explanation ?? "").trim(); const options = body.options ?? []; const citations = body.citations?.map((citation) => citation.trim()).filter(Boolean).slice(0, 12);
-  const wantsPublish = body.publish !== false;
+  const current = await getSql()`SELECT verification_status FROM questions WHERE id=${questionId} LIMIT 1` as { verification_status: string }[];
+  const currentlyLive = ["material_supported", "staff_corrected"].includes(current[0]?.verification_status ?? "");
+  const wantsPublish = body.preserveStatus ? currentlyLive : body.publish !== false;
   if (!stem || !options.length) return NextResponse.json({ error: "Keep the question and its answer options." }, { status: 400 });
   if (wantsPublish && (!explanation || !body.answerKey || !options.some((option) => option.key === body.answerKey && option.text.trim()))) return NextResponse.json({ error: "Choose the correct answer and add an explanation before publishing." }, { status: 400 });
   if (!body.course || !isCourse(body.course)) return NextResponse.json({ error: "Choose one of the five courses." }, { status: 400 });
   if (!body.topic || !isTopicForCourse(body.course, body.topic)) return NextResponse.json({ error: "Choose an official topic for the selected course." }, { status: 400 });
-  const publishStatus = body.publish === false ? "unreviewed" : "staff_corrected";
+  const publishStatus = body.preserveStatus ? (current[0]?.verification_status ?? "unreviewed") : body.publish === false ? "unreviewed" : "staff_corrected";
   if (citations) await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status=${publishStatus},explanation=${explanation},explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
   else await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status=${publishStatus},explanation=${explanation},updated_at=now() WHERE id=${questionId}`;
   if (body.scenario !== undefined) {

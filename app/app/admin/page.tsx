@@ -100,7 +100,7 @@ export default function AdminPage() {
   const pathname = usePathname();
   const router = useRouter();
   const [tab, setTab] = useState<
-    "users" | "questions" | "reports" | "experts" | "team"
+    "users" | "questions" | "reviews" | "experts" | "team"
   >("users");
   const [email, setEmail] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
@@ -184,9 +184,14 @@ export default function AdminPage() {
   }, []);
   useEffect(() => {
     const routeTab = pathname.split("/")[2];
-    if (["users", "questions", "reports", "experts", "team"].includes(routeTab))
+    if (routeTab === "reports") {
+      setTab("reviews");
+      router.replace("/admin/reviews");
+      return;
+    }
+    if (["users", "questions", "reviews", "experts", "team"].includes(routeTab))
       setTab(routeTab as typeof tab);
-  }, [pathname]);
+  }, [pathname, router]);
   function selectTab(nextTab: typeof tab) {
     setTab(nextTab);
     router.push(`/admin/${nextTab}`);
@@ -449,11 +454,11 @@ export default function AdminPage() {
           Questions
         </button>
         <button
-          className={tab === "reports" ? "active" : ""}
+          className={tab === "reviews" ? "active" : ""}
           type="button"
-          onClick={() => selectTab("reports")}
+          onClick={() => selectTab("reviews")}
         >
-          Reports
+          Reviews
         </button>
         <button
           className={tab === "experts" ? "active" : ""}
@@ -846,33 +851,50 @@ export default function AdminPage() {
           )}
         </>
       )}
-      {tab === "reports" && (
+      {tab === "reviews" && (
         <>
           <section className="panel report-queue">
-            <p className="eyebrow">Question reports</p>
-            <h2>Fix reported questions.</h2>
+            <p className="eyebrow">Learner reports</p>
+            <h2>Review reported questions.</h2>
             {!reports.length ? (
               <p className="muted">No question reports awaiting review.</p>
             ) : (
               <div className="review-list">
                 {reports.map((report) => (
                   <article className="review-row" key={report.id}>
-                    <p className="eyebrow">
-                      {report.category === "missing_case_study"
-                        ? "Missing case study or scenario"
-                        : report.category} · reported by {report.reporter}
-                    </p>
-                    <p>{report.stem}</p>
-                    {report.details && (
-                      <p className="saved-note">{report.details}</p>
-                    )}
-                    <button
-                      type="button"
-                      className="outline-button"
-                      onClick={() => beginEdit(report)}
-                    >
-                      Edit &amp; resolve
-                    </button>
+                    <AdminQuestionQuickEdit
+                      questionId={report.question_id}
+                      forceAdmin
+                      triggerClassName="submitted-review-editor-trigger"
+                      onSaved={() => {
+                        void load();
+                      }}
+                      onReviewResolved={() => {
+                        setMsg("Learner review resolved.");
+                        void load();
+                      }}
+                      learnerReview={{
+                        id: report.id,
+                        category: report.category,
+                        details: report.details,
+                        reporter: report.reporter,
+                        created_at: report.created_at,
+                      }}
+                      triggerChildren={
+                        <div className="submitted-review-summary">
+                          <p className="eyebrow">
+                            {report.category === "missing_case_study"
+                              ? "Missing case study or scenario"
+                              : report.category} · submitted by {report.reporter}
+                          </p>
+                          <p>{report.stem}</p>
+                          {report.details && (
+                            <p className="saved-note">{report.details}</p>
+                          )}
+                          <span className="source">Open full question editor</span>
+                        </div>
+                      }
+                    />
                   </article>
                 ))}
               </div>
@@ -1002,53 +1024,30 @@ export default function AdminPage() {
               )}
             </section>
             <section className="panel compact-panel review-queue">
-              <p className="eyebrow">Expert reviews</p>
-              <h2>Review queue.</h2>
+              <p className="eyebrow">Expert answer submissions</p>
+              <h2>Expert answer queue.</h2>
               {items.map((item) => (
                 <div key={item.id} className="review-row">
                   <div className="review-row-top">
                     <p>{cleanQuestionStem(item.stem)}</p>
-                    {item.status === "awaiting_reviews" &&
-                      !item.selected_key && (
-                        <Link
-                          className="outline-button"
-                          href={`/expert?question=${item.id}`}
-                        >
-                          Review answer
-                        </Link>
-                      )}
+                    {item.status === "awaiting_reviews" && !item.selected_key && (
+                      <Link className="outline-button" href={`/expert?question=${item.id}`}>
+                        Review answer
+                      </Link>
+                    )}
                   </div>
                   <p className="source">
-                    {item.review_count} review
-                    {item.review_count === 1 ? "" : "s"} · proposed{" "}
-                    {item.selected_key ?? "answer not selected"}
+                    {item.review_count} expert submission{item.review_count === 1 ? "" : "s"} · proposed {item.selected_key ?? "answer not selected"}
                   </p>
                   {item.selected_key && (
                     <div className="button-row">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void act(item.id, "approve");
-                        }}
-                      >
-                        Approve review
-                      </button>
-                      <button
-                        className="secondary"
-                        type="button"
-                        onClick={() => {
-                          void act(item.id, "reject");
-                        }}
-                      >
-                        Reject
-                      </button>
+                      <button type="button" onClick={() => { void act(item.id, "approve"); }}>Approve answer</button>
+                      <button className="secondary" type="button" onClick={() => { void act(item.id, "reject"); }}>Reject</button>
                     </div>
                   )}
                 </div>
               ))}
-              {!items.length && (
-                <p className="muted">No reviews awaiting action.</p>
-              )}
+              {!items.length && <p className="muted">No expert submissions awaiting action.</p>}
             </section>
           </div>
         </>
@@ -1058,7 +1057,7 @@ export default function AdminPage() {
           <p className="eyebrow">Team</p>
           <h2>Administrators.</h2>
           <p className="muted">
-            Admins can manage users, experts, reports, and the question bank.
+            Admins can manage users, experts, reviews, and the question bank.
           </p>
           <div className="bank-controls">
             <input
