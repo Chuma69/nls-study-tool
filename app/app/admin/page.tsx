@@ -112,8 +112,18 @@ export default function AdminPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [reviewPage, setReviewPage] = useState(1);
   const [reviewTotal, setReviewTotal] = useState(0);
-  const reviewPageSize = 10;
+  const [reviewPageSize, setReviewPageSize] = useState(10);
   const reviewPageCount = Math.max(1, Math.ceil(reviewTotal / reviewPageSize));
+  const reviewVisiblePages = Array.from(
+    new Set([
+      1,
+      ...Array.from(
+        { length: 5 },
+        (_, index) => reviewPage - 2 + index,
+      ).filter((page) => page > 0 && page <= reviewPageCount),
+      reviewPageCount,
+    ]),
+  ).sort((first, second) => first - second);
   const [editing, setEditing] = useState<Report | null>(null);
   const [bankEditing, setBankEditing] = useState<BankQuestion | null>(null);
   const [bankSelected, setBankSelected] = useState<number[]>([]);
@@ -189,7 +199,6 @@ export default function AdminPage() {
     void load();
   }, []);
   useEffect(() => {
-    if (reviewPage === 1) return;
     void fetch(`/api/admin/question-reports?page=${reviewPage}&limit=${reviewPageSize}`)
       .then((response) => response.json())
       .then((data) => {
@@ -197,7 +206,7 @@ export default function AdminPage() {
         setReviewTotal(data.total ?? 0);
       })
       .catch(() => setMsg("The review queue could not load."));
-  }, [reviewPage]);
+  }, [reviewPage, reviewPageSize]);
   useEffect(() => {
     const routeTab = pathname.split("/")[2];
     if (routeTab === "reports") {
@@ -918,10 +927,41 @@ export default function AdminPage() {
               </div>
             )}
             {reviewTotal > 0 && (
-              <nav className="bank-pagination" aria-label="Review pages">
+              <nav className="bank-pagination question-bank-pages" aria-label="Review pages">
                 <button className="secondary" type="button" disabled={reviewPage <= 1} onClick={() => setReviewPage((page) => Math.max(1, page - 1))}>Previous</button>
-                <span className="source">Page {reviewPage} of {reviewPageCount} · {reviewTotal} open reviews</span>
+                <div className="bank-page-numbers" aria-label="Review page numbers">
+                  {reviewVisiblePages.map((page, index) => (
+                    <span key={page}>
+                      {index > 0 && page - reviewVisiblePages[index - 1] > 1 && (
+                        <span className="page-ellipsis">…</span>
+                      )}
+                      <button
+                        className={page === reviewPage ? "secondary active-page" : "secondary"}
+                        type="button"
+                        aria-current={page === reviewPage ? "page" : undefined}
+                        onClick={() => setReviewPage(page)}
+                      >
+                        {page}
+                      </button>
+                    </span>
+                  ))}
+                </div>
                 <button className="secondary" type="button" disabled={reviewPage >= reviewPageCount} onClick={() => setReviewPage((page) => Math.min(reviewPageCount, page + 1))}>Next</button>
+                <label className="page-size-control">
+                  Reviews per page
+                  <select
+                    value={reviewPageSize}
+                    onChange={(event) => {
+                      setReviewPage(1);
+                      setReviewPageSize(Number(event.target.value));
+                    }}
+                  >
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                </label>
               </nav>
             )}
           </section>
