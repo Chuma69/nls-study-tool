@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       if (questions.length + ordered.length <= count) questions.push(...ordered.map(({ id }) => ({ id })));
       if (questions.length === count) break;
     }
-    if (questions.length < count) return NextResponse.json({ error: `Only ${questions.length} questions can be assembled without splitting a scenario set. Choose a smaller count.` }, { status: 400 });
+    if (questions.length < count) return NextResponse.json({ error: `Only ${questions.length} questions can be assembled without splitting an ordered question set. Choose a smaller count.` }, { status: 400 });
     const created = await sql`INSERT INTO sprints(user_id,courses,question_count,duration_seconds) VALUES(${user.id},${JSON.stringify(courses)}::jsonb,${count},${minutes * 60}) RETURNING id` as { id: number }[];
     for (let index = 0; index < questions.length; index += 1) await sql`INSERT INTO sprint_items(sprint_id,question_id,position) VALUES(${created[0].id},${questions[index].id},${index + 1})`;
     return NextResponse.json({ sprintId: created[0].id });

@@ -1,21 +1,165 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS } from "@/lib/course-topics";
 import { ModularOptionEditor } from "@/components/modular-option-editor";
+import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS } from "@/lib/course-topics";
+import type { QuestionStructure } from "@/lib/question-structure";
 
 type Option = { key: string; text: string };
-export function QuestionCreator({ contextGroupId, fixedCourse, onCreated, label = "Add a question" }: { contextGroupId?: string; fixedCourse?: string; onCreated?: (question: { id: number; stem: string; topic: string; verification_status: string; context_group_id: string | null }) => void; label?: string }) {
-  const [open, setOpen] = useState(false); const [course, setCourse] = useState(fixedCourse ?? ""); const [topic, setTopic] = useState(""); const [structure, setStructure] = useState<"standalone" | "scenario">(contextGroupId ? "scenario" : "standalone");
-  const [scenario, setScenario] = useState(""); const [stem, setStem] = useState(""); const [options, setOptions] = useState<Option[]>(["A","B","C","D"].map((key) => ({ key, text: "" }))); const [answerKey, setAnswerKey] = useState(""); const [explanation, setExplanation] = useState(""); const [saving, setSaving] = useState(false); const [error, setError] = useState("");
-  useEffect(() => { if (!open) return; const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = previous; }; }, [open]);
-  const topics = course && course in COURSE_TOPICS ? COURSE_TOPICS[course as keyof typeof COURSE_TOPICS].topics : [];
+
+type Props = {
+  contextGroupId?: string;
+  fixedCourse?: string;
+  fixedStructure?: Exclude<QuestionStructure, "standalone">;
+  onCreated?: (question: {
+    id: number;
+    stem: string;
+    topic: string;
+    verification_status: string;
+    context_group_id: string | null;
+  }) => void;
+  label?: string;
+};
+
+export function QuestionCreator({
+  contextGroupId,
+  fixedCourse,
+  fixedStructure,
+  onCreated,
+  label = "Add a question",
+}: Props) {
+  const initialStructure: QuestionStructure = contextGroupId
+    ? (fixedStructure ?? "scenario")
+    : "standalone";
+  const [open, setOpen] = useState(false);
+  const [course, setCourse] = useState(fixedCourse ?? "");
+  const [topic, setTopic] = useState("");
+  const [structure, setStructure] = useState<QuestionStructure>(initialStructure);
+  const [scenario, setScenario] = useState("");
+  const [stem, setStem] = useState("");
+  const [options, setOptions] = useState<Option[]>(
+    ["A", "B", "C", "D"].map((key) => ({ key, text: "" })),
+  );
+  const [answerKey, setAnswerKey] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
+  const topics =
+    course && course in COURSE_TOPICS
+      ? COURSE_TOPICS[course as keyof typeof COURSE_TOPICS].topics
+      : [];
+
   async function create(publish: boolean) {
-    setSaving(true); setError("");
-    const response = await fetch("/api/admin/questions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionType: "mcq", structure, contextGroupId, scenario, course, topic, stem, options, answerKey, explanation, publish }) });
-    const data = await response.json(); setSaving(false);
-    if (!response.ok) { setError(data.error ?? "Could not create the question."); return; }
-    onCreated?.(data.question); setOpen(false);
+    setSaving(true);
+    setError("");
+    const response = await fetch("/api/admin/questions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        questionType: "mcq",
+        structure,
+        contextGroupId,
+        scenario: structure === "scenario" ? scenario : "",
+        course,
+        topic,
+        stem,
+        options,
+        answerKey,
+        explanation,
+        publish,
+      }),
+    });
+    const data = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setError(data.error ?? "Could not create the question.");
+      return;
+    }
+    onCreated?.(data.question);
+    setOpen(false);
   }
-  return <><button className="primary-button" type="button" onClick={() => setOpen(true)}>{label}</button>{open && <><div className="modal-backdrop question-creator-backdrop" aria-hidden="true" /><section className="panel question-creator-modal" role="dialog" aria-modal="true" aria-label="Create a question"><button className="modal-close-button" type="button" aria-label="Close question creator" onClick={() => setOpen(false)}>×</button><p className="eyebrow">New question</p><h2>Create a question from scratch</h2><div className="admin-edit-grid"><div><label>Question type</label><select value="mcq" disabled><option value="mcq">Multiple choice</option></select></div><div><label>Structure</label><select value={structure} disabled={Boolean(contextGroupId)} onChange={(event) => setStructure(event.target.value as "standalone" | "scenario")}><option value="standalone">Standalone</option><option value="scenario">Case study</option></select></div></div><div className="admin-edit-grid"><div><label>Course</label><select value={course} disabled={Boolean(fixedCourse)} onChange={(event) => { setCourse(event.target.value); setTopic(""); }}><option value="" disabled>Choose a course</option>{COURSE_IDS.map((id) => <option key={id} value={id}>{COURSE_NAMES[id]}</option>)}</select></div><div><label>Topic</label><select value={topic} onChange={(event) => setTopic(event.target.value)}><option value="" disabled>Choose a topic</option>{topics.map((item) => <option key={item}>{item}</option>)}</select></div></div>{structure === "scenario" && !contextGroupId && <><label>Case study</label><textarea value={scenario} onChange={(event) => setScenario(event.target.value)} placeholder="Enter the complete scenario learners should see…" /></>} {contextGroupId && <p className="muted">This question will be added to the case study you are currently editing.</p>}<label>Question wording</label><textarea value={stem} onChange={(event) => setStem(event.target.value)} /><ModularOptionEditor options={options} onChange={setOptions} answerKey={answerKey} onAnswerKeyChange={setAnswerKey} /><label>Correct answer <span className="muted">(required to publish)</span></label><select value={answerKey} onChange={(event) => setAnswerKey(event.target.value)}><option value="">Not answered yet</option>{options.filter((option) => option.text.trim()).map((option) => <option key={option.key} value={option.key}>{option.key} — {option.text}</option>)}</select><label>Explanation <span className="muted">(required to publish)</span></label><textarea value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Explain the legal rule like a tutor…" />{error && <p className="error">{error}</p>}<div className="button-row"><button className="primary-button" type="button" disabled={saving} onClick={() => { void create(true); }}>{saving ? "Saving…" : "Create and publish"}</button><button className="outline-button" type="button" disabled={saving} onClick={() => { void create(false); }}>{saving ? "Saving…" : "Save offline"}</button></div></section></>}</>;
+
+  return (
+    <>
+      <button className="primary-button" type="button" onClick={() => setOpen(true)}>
+        {label}
+      </button>
+      {open && (
+        <>
+          <div className="modal-backdrop question-creator-backdrop" aria-hidden="true" />
+          <section className="panel question-creator-modal" role="dialog" aria-modal="true" aria-label="Create a question">
+            <button className="modal-close-button" type="button" aria-label="Close question creator" onClick={() => setOpen(false)}>×</button>
+            <p className="eyebrow">New question</p>
+            <h2>Create a question from scratch</h2>
+            <div className="admin-edit-grid">
+              <div>
+                <label>Format</label>
+                <select value="mcq" disabled><option value="mcq">Multiple choice</option></select>
+              </div>
+              <div>
+                <label>Question type</label>
+                <select value={structure} disabled={Boolean(contextGroupId)} onChange={(event) => setStructure(event.target.value as QuestionStructure)}>
+                  <option value="standalone">Standalone</option>
+                  <option value="scenario">Scenario</option>
+                  <option value="group">Group</option>
+                </select>
+              </div>
+            </div>
+            <div className="admin-edit-grid">
+              <div>
+                <label>Course</label>
+                <select value={course} disabled={Boolean(fixedCourse)} onChange={(event) => { setCourse(event.target.value); setTopic(""); }}>
+                  <option value="" disabled>Choose a course</option>
+                  {COURSE_IDS.map((id) => <option key={id} value={id}>{COURSE_NAMES[id]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label>Topic</label>
+                <select value={topic} onChange={(event) => setTopic(event.target.value)}>
+                  <option value="" disabled>Choose a topic</option>
+                  {topics.map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </div>
+            </div>
+            {structure === "scenario" && !contextGroupId && (
+              <>
+                <label>Case study</label>
+                <textarea value={scenario} onChange={(event) => setScenario(event.target.value)} placeholder="Enter the complete scenario learners should see…" />
+              </>
+            )}
+            {contextGroupId && (
+              <p className="muted">
+                This question will be added to the {structure === "group" ? "ordered group" : "scenario set"} you are editing.
+              </p>
+            )}
+            <label>Question wording</label>
+            <textarea value={stem} onChange={(event) => setStem(event.target.value)} />
+            <ModularOptionEditor options={options} onChange={setOptions} answerKey={answerKey} onAnswerKeyChange={setAnswerKey} />
+            <label>Correct answer <span className="muted">(required to publish)</span></label>
+            <select value={answerKey} onChange={(event) => setAnswerKey(event.target.value)}>
+              <option value="">Not answered yet</option>
+              {options.filter((option) => option.text.trim()).map((option) => <option key={option.key} value={option.key}>{option.key} — {option.text}</option>)}
+            </select>
+            <label>Explanation <span className="muted">(required to publish)</span></label>
+            <textarea value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Explain the legal rule like a tutor…" />
+            {error && <p className="error">{error}</p>}
+            <div className="button-row">
+              <button className="primary-button" type="button" disabled={saving} onClick={() => void create(true)}>{saving ? "Saving…" : "Create and publish"}</button>
+              <button className="outline-button" type="button" disabled={saving} onClick={() => void create(false)}>{saving ? "Saving…" : "Save offline"}</button>
+            </div>
+          </section>
+        </>
+      )}
+    </>
+  );
 }

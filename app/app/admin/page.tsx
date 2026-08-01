@@ -445,6 +445,12 @@ export default function AdminPage() {
     setMsg(response.ok ? `${bankSelected.length} questions grouped into one scenario set.` : (data.error ?? "Could not group these questions."));
     if (response.ok) { setBankSelected([]); setScenarioDraft(""); setShowScenarioBuilder(false); void loadBank(); }
   }
+  async function groupSelectedQuestionsInOrder() {
+    const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "group_ordered", questionIds: bankSelected }) });
+    const data = await response.json();
+    setMsg(response.ok ? `${bankSelected.length} questions grouped in a fixed learner order.` : (data.error ?? "Could not group these questions."));
+    if (response.ok) { setBankSelected([]); void loadBank(); }
+  }
   async function runBulkQuestionAction(action: "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag" | "bulk_delete") {
     if (action === "bulk_unpublish" && !window.confirm(`Unpublish ${bankSelected.length} selected questions? Students will no longer see them.`)) return;
     if (action === "bulk_delete" && !window.confirm(`Permanently delete ${bankSelected.length} selected questions? Their related attempts, reports, reviews, and scenario links will also be removed. This cannot be undone.`)) return;
@@ -625,8 +631,10 @@ export default function AdminPage() {
                 onChange={(event) => setBankScenario(event.target.value)}
               >
                 <option value="">All structures</option>
-                <option value="grouped">Scenario questions</option>
+                <option value="scenario">Scenario</option>
+                <option value="group">Group</option>
                 <option value="standalone">Standalone questions</option>
+                <option value="grouped">All ordered sets</option>
               </select>
               <button
                 className="primary-button"
@@ -641,7 +649,7 @@ export default function AdminPage() {
             <div className="bank-results-summary">
               <p className="muted">
                 {bankTotal
-                  ? `${bankTotal.toLocaleString()} matching ${bankScenario === "grouped" ? "scenario groups" : "questions"}`
+                  ? `${bankTotal.toLocaleString()} matching ${bankScenario === "scenario" ? "scenario sets" : bankScenario === "group" ? "question groups" : bankScenario === "grouped" ? "ordered sets" : "questions"}`
                   : "Opening question bank…"}
               </p>
               <button
@@ -661,13 +669,13 @@ export default function AdminPage() {
                 Clear filters
               </button>
             </div>
-            {bankSelected.length > 0 && <div className="scenario-selection-bar"><strong>{bankSelected.length} selected</strong><button className="primary-button" type="button" disabled={bankSelected.length < 2} onClick={() => setShowScenarioBuilder(true)}>Group into scenario</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_publish")}>Publish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unpublish")}>Unpublish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_flag")}>Flag for review</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unflag")}>Remove flags</button><button className="danger-button" type="button" onClick={() => void runBulkQuestionAction("bulk_delete")}>Delete</button><button className="text-button" type="button" onClick={() => setBankSelected([])}>Clear selection</button><span className="muted selection-order-note">Selection order becomes scenario question order.</span></div>}
+            {bankSelected.length > 0 && <div className="scenario-selection-bar"><strong>{bankSelected.length} selected</strong><button className="primary-button" type="button" disabled={bankSelected.length < 2} onClick={() => setShowScenarioBuilder(true)}>Group into scenario</button><button className="outline-button" type="button" disabled={bankSelected.length < 2} onClick={() => void groupSelectedQuestionsInOrder()}>Group in order</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_publish")}>Publish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unpublish")}>Unpublish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_flag")}>Flag for review</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unflag")}>Remove flags</button><button className="danger-button" type="button" onClick={() => void runBulkQuestionAction("bulk_delete")}>Delete</button><button className="text-button" type="button" onClick={() => setBankSelected([])}>Clear selection</button><span className="muted selection-order-note">Selection order becomes learner order.</span></div>}
             {showScenarioBuilder && <div className="shared-context scenario-builder"><label htmlFor="scenario-text">Shared scenario</label><textarea id="scenario-text" value={scenarioDraft} onChange={(event) => setScenarioDraft(event.target.value)} placeholder="Paste or write the scenario students must read before answering these questions…" /><div className="button-row"><button className="primary-button" type="button" disabled={bankSelected.length < 2 || !scenarioDraft.trim()} onClick={() => void groupSelectedQuestions()}>Save scenario group</button><button className="text-button" type="button" onClick={() => setShowScenarioBuilder(false)}>Cancel</button></div></div>}
             {bankQuestions.length > 0 && (
               <div className="review-list">
                 {bankQuestionGroups.map((group) => (
                   <section className={group.questions[0]?.context_group_id ? "admin-scenario-group" : undefined} key={group.id}>
-                    {group.questions[0]?.context_group_id && <div className="admin-scenario-context"><ScenarioSetEditor contextGroupId={group.questions[0].context_group_id} onChanged={() => { void loadBank(bankPage); }} triggerClassName="admin-scenario-context-trigger" triggerChildren={<><p className="case-study-label">Case-study set · {group.questions.length} linked questions</p><p>{group.questions[0].shared_context}</p></>} /></div>}
+                    {group.questions[0]?.context_group_id && <div className="admin-scenario-context"><ScenarioSetEditor contextGroupId={group.questions[0].context_group_id} onChanged={() => { void loadBank(bankPage); }} triggerClassName="admin-scenario-context-trigger" triggerChildren={group.questions[0].shared_context?.trim() ? <><p className="case-study-label">Case-study set · {group.questions.length} linked questions</p><p>{group.questions[0].shared_context}</p></> : <><p className="case-study-label">Question group · {group.questions.length} linked questions</p><p>Fixed learner order</p></>} /></div>}
                     <div className="admin-scenario-questions">
                       {group.questions.map((question, index) => (
                         <article
