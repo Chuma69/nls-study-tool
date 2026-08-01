@@ -22,7 +22,7 @@ type QuestionRow = {
   context_position: number | null;
 };
 
-type CountRow = { total: number };
+type CountRow = { total: number; completed: number };
 type SessionRow = { id: number; answers_count: number; last_question_id: number | null };
 
 export async function GET(request: Request) {
@@ -100,8 +100,10 @@ export async function GET(request: Request) {
   }
 
   const totals = await getSql()`
-    SELECT count(*)::int AS total
+    SELECT count(DISTINCT q.id)::int AS total,
+           count(DISTINCT q.id) FILTER (WHERE a.is_correct = true)::int AS completed
     FROM questions q
+    LEFT JOIN attempts a ON a.question_id = q.id AND a.user_id = ${user.id}
     WHERE q.question_type = 'mcq'
       AND q.material_supported_key IS NOT NULL
       AND q.verification_status IN ('material_supported', 'staff_corrected')
@@ -109,5 +111,14 @@ export async function GET(request: Request) {
       AND (cardinality(${selectedTopics}::text[]) = 0 OR q.topic = ANY(${selectedTopics}))
   ` as CountRow[];
 
-  return NextResponse.json({ question: questionGroup[0] ?? null, questionGroup, totalQuestions: totals[0]?.total ?? 0, answeredCount: session?.answers_count ?? 0 });
+  return NextResponse.json({
+    question: questionGroup[0] ?? null,
+    questionGroup,
+    // Every MCQ row counts once. A shared scenario is context only, so a
+    // scenario with four linked MCQs contributes four to this total.
+    totalQuestions: totals[0]?.total ?? 0,
+    // Do not use practice_sessions.answers_count here: it includes retries
+    // and can exceed the current live bank after filters or publishing changes.
+    completedQuestions: totals[0]?.completed ?? 0,
+  });
 }

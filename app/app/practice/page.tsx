@@ -82,8 +82,9 @@ function PracticeContent() {
     const response = await fetch(`/api/questions/next${params.size ? `?${params}` : ""}`);
     const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not load a question."); setQuestion(null); return; }
-    setTotalQuestions(data.totalQuestions ?? 0);
-    setQuestionNumber((data.answeredCount ?? 0) + 1);
+    const nextTotal = data.totalQuestions ?? 0;
+    setTotalQuestions(nextTotal);
+    setQuestionNumber(nextTotal ? Math.min((data.completedQuestions ?? 0) + 1, nextTotal) : 0);
     setQuestion(data.question);
     setScenarioQueue((data.questionGroup ?? []).slice(1));
     setSaved(false); setNote(""); setShowSaveNote(false);
@@ -177,7 +178,7 @@ function PracticeContent() {
     if (scenarioQueue.length) {
       const [next, ...remaining] = scenarioQueue;
       setScenarioQueue(remaining); setQuestion(next); setChosenKey(""); setResult(null); setError("");
-      setQuestionNumber((number) => number + 1); setSaved(false); setNote(""); setShowSaveNote(false);
+      setQuestionNumber((number) => Math.min(number + 1, totalQuestions)); setSaved(false); setNote(""); setShowSaveNote(false);
       setQuestionStartedAt(Date.now()); setCurrentQuestionSeconds(0);
       return;
     }
