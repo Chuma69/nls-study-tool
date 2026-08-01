@@ -54,6 +54,7 @@ export async function GET() {
     FROM questions q
     LEFT JOIN latest_attempt la ON la.question_id = q.id
     WHERE q.question_type = 'mcq' AND q.course = ANY(${courseIds})
+      AND NULLIF(q.topic, '') IS NOT NULL
       AND q.material_supported_key IS NOT NULL
       AND q.verification_status IN ('material_supported', 'staff_corrected')
     GROUP BY q.course
