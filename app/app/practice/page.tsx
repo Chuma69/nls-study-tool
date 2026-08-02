@@ -46,11 +46,11 @@ function PracticeContent() {
   const router = useRouter();
   const course = searchParams.get("course");
   const courseTopics = course && course in COURSE_TOPICS ? COURSE_TOPICS[course as keyof typeof COURSE_TOPICS].topics : [];
-  const topicsParam = searchParams.toString();
   const selectedTopics = [...new Set([
     ...searchParams.getAll("topic"),
     ...(searchParams.get("topics") ?? "").split(","),
   ].map((topic) => topic.trim()).filter((topic) => Boolean(topic) && (!course || courseTopics.includes(topic))))];
+  const topicSelectionKey = selectedTopics.join("\u001f");
   const requestedQuestion = Number(searchParams.get("question")) || 0;
   const [question, setQuestion] = useState<Question | null | undefined>(undefined);
   const [scenarioQueue, setScenarioQueue] = useState<Question[]>([]);
@@ -69,6 +69,14 @@ function PracticeContent() {
   const [showTopics, setShowTopics] = useState(false);
   const [previousQuestions, setPreviousQuestions] = useState<QuestionView[]>([]);
   const [nextQuestions, setNextQuestions] = useState<QuestionView[]>([]);
+
+  const replaceQuestionInUrl = useCallback((questionId: number | null) => {
+    const params = new URLSearchParams(window.location.search);
+    if (questionId) params.set("question", String(questionId));
+    else params.delete("question");
+    const query = params.toString();
+    window.history.replaceState(window.history.state, "", `/practice${query ? `?${query}` : ""}`);
+  }, []);
 
   const loadQuestion = useCallback(async (sessionId: number, excludeQuestionId?: number, questionId?: number) => {
     setQuestion(undefined); setChosenKey(""); setResult(null); setError("");
@@ -90,13 +98,14 @@ function PracticeContent() {
     setQuestionStartedAt(data.question ? Date.now() : null);
     setCurrentQuestionSeconds(0);
     if (data.question) {
+      replaceQuestionInUrl(data.question.id);
       void fetch(`/api/flags?questionId=${data.question.id}`).then((flagResponse) => flagResponse.ok ? flagResponse.json() : null).then((flag) => {
         if (flag) { setSaved(Boolean(flag.saved)); setNote(flag.note ?? ""); }
       });
     }
-  }, [course, topicsParam]);
+  }, [course, topicSelectionKey, replaceQuestionInUrl]);
 
-  useEffect(() => setTopicDraft(selectedTopics), [topicsParam]);
+  useEffect(() => setTopicDraft(selectedTopics), [course, topicSelectionKey]);
 
   useEffect(() => {
     if (!questionStartedAt || result) return;
@@ -118,7 +127,7 @@ function PracticeContent() {
         void loadQuestion(session.id, undefined, requestedQuestion || undefined);
       }).catch(() => { if (!cancelled) { setError("Could not start practice."); setQuestion(null); } });
     return () => { cancelled = true; };
-  }, [course, loadQuestion, requestedQuestion]);
+  }, [course, topicSelectionKey, loadQuestion]);
 
   async function saveFlag(nextSaved = saved, nextNote = note) {
     if (!question) return;
@@ -152,6 +161,7 @@ function PracticeContent() {
     setQuestion(view.question); setScenarioQueue(view.scenarioQueue); setChosenKey(view.chosenKey); setResult(view.result);
     setSaved(view.saved); setNote(view.note); setShowSaveNote(false); setError("");
     setQuestionStartedAt(view.result ? null : Date.now()); setCurrentQuestionSeconds(0);
+    replaceQuestionInUrl(view.question.id);
   }
 
   function previousQuestion() {
@@ -180,6 +190,7 @@ function PracticeContent() {
       setScenarioQueue(remaining); setQuestion(next); setChosenKey(""); setResult(null); setError("");
       setSaved(false); setNote(""); setShowSaveNote(false);
       setQuestionStartedAt(Date.now()); setCurrentQuestionSeconds(0);
+      replaceQuestionInUrl(next.id);
       return;
     }
     void loadQuestion(practiceSession.id, question.id);

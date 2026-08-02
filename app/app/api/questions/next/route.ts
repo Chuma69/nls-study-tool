@@ -97,6 +97,13 @@ export async function GET(request: Request) {
         AND q.material_supported_key IS NOT NULL AND q.verification_status IN ('material_supported','staff_corrected')
       ORDER BY q.context_position,q.id
     ` as QuestionRow[];
+    // A direct question URL must reopen that exact subquestion, not jump back
+    // to the first item in its scenario/group. Keep only it and the questions
+    // that follow it in the fixed learner order.
+    if (requestedQuestionId) {
+      const requestedIndex = questionGroup.findIndex((question) => Number(question.id) === requestedQuestionId);
+      if (requestedIndex >= 0) questionGroup = questionGroup.slice(requestedIndex);
+    }
   }
 
   const totals = await getSql()`
