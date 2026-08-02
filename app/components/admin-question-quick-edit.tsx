@@ -31,6 +31,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
   const [linkedQuestions, setLinkedQuestions] = useState<CandidateQuestion[]>([]);
   const [searchingQuestions, setSearchingQuestions] = useState(false);
   const [showQuestionSearch, setShowQuestionSearch] = useState(false);
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<number[]>([]);
   const [scenarioEditorGroupId, setScenarioEditorGroupId] = useState<string | null>(null);
   const [scenarioEditorQuestionId, setScenarioEditorQuestionId] = useState<number | undefined>();
   const [reviewFlags, setReviewFlags] = useState<ReviewFlag[]>([]);
@@ -56,7 +57,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
   }, [open, question, saving, structure]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function beginEdit() {
-    setOpen(true); setError(""); setQuestion(null);
+    setOpen(true); setError(""); setQuestion(null); setCandidateQuestions([]); setSelectedCandidateIds([]); setQuestionSearch("");
     const response = await fetch(`/api/admin/questions?questionId=${questionId}`); const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not load this question."); return; }
     setQuestion({ ...data.question, options: Array.isArray(data.question.options) ? data.question.options : [] });
@@ -162,6 +163,40 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
     setCandidateQuestions((current) => current.filter((item) => item.id !== candidate.id));
     setLinkedQuestions((current) => [...current, { ...candidate, context_group_id: question.context_group_id }]);
   }
+  async function findStandaloneGroupCandidates() {
+    if (!question) return;
+    setSearchingQuestions(true); setError("");
+    const params = new URLSearchParams({
+      standaloneCandidates: "true",
+      course: question.course,
+      search: questionSearch.trim(),
+      excludeQuestionId: String(question.id),
+    });
+    const response = await fetch(`/api/admin/scenarios?${params}`);
+    const data = await response.json();
+    setSearchingQuestions(false);
+    if (!response.ok) { setError(data.error ?? "Could not search the question bank."); return; }
+    setCandidateQuestions(data.questions ?? []);
+    setSelectedCandidateIds([]);
+  }
+  function toggleCandidate(questionId: number) {
+    setSelectedCandidateIds((current) => current.includes(questionId) ? current.filter((id) => id !== questionId) : [...current, questionId]);
+  }
+  async function createOrderedGroup() {
+    if (!question || !selectedCandidateIds.length) return;
+    setSaving(true); setError("");
+    const response = await fetch("/api/admin/questions", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "group_ordered", questionIds: [question.id, ...selectedCandidateIds] }),
+    });
+    const data = await response.json();
+    setSaving(false);
+    if (!response.ok) { setError(data.error ?? "Could not create this question group."); return; }
+    const updated = { ...question, context_group_id: data.contextGroupId, shared_context: null, context_position: 1 };
+    setQuestion(updated); onSaved?.(updated); setOpen(false);
+    setScenarioEditorQuestionId(question.id); setScenarioEditorGroupId(data.contextGroupId);
+  }
 
   if (!isAdmin) return null;
   const topics = question?.course && question.course in COURSE_TOPICS ? COURSE_TOPICS[question.course as keyof typeof COURSE_TOPICS].topics : [];
@@ -173,7 +208,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
       {!question ? <p className={error ? "error" : "muted"}>{error || "Loading question…"}</p> : <>
         {learnerReview && <section className="admin-review-items"><div className="scenario-picker-heading"><div><strong>Learner-submitted review</strong><p className="muted">{learnerReview.category.replaceAll("_", " ")} · {learnerReview.reporter} · {learnerReview.status ?? "open"}</p></div>{learnerReview.status !== "resolved" && <button className="outline-button" type="button" disabled={saving} onClick={() => { void resolveLearnerReview(); }}>Resolve</button>}</div>{learnerReview.details && <p>{learnerReview.details}</p>}</section>}
         {reviewFlags.length > 0 && <section className="admin-review-items"><div className="scenario-picker-heading"><div><strong>Open review items</strong><p className="muted">Resolve each item after checking or correcting the question.</p></div><span className="eyebrow">{reviewFlags.length} open</span></div><div className="admin-review-item-list">{reviewFlags.map((flag) => <article key={flag.id}><div><p>{flag.note?.trim() || "Flagged for review without a comment."}</p><span className="muted">{flag.reviewer} · {new Date(flag.created_at).toLocaleString()}</span></div><button className="outline-button" type="button" disabled={saving} onClick={() => { void resolveReviewFlag(flag.id); }}>Resolve</button></article>)}</div></section>}
-        <label>Question type</label><select value={structure} onChange={(event) => { const next = event.target.value as QuestionStructure; setStructure(next); if (next !== "scenario") update({ shared_context: null }); }}><option value="standalone">Standalone</option><option value="scenario">Scenario</option><option value="group">Group</option></select>
+        <label>Question type</label><select value={structure} onChange={(event) => { const next = event.target.value as QuestionStructure; setStructure(next); setCandidateQuestions([]); setSelectedCandidateIds([]); setQuestionSearch(""); if (next !== "scenario") update({ shared_context: null }); }}><option value="standalone">Standalone</option><option value="scenario">Scenario</option><option value="group">Group</option></select>
         <label>Question wording</label><textarea value={question.stem} onChange={(event) => update({ stem: event.target.value })} />
         <SourceMaterialSearch questionId={question.id} initialQuery={question.stem} onUseAsScenario={(text) => update({ shared_context: text })} />
         <div className="admin-edit-grid"><div><label>Course</label><select value={question.course} onChange={(event) => update({ course: event.target.value, topic: "" })}><option value="" disabled>Choose a course</option>{COURSE_IDS.map((id) => <option key={id} value={id}>{COURSE_NAMES[id]}</option>)}</select></div><div><label>Topic</label><select value={question.topic ?? ""} onChange={(event) => update({ topic: event.target.value })}><option value="">No topic (offline only)</option>{topics.map((topic) => <option key={topic} value={topic}>{topic}</option>)}</select></div></div>
@@ -181,6 +216,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
         <label>Correct answer</label><select value={question.material_supported_key ?? ""} onChange={(event) => update({ material_supported_key: event.target.value })}><option value="">No correct answer (offline only)</option>{question.options.map((option) => <option key={option.key} value={option.key}>{option.key} — {option.text}</option>)}</select>
         <label>Explanation</label><textarea value={question.explanation ?? ""} onChange={(event) => update({ explanation: event.target.value })} />
         {structure !== "standalone" && <div className="existing-scenario-picker">{showScenarioSearch ? <><div className="scenario-picker-heading"><label>Find an existing {structure === "group" ? "question group" : "case study"}</label><button className="text-button" type="button" onClick={() => setShowScenarioSearch(false)}>Close</button></div><p className="muted">Search {structure === "group" ? "ordered groups" : "case studies"} in {COURSE_NAMES[question.course as keyof typeof COURSE_NAMES] ?? "this course"}, then add this question to the matching set.</p><div className="scenario-search-row"><input value={scenarioSearch} onChange={(event) => setScenarioSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void findScenarios(); } }} placeholder={structure === "group" ? "Search grouped question text…" : "Search scenario text…"} /><button type="button" disabled={searchingScenarios} onClick={() => { void findScenarios(); }}>{searchingScenarios ? "Searching…" : "Search"}</button></div>{scenarios.length > 0 && <div className="scenario-search-results">{scenarios.map((scenario) => <article key={scenario.context_group_id}><p>{scenario.shared_context || "Ordered question group"}</p><div><span className="muted">{scenario.question_count} linked question{scenario.question_count === 1 ? "" : "s"}</span><button type="button" disabled={saving} onClick={() => { void attachScenario(scenario); }}>Add to this {structure === "group" ? "group" : "case study"}</button></div></article>)}</div>}{!searchingScenarios && scenarios.length === 0 && scenarioSearch && <p className="muted scenario-empty">No matching sets found.</p>}</> : <button className="text-button" type="button" onClick={() => setShowScenarioSearch(true)}>Find an existing {structure === "group" ? "question group" : "case study"}</button>}</div>}
+        {structure === "group" && !question.context_group_id && <div className="existing-scenario-picker"><div className="scenario-picker-heading"><div><label>Create a new ordered group</label><p className="muted">Search for standalone questions to place after this question.</p></div></div><div className="scenario-search-row"><input value={questionSearch} onChange={(event) => setQuestionSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void findStandaloneGroupCandidates(); } }} placeholder="Search standalone question wording…" /><button type="button" disabled={searchingQuestions} onClick={() => { void findStandaloneGroupCandidates(); }}>{searchingQuestions ? "Searching…" : "Search questions"}</button></div>{candidateQuestions.length > 0 && <div className="scenario-search-results">{candidateQuestions.map((candidate) => <article key={candidate.id} className={selectedCandidateIds.includes(candidate.id) ? "selected" : ""}><label className="candidate-question-check"><input type="checkbox" checked={selectedCandidateIds.includes(candidate.id)} onChange={() => toggleCandidate(candidate.id)} /><span>{candidate.stem}</span></label><div><span className="muted">{candidate.topic || "No topic"} · {candidate.verification_status === "material_supported" || candidate.verification_status === "staff_corrected" ? "Live" : "Not live"}</span><AdminQuestionQuickEdit questionId={candidate.id} triggerLabel="Review now" /></div></article>)}</div>}<div className="button-row"><button className="primary-button" type="button" disabled={saving || selectedCandidateIds.length === 0} onClick={() => { void createOrderedGroup(); }}>{saving ? "Creating group…" : `Create group with ${selectedCandidateIds.length} selected`}</button></div></div>}
         {structure === "scenario" && <><label>Create or edit case study <span className="muted">(required)</span></label><textarea value={question.shared_context ?? ""} onChange={(event) => update({ shared_context: event.target.value })} placeholder="Add the shared scenario for this question." /></>}
         {structure !== "standalone" && question.context_group_id && <div className="scenario-set-launch"><ScenarioSetEditor contextGroupId={question.context_group_id} onChanged={() => { void findCandidateQuestions(); }} /></div>}
         {structure !== "standalone" && question.context_group_id && <div className="existing-scenario-picker"><label>Questions linked to this {structure === "group" ? "group" : "case study"}</label><p className="muted">These questions always appear together in this fixed order.</p><button className="text-button" type="button" disabled={searchingQuestions} onClick={() => { void findCandidateQuestions(); }}>{linkedQuestions.length ? "Refresh linked questions" : "Show linked questions"}</button>{linkedQuestions.length > 0 && <div className="scenario-search-results linked-question-results">{linkedQuestions.map((linked) => <article key={linked.id}><p>{linked.stem}</p><div><span className="muted">{linked.topic || "No topic"} · {linked.verification_status === "material_supported" || linked.verification_status === "staff_corrected" ? "Live" : "Not live"}</span>{linked.id !== question.id && <AdminQuestionQuickEdit questionId={linked.id} triggerLabel="Review now" />}</div></article>)}</div>}<hr />{showQuestionSearch ? <><div className="scenario-picker-heading"><label>Find more questions for this set</label><button className="text-button" type="button" onClick={() => setShowQuestionSearch(false)}>Close</button></div><div className="scenario-search-row"><input value={questionSearch} onChange={(event) => setQuestionSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void findCandidateQuestions(); } }} placeholder="Search question wording…" /><button type="button" disabled={searchingQuestions} onClick={() => { void findCandidateQuestions(); }}>{searchingQuestions ? "Searching…" : "Search questions"}</button></div>{candidateQuestions.length > 0 && <div className="scenario-search-results">{candidateQuestions.map((candidate) => <article key={candidate.id}><p>{candidate.stem}</p><div><span className="muted">{candidate.topic || "No topic"}</span><div className="scenario-result-actions"><AdminQuestionQuickEdit questionId={candidate.id} triggerLabel="Review now" /><button type="button" disabled={saving} onClick={() => { void attachCandidate(candidate); }}>Add to set</button></div></div></article>)}</div>}<QuestionCreator contextGroupId={question.context_group_id} fixedCourse={question.course} fixedStructure={structure === "group" ? "group" : "scenario"} label="Create and add to this set" onCreated={() => { void findCandidateQuestions(); }} /></> : <button className="text-button" type="button" onClick={() => setShowQuestionSearch(true)}>Find more questions for this set</button>}</div>}

@@ -12,7 +12,24 @@ export async function GET(request: Request) {
   const course = (url.searchParams.get("course") ?? "").trim();
   const structure = (url.searchParams.get("structure") ?? "scenario").trim();
   const contextGroupId = (url.searchParams.get("contextGroupId") ?? "").trim();
+  const standaloneCandidates = url.searchParams.get("standaloneCandidates") === "true";
+  const excludeQuestionId = Number(url.searchParams.get("excludeQuestionId"));
   const pattern = `%${search}%`;
+  if (standaloneCandidates) {
+    if (!course || course === "general") return NextResponse.json({ error: "Assign this question to a course before creating a group." }, { status: 400 });
+    const questions = await getSql()`
+      SELECT q.id,q.stem,q.topic,q.verification_status,q.context_group_id,q.context_position
+      FROM questions q
+      WHERE q.question_type='mcq'
+        AND q.context_group_id IS NULL
+        AND q.course=${course}
+        AND (${Number.isSafeInteger(excludeQuestionId)}=false OR q.id<>${Number.isSafeInteger(excludeQuestionId) ? excludeQuestionId : 0})
+        AND (${search}='' OR q.stem ILIKE ${pattern})
+      ORDER BY CASE WHEN q.verification_status IN ('material_supported','staff_corrected') THEN 0 ELSE 1 END,q.id DESC
+      LIMIT 50
+    `;
+    return NextResponse.json({ questions });
+  }
   if (contextGroupId) {
     const scenario = await getSql()`
       SELECT context_group_id,
