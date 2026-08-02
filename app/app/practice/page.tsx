@@ -25,14 +25,13 @@ type Question = {
   context_group_id: string | null;
   context_position: number | null;
 };
-type Result = { matchesMaterialKey: boolean; materialSupportedKey: string; verificationStatus: string };
+type Result = { matchesMaterialKey: boolean; materialSupportedKey: string; verificationStatus: string; firstAttempt: boolean };
 type PracticeSession = { id: number; answers_count: number; total_seconds: number; last_question_id: number | null };
 type QuestionView = {
   question: Question;
   scenarioQueue: Question[];
   chosenKey: string;
   result: Result | null;
-  questionNumber: number;
   saved: boolean;
   note: string;
 };
@@ -58,7 +57,7 @@ function PracticeContent() {
   const [chosenKey, setChosenKey] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState("");
-  const [questionNumber, setQuestionNumber] = useState(1);
+  const [attemptedQuestions, setAttemptedQuestions] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [practiceSession, setPracticeSession] = useState<PracticeSession | null>(null);
   const [questionStartedAt, setQuestionStartedAt] = useState<number | null>(null);
@@ -84,7 +83,7 @@ function PracticeContent() {
     if (!response.ok) { setError(data.error ?? "Could not load a question."); setQuestion(null); return; }
     const nextTotal = data.totalQuestions ?? 0;
     setTotalQuestions(nextTotal);
-    setQuestionNumber(nextTotal ? Math.min((data.completedQuestions ?? 0) + 1, nextTotal) : 0);
+    setAttemptedQuestions(data.attemptedQuestions ?? 0);
     setQuestion(data.question);
     setScenarioQueue((data.questionGroup ?? []).slice(1));
     setSaved(false); setNote(""); setShowSaveNote(false);
@@ -108,7 +107,7 @@ function PracticeContent() {
   useEffect(() => {
     let cancelled = false;
     if (!course || !selectedTopics.length) { setQuestion(null); setPracticeSession(null); return; }
-    setQuestion(undefined); setQuestionNumber(1); setPracticeSession(null); setPreviousQuestions([]); setNextQuestions([]);
+    setQuestion(undefined); setAttemptedQuestions(0); setPracticeSession(null); setPreviousQuestions([]); setNextQuestions([]);
     void fetch("/api/practice-sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ course }) })
       .then((response) => response.json().then((data) => ({ response, data })))
       .then(({ response, data }) => {
@@ -140,17 +139,18 @@ function PracticeContent() {
     const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not save your answer."); return; }
     setPracticeSession((session) => session ? { ...session, answers_count: session.answers_count + 1, total_seconds: session.total_seconds + secondsSpent, last_question_id: question.id } : session);
+    if (data.firstAttempt) setAttemptedQuestions((count) => Math.min(count + 1, totalQuestions));
     setResult(data);
   }
 
   function currentView(): QuestionView | null {
     if (!question) return null;
-    return { question, scenarioQueue, chosenKey, result, questionNumber, saved, note };
+    return { question, scenarioQueue, chosenKey, result, saved, note };
   }
 
   function restoreView(view: QuestionView) {
     setQuestion(view.question); setScenarioQueue(view.scenarioQueue); setChosenKey(view.chosenKey); setResult(view.result);
-    setQuestionNumber(view.questionNumber); setSaved(view.saved); setNote(view.note); setShowSaveNote(false); setError("");
+    setSaved(view.saved); setNote(view.note); setShowSaveNote(false); setError("");
     setQuestionStartedAt(view.result ? null : Date.now()); setCurrentQuestionSeconds(0);
   }
 
@@ -178,7 +178,7 @@ function PracticeContent() {
     if (scenarioQueue.length) {
       const [next, ...remaining] = scenarioQueue;
       setScenarioQueue(remaining); setQuestion(next); setChosenKey(""); setResult(null); setError("");
-      setQuestionNumber((number) => Math.min(number + 1, totalQuestions)); setSaved(false); setNote(""); setShowSaveNote(false);
+      setSaved(false); setNote(""); setShowSaveNote(false);
       setQuestionStartedAt(Date.now()); setCurrentQuestionSeconds(0);
       return;
     }
@@ -188,7 +188,7 @@ function PracticeContent() {
   return (
     <main className="narrow practice-run-shell">
       <Link className="back-link" href="/">← Back to home</Link>
-      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><p className="meta">{course && selectedTopics.length ? <>Question {questionNumber} / {totalQuestions}<br />Session {clock((practiceSession?.total_seconds ?? 0) + currentQuestionSeconds)}</> : "Choose topics to begin"}</p></div>
+      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><p className="meta">{course && selectedTopics.length ? <>Attempted {attemptedQuestions} / {totalQuestions}<br />Session {clock((practiceSession?.total_seconds ?? 0) + currentQuestionSeconds)}</> : "Choose topics to begin"}</p></div>
       {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : <section className="topic-filter panel"><div className="course-checklist-heading"><div><p className="eyebrow">Topics</p><p className="muted">{selectedTopics.length ? `${selectedTopics.length} selected` : "Choose at least one topic to begin"}</p></div><div className="topic-heading-actions"><button className="text-button" type="button" onClick={() => setTopicDraft(courseTopics)}>Select all</button><button className="text-button" type="button" onClick={() => setShowTopics((open) => !open)}>{showTopics || !selectedTopics.length ? "Close" : "Choose topics"}</button></div></div>{(showTopics || !selectedTopics.length) && <><div className="course-checklist">{courseTopics.map((topic) => <label className="course-check" key={topic}><input type="checkbox" checked={topicDraft.includes(topic)} onChange={() => toggleTopic(topic)} /><span>{topic}</span></label>)}</div><div className="button-row"><button className="primary-button" type="button" disabled={!topicDraft.length} onClick={applyTopics}>Start practice</button></div></>}</section>}
       {course && selectedTopics.length > 0 && (question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>No live questions match this topic selection yet. Choose different topics or ask an administrator to assign questions to these topics.</p> : (
         <div className={`scenario-question-layout ${question.shared_context ? "has-case-study" : ""}`}>

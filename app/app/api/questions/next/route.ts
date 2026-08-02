@@ -22,7 +22,7 @@ type QuestionRow = {
   context_position: number | null;
 };
 
-type CountRow = { total: number; completed: number };
+type CountRow = { total: number; attempted: number };
 type SessionRow = { id: number; answers_count: number; last_question_id: number | null };
 
 export async function GET(request: Request) {
@@ -101,7 +101,7 @@ export async function GET(request: Request) {
 
   const totals = await getSql()`
     SELECT count(DISTINCT q.id)::int AS total,
-           count(DISTINCT q.id) FILTER (WHERE a.is_correct = true)::int AS completed
+           count(DISTINCT q.id) FILTER (WHERE a.question_id IS NOT NULL)::int AS attempted
     FROM questions q
     LEFT JOIN attempts a ON a.question_id = q.id AND a.user_id = ${user.id}
     WHERE q.question_type = 'mcq'
@@ -119,6 +119,6 @@ export async function GET(request: Request) {
     totalQuestions: totals[0]?.total ?? 0,
     // Do not use practice_sessions.answers_count here: it includes retries
     // and can exceed the current live bank after filters or publishing changes.
-    completedQuestions: totals[0]?.completed ?? 0,
+    attemptedQuestions: totals[0]?.attempted ?? 0,
   });
 }

@@ -9,6 +9,7 @@ type AnswerRow = {
   material_supported_key: string;
   verification_status: string;
   options: { key: string; text: string }[];
+  previously_attempted: boolean;
 };
 
 export async function POST(request: Request) {
@@ -28,9 +29,13 @@ export async function POST(request: Request) {
   }
 
   const rows = await getSql()`
-    SELECT material_supported_key, verification_status, options
-    FROM questions
-    WHERE id = ${questionId}
+    SELECT q.material_supported_key, q.verification_status, q.options,
+           EXISTS (
+             SELECT 1 FROM attempts a
+             WHERE a.user_id = ${user.id} AND a.question_id = q.id
+           ) AS previously_attempted
+    FROM questions q
+    WHERE q.id = ${questionId}
       AND question_type = 'mcq'
       AND material_supported_key IS NOT NULL
       AND verification_status IN ('material_supported', 'staff_corrected')
@@ -67,5 +72,6 @@ export async function POST(request: Request) {
     matchesMaterialKey,
     materialSupportedKey: question.material_supported_key,
     verificationStatus: question.verification_status,
+    firstAttempt: !question.previously_attempted,
   });
 }
