@@ -212,9 +212,8 @@ export function ScenarioSetEditor({ contextGroupId, onChanged, triggerClassName,
         : question.id === active.id && action === "unpublish"
           ? false
           : isCurrentlyLive;
-      const preservingStatus = action === "save";
       const resolvingReviewFlags = action === "publish" && publish;
-      const questionResponse = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, publish, preserveStatus: preservingStatus, resolveReviewFlags: resolvingReviewFlags }) });
+      const questionResponse = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, publish, preserveStatus: false, resolveReviewFlags: resolvingReviewFlags }) });
       const questionData = await questionResponse.json();
       if (!questionResponse.ok) { setSaving(false); setError(`Question ${question.id}: ${questionData.error ?? "Could not publish this question."}`); return; }
     }
@@ -302,7 +301,7 @@ export function ScenarioSetEditor({ contextGroupId, onChanged, triggerClassName,
           </div>}
         </div>
         {error && <p className="error">{error}</p>}
-        <p className="muted scenario-publish-note">Save stores edits without changing live statuses. Publish applies every Live checkbox and makes the selected question live. Unpublish applies every Live checkbox and keeps the selected question offline. Remove from set returns the selected question to the standalone bank; delete removes it permanently.</p>
+        <p className="muted scenario-publish-note">Save stores edits and every Live checkbox without resolving review flags. Publish also makes the selected question live and resolves its review flags. Unpublish keeps the selected question offline. Remove from set returns the selected question to the standalone bank; delete removes it permanently.</p>
         <div className="button-row"><button className="outline-button" type="button" disabled={saving || !active} onClick={() => { void save("save"); }}>{saving ? "Saving…" : "Save full set"}</button><button className="primary-button" type="button" disabled={saving || !active} onClick={() => { void save("publish"); }}>{saving ? "Saving…" : "Publish"}</button><button className="outline-button" type="button" disabled={saving || !active} onClick={() => { void save("unpublish"); }}>{saving ? "Saving…" : "Unpublish"}</button><button className="outline-button" type="button" disabled={saving || !active || questions.length < 2} onClick={() => { void detachActiveQuestion(); }}>Remove from set</button><button className="danger-button" type="button" disabled={saving || !active} onClick={() => { void deleteActiveQuestion(); }}>Delete question permanently</button></div>
       </>}
     </section>
