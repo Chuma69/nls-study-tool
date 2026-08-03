@@ -277,6 +277,8 @@ export default function AdminPage() {
         explanation: editExplanation,
         course: editCourse,
         topic: editTopic,
+        publish: true,
+        resolveReviewFlags: true,
       }),
     });
     const data = await response.json();

@@ -72,7 +72,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
   async function save(mode: "save" | "publish") {
     if (!question) return; setSaving(true); setError(""); setNotice("");
     const previousGroupId = question.context_group_id;
-    const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, structure, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, scenario: structure === "scenario" ? (question.shared_context ?? "") : "", preserveStatus: mode === "save", publish: mode === "publish" }) });
+    const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, structure, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, scenario: structure === "scenario" ? (question.shared_context ?? "") : "", preserveStatus: mode === "save", publish: mode === "publish", resolveReviewFlags: mode === "publish" }) });
     const data = await response.json(); setSaving(false);
     if (!response.ok) { setError(data.error ?? "Could not publish this edit."); return; }
     const updated = data.question ? { ...question, ...data.question } : question;

@@ -108,13 +108,15 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; flagId?: number | string; action?: "unpublish" | "delete" | "flag" | "unflag" | "resolve_review_flag" | "group_scenario" | "group_ordered" | "ungroup_scenario" | "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag" | "bulk_delete"; structure?: "standalone" | "scenario" | "group"; scenario?: string; comment?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string; publish?: boolean; preserveStatus?: boolean };
+  const body = await request.json() as { questionId?: number | string; questionIds?: number[]; flagId?: number | string; action?: "unpublish" | "delete" | "flag" | "unflag" | "resolve_review_flag" | "group_scenario" | "group_ordered" | "ungroup_scenario" | "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag" | "bulk_delete"; structure?: "standalone" | "scenario" | "group"; scenario?: string; comment?: string; stem?: string; options?: { key: string; text: string }[]; answerKey?: string; explanation?: string; citations?: string[]; course?: string; topic?: string; publish?: boolean; preserveStatus?: boolean; resolveReviewFlags?: boolean };
   if (["bulk_publish", "bulk_unpublish", "bulk_flag", "bulk_unflag", "bulk_delete"].includes(body.action ?? "")) {
     const questionIds = [...new Set((body.questionIds ?? []).map(Number).filter(Number.isSafeInteger))].slice(0, 250);
     if (!questionIds.length) return NextResponse.json({ error: "Select at least one question." }, { status: 400 });
     if (body.action === "bulk_publish") {
       const updated = await getSql()`UPDATE questions SET verification_status='staff_corrected',updated_at=now() WHERE id=ANY(${questionIds}) AND question_type='mcq' AND material_supported_key IS NOT NULL AND NULLIF(trim(explanation),'') IS NOT NULL AND course=ANY(${COURSE_IDS}) AND NULLIF(trim(topic),'') IS NOT NULL RETURNING id` as { id: number }[];
-      return NextResponse.json({ ok: true, updated: updated.length, skipped: questionIds.length - updated.length });
+      const publishedIds = updated.map((question) => question.id);
+      const resolved = publishedIds.length ? await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=ANY(${publishedIds}) AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[] : [];
+      return NextResponse.json({ ok: true, updated: updated.length, skipped: questionIds.length - updated.length, resolvedReviewFlags: resolved.length });
     }
     if (body.action === "bulk_unpublish") {
       const updated = await getSql()`UPDATE questions SET verification_status='unreviewed',updated_at=now() WHERE id=ANY(${questionIds}) RETURNING id` as { id: number }[];
@@ -203,6 +205,11 @@ export async function PATCH(request: Request) {
   const publishStatus = body.preserveStatus ? (current[0]?.verification_status ?? "unreviewed") : body.publish === false ? "unreviewed" : "staff_corrected";
   if (citations) await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic || null},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey || null},verification_status=${publishStatus},explanation=${explanation || null},explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
   else await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic || null},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey || null},verification_status=${publishStatus},explanation=${explanation || null},updated_at=now() WHERE id=${questionId}`;
+  let resolvedReviewFlags = 0;
+  if (publishStatus === "staff_corrected" && body.resolveReviewFlags) {
+    const resolved = await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=${questionId} AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[];
+    resolvedReviewFlags = resolved.length;
+  }
   if (body.structure !== undefined) {
     const existing = await getSql()`SELECT context_group_id FROM questions WHERE id=${questionId} LIMIT 1` as { context_group_id: string | null }[];
     const groupId = existing[0]?.context_group_id;
@@ -226,5 +233,5 @@ export async function PATCH(request: Request) {
     else await getSql()`UPDATE questions SET context_group_id=${crypto.randomUUID()},shared_context=${scenarioText},context_position=1,updated_at=now() WHERE id=${questionId}`;
   }
   const saved = await getSql()`SELECT context_group_id,shared_context,context_position FROM questions WHERE id=${questionId} LIMIT 1` as { context_group_id: string | null; shared_context: string | null; context_position: number | null }[];
-  return NextResponse.json({ ok: true, question: saved[0] ?? null });
+  return NextResponse.json({ ok: true, question: saved[0] ?? null, resolvedReviewFlags });
 }

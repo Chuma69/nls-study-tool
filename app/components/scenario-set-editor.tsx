@@ -212,7 +212,9 @@ export function ScenarioSetEditor({ contextGroupId, onChanged, triggerClassName,
         : question.id === active.id && action === "unpublish"
           ? false
           : isCurrentlyLive;
-      const questionResponse = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, publish }) });
+      const explicitlyPublishing = question.id === active.id && action === "publish";
+      const preservingStatus = question.id !== active.id || action === "save";
+      const questionResponse = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ questionId: question.id, stem: question.stem, options: question.options, answerKey: question.material_supported_key, explanation: question.explanation, course: question.course, topic: question.topic, publish, preserveStatus: preservingStatus, resolveReviewFlags: explicitlyPublishing }) });
       const questionData = await questionResponse.json();
       if (!questionResponse.ok) { setSaving(false); setError(`Question ${question.id}: ${questionData.error ?? "Could not publish this question."}`); return; }
     }

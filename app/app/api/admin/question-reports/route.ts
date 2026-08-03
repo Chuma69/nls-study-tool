@@ -66,5 +66,6 @@ export async function PATCH(request: Request) {
   if (!body.topic || !isTopicForCourse(body.course, body.topic)) return NextResponse.json({ error: "Choose an official topic for the selected course." }, { status: 400 });
   await sql`UPDATE questions SET course=${body.course},topic=${body.topic},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status='staff_corrected',explanation=${explanation},updated_at=now() WHERE id=${report[0].question_id}`;
   await sql`UPDATE question_reports SET status='resolved',resolved_by=${auth.user.id},resolved_at=now(),resolution_note='Question updated by admin.' WHERE id=${reportId}`;
-  return NextResponse.json({ ok: true });
+  const resolvedFlags = await sql`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=${report[0].question_id} AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[];
+  return NextResponse.json({ ok: true, resolvedReviewFlags: resolvedFlags.length });
 }
