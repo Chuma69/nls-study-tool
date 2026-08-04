@@ -14,6 +14,8 @@ export async function GET() {
     LEFT JOIN source_documents s ON s.id=q.source_document_id
     WHERE q.question_type='mcq' AND q.material_supported_key IS NOT NULL
       AND q.verification_status IN ('material_supported','staff_corrected')
+      AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
+      AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')
       AND (cr.due_at IS NULL OR cr.due_at <= now())
     ORDER BY cr.due_at NULLS FIRST, random() LIMIT 1
   `;

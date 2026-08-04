@@ -39,6 +39,17 @@ export async function POST(request: Request) {
       AND question_type = 'mcq'
       AND material_supported_key IS NOT NULL
       AND verification_status IN ('material_supported', 'staff_corrected')
+      AND NOT EXISTS (
+        SELECT 1 FROM question_flags qf
+        WHERE qf.question_id = q.id
+          AND qf.kind = 'admin_review'
+          AND qf.resolved_at IS NULL
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM question_reports qr
+        WHERE qr.question_id = q.id
+          AND qr.status = 'open'
+      )
     LIMIT 1
   ` as AnswerRow[];
   const question = rows[0];

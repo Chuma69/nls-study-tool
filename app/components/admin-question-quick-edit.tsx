@@ -35,6 +35,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
   const [scenarioEditorGroupId, setScenarioEditorGroupId] = useState<string | null>(null);
   const [scenarioEditorQuestionId, setScenarioEditorQuestionId] = useState<number | undefined>();
   const [reviewFlags, setReviewFlags] = useState<ReviewFlag[]>([]);
+  const [learnerReviews, setLearnerReviews] = useState<LearnerReview[]>([]);
   const [notice, setNotice] = useState("");
   const [structure, setStructure] = useState<QuestionStructure>("standalone");
 
@@ -57,12 +58,13 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
   }, [open, question, saving, structure]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function beginEdit() {
-    setOpen(true); setError(""); setQuestion(null); setCandidateQuestions([]); setSelectedCandidateIds([]); setQuestionSearch("");
+    setOpen(true); setError(""); setQuestion(null); setReviewFlags([]); setLearnerReviews([]); setCandidateQuestions([]); setSelectedCandidateIds([]); setQuestionSearch("");
     const response = await fetch(`/api/admin/questions?questionId=${questionId}`); const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not load this question."); return; }
     setQuestion({ ...data.question, options: Array.isArray(data.question.options) ? data.question.options : [] });
     setStructure(questionStructure(data.question.context_group_id, data.question.shared_context));
     setReviewFlags(Array.isArray(data.reviewFlags) ? data.reviewFlags : []);
+    setLearnerReviews(Array.isArray(data.learnerReviews) ? data.learnerReviews.map((review: LearnerReview) => ({ ...review, status: "open" })) : []);
     if (data.question.context_group_id) {
       const linkedResponse = await fetch(`/api/admin/scenarios?${new URLSearchParams({ contextGroupId: data.question.context_group_id })}`);
       if (linkedResponse.ok) { const linkedData = await linkedResponse.json(); setLinkedQuestions(linkedData.linkedQuestions ?? []); }
@@ -118,13 +120,13 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
     setReviewFlags((current) => current.filter((flag) => flag.id !== flagId));
     onReviewResolved?.();
   }
-  async function resolveLearnerReview() {
-    if (!learnerReview) return;
+  async function resolveLearnerReview(review: LearnerReview) {
     setSaving(true); setError("");
-    const response = await fetch("/api/admin/question-reports", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ reportId: learnerReview.id, action: "dismiss" }) });
+    const response = await fetch("/api/admin/question-reports", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ reportId: review.id, action: "dismiss" }) });
     const data = await response.json(); setSaving(false);
     if (!response.ok) { setError(data.error ?? "Could not resolve this learner review."); return; }
-    onReviewResolved?.(); setOpen(false);
+    setLearnerReviews((current) => current.filter((item) => item.id !== review.id));
+    onReviewResolved?.();
   }
   async function findScenarios() {
     if (!question) return;
@@ -206,7 +208,8 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
       <button className="modal-close-button" type="button" aria-label="Close editor" onClick={() => setOpen(false)}>×</button>
       <p className="eyebrow">Admin edit · Question #{questionId}</p>
       {!question ? <p className={error ? "error" : "muted"}>{error || "Loading question…"}</p> : <>
-        {learnerReview && <section className="admin-review-items"><div className="scenario-picker-heading"><div><strong>Learner-submitted review</strong><p className="muted">{learnerReview.category.replaceAll("_", " ")} · {learnerReview.reporter} · {learnerReview.status ?? "open"}</p></div>{learnerReview.status !== "resolved" && <button className="outline-button" type="button" disabled={saving} onClick={() => { void resolveLearnerReview(); }}>Resolve</button>}</div>{learnerReview.details && <p>{learnerReview.details}</p>}</section>}
+        {learnerReview?.status === "resolved" && <section className="admin-review-items"><div className="scenario-picker-heading"><div><strong>Resolved learner review</strong><p className="muted">{learnerReview.category.replaceAll("_", " ")} · {learnerReview.reporter}</p></div></div>{learnerReview.details && <p>{learnerReview.details}</p>}</section>}
+        {learnerReviews.length > 0 && <section className="admin-review-items"><div className="scenario-picker-heading"><div><strong>Learner-submitted reviews</strong><p className="muted">Every unresolved report for this question appears here.</p></div><span className="eyebrow">{learnerReviews.length} open</span></div><div className="admin-review-item-list">{learnerReviews.map((review) => <article key={review.id}><div><p><strong>{review.category.replaceAll("_", " ")}</strong></p><p>{review.details?.trim() || "Submitted without an additional comment."}</p><span className="muted">{review.reporter} · {new Date(review.created_at).toLocaleString()}</span></div><button className="outline-button" type="button" disabled={saving} onClick={() => { void resolveLearnerReview(review); }}>Resolve</button></article>)}</div></section>}
         {reviewFlags.length > 0 && <section className="admin-review-items"><div className="scenario-picker-heading"><div><strong>Open review items</strong><p className="muted">Resolve each item after checking or correcting the question.</p></div><span className="eyebrow">{reviewFlags.length} open</span></div><div className="admin-review-item-list">{reviewFlags.map((flag) => <article key={flag.id}><div><p>{flag.note?.trim() || "Flagged for review without a comment."}</p><span className="muted">{flag.reviewer} · {new Date(flag.created_at).toLocaleString()}</span></div><button className="outline-button" type="button" disabled={saving} onClick={() => { void resolveReviewFlag(flag.id); }}>Resolve</button></article>)}</div></section>}
         <label>Question type</label><select value={structure} onChange={(event) => { const next = event.target.value as QuestionStructure; setStructure(next); setCandidateQuestions([]); setSelectedCandidateIds([]); setQuestionSearch(""); if (next !== "scenario") update({ shared_context: null }); }}><option value="standalone">Standalone</option><option value="scenario">Scenario</option><option value="group">Group</option></select>
         <label>Question wording</label><textarea value={question.stem} onChange={(event) => update({ stem: event.target.value })} />

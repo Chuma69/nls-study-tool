@@ -46,6 +46,8 @@ export async function POST(request: Request) {
     const available = await sql`
       SELECT id,context_group_id,context_position FROM questions WHERE question_type='mcq' AND course=ANY(${courses})
         AND material_supported_key IS NOT NULL AND verification_status IN ('material_supported','staff_corrected')
+        AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=questions.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
+        AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=questions.id AND qr.status='open')
         AND (cardinality(${topics}::text[]) = 0 OR topic = ANY(${topics}))
     ` as { id: number; context_group_id: string | null; context_position: number | null }[];
     const units = new Map<string, typeof available>();

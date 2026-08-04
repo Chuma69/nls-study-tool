@@ -62,6 +62,8 @@ export async function GET(request: Request) {
     WHERE q.id = ${requestedQuestionId} AND q.question_type = 'mcq'
       AND q.material_supported_key IS NOT NULL
       AND q.verification_status IN ('material_supported', 'staff_corrected')
+      AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
+      AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')
       AND (${selectedCourse} = '' OR q.course = ${selectedCourse})
       AND (cardinality(${selectedTopics}::text[]) = 0 OR q.topic = ANY(${selectedTopics}))
     LIMIT 1
@@ -76,6 +78,8 @@ export async function GET(request: Request) {
     WHERE q.question_type = 'mcq'
       AND q.material_supported_key IS NOT NULL
       AND q.verification_status IN ('material_supported', 'staff_corrected')
+      AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
+      AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')
       AND (${selectedCourse} = '' OR q.course = ${selectedCourse})
       AND (cardinality(${selectedTopics}::text[]) = 0 OR q.topic = ANY(${selectedTopics}))
       AND (${excludedQuestionId} = 0 OR q.id <> ${excludedQuestionId})
@@ -95,6 +99,8 @@ export async function GET(request: Request) {
       FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id
       WHERE q.context_group_id=${rows[0].context_group_id} AND q.question_type='mcq'
         AND q.material_supported_key IS NOT NULL AND q.verification_status IN ('material_supported','staff_corrected')
+        AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
+        AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')
       ORDER BY q.context_position,q.id
     ` as QuestionRow[];
     // A direct question URL must reopen that exact subquestion, not jump back
@@ -114,6 +120,8 @@ export async function GET(request: Request) {
     WHERE q.question_type = 'mcq'
       AND q.material_supported_key IS NOT NULL
       AND q.verification_status IN ('material_supported', 'staff_corrected')
+      AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
+      AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')
       AND (${selectedCourse} = '' OR q.course = ${selectedCourse})
       AND (cardinality(${selectedTopics}::text[]) = 0 OR q.topic = ANY(${selectedTopics}))
   ` as CountRow[];

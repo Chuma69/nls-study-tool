@@ -57,6 +57,8 @@ export async function GET() {
       AND NULLIF(q.topic, '') IS NOT NULL
       AND q.material_supported_key IS NOT NULL
       AND q.verification_status IN ('material_supported', 'staff_corrected')
+      AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
+      AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')
     GROUP BY q.course
   ` as CourseRow[];
   const lookup = new Map(rawCourses.map((row) => [row.course, row]));
@@ -87,6 +89,8 @@ export async function GET() {
       AND NULLIF(q.topic,'') IS NOT NULL
       AND q.material_supported_key IS NOT NULL
       AND q.verification_status IN ('material_supported','staff_corrected')
+      AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
+      AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')
     GROUP BY q.course,q.topic ORDER BY q.course,q.topic
   ` as TopicRow[];
   const topicLookup = new Map(rawTopics.map((topic) => [`${topic.course}:${topic.topic}`, topic]));

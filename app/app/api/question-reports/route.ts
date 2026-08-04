@@ -11,5 +11,6 @@ export async function POST(request: Request) {
   if (!Number.isSafeInteger(questionId) || !["typo", "answer", "missing_case_study", "other"].includes(body.category ?? "")) return NextResponse.json({ error: "Choose the problem you found." }, { status: 400 });
   const details = (body.details ?? "").trim().slice(0, 2000);
   await getSql()`INSERT INTO question_reports(question_id,user_id,category,details) VALUES(${questionId},${user.id},${body.category},${details || null})`;
+  await getSql()`UPDATE questions SET verification_status='unreviewed',updated_at=now() WHERE id=${questionId}`;
   return NextResponse.json({ ok: true });
 }

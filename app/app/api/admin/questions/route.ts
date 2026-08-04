@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 }
 export async function GET(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const url = new URL(request.url); const requestedQuestionId = Number(url.searchParams.get("questionId")); const search = (url.searchParams.get("search") ?? "").trim().slice(0, 200); const course = url.searchParams.get("course") ?? ""; const topic = url.searchParams.get("topic") ?? ""; const status = url.searchParams.get("status") ?? ""; const review = url.searchParams.get("review") ?? ""; const scenario = url.searchParams.get("scenario") ?? ""; const page = Math.max(1, Number(url.searchParams.get("page")) || 1); const requestedLimit = Number(url.searchParams.get("limit")) || 25; const limit = [10,25,50,100].includes(requestedLimit) ? requestedLimit : 25; const offset = (page - 1) * limit;
+  const url = new URL(request.url); const requestedQuestionId = Number(url.searchParams.get("questionId")); const search = (url.searchParams.get("search") ?? "").trim().slice(0, 200); const course = url.searchParams.get("course") ?? ""; const topic = url.searchParams.get("topic") ?? ""; const status = url.searchParams.get("status") ?? ""; const scenario = url.searchParams.get("scenario") ?? ""; const page = Math.max(1, Number(url.searchParams.get("page")) || 1); const requestedLimit = Number(url.searchParams.get("limit")) || 25; const limit = [10,25,50,100].includes(requestedLimit) ? requestedLimit : 25; const offset = (page - 1) * limit;
   if (Number.isSafeInteger(requestedQuestionId) && requestedQuestionId > 0) {
     const rows = await getSql()`SELECT q.id,COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'),'') AS course,q.topic,q.stem,q.options,q.material_supported_key,q.explanation,q.verification_status,q.shared_context,q.context_group_id,q.context_position FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id WHERE q.id=${requestedQuestionId} AND q.question_type='mcq' LIMIT 1`;
     if (!rows.length) return NextResponse.json({ error: "Question not found." }, { status: 404 });
@@ -47,13 +47,20 @@ export async function GET(request: Request) {
         AND qf.resolved_at IS NULL
       ORDER BY qf.created_at DESC,qf.id DESC
     `;
-    return NextResponse.json({ question: rows[0], reviewFlags });
+    const learnerReviews = await getSql()`
+      SELECT r.id,r.category,r.details,r.created_at,
+             COALESCE(NULLIF(u.username,''),NULLIF(u.email,''),'Learner') AS reporter
+      FROM question_reports r
+      LEFT JOIN users u ON u.id=r.user_id
+      WHERE r.question_id=${requestedQuestionId} AND r.status='open'
+      ORDER BY r.created_at DESC,r.id DESC
+    `;
+    return NextResponse.json({ question: rows[0], reviewFlags, learnerReviews });
   }
   if (course && course !== "none" && !isCourse(course)) return NextResponse.json({ error: "Unknown course." }, { status: 400 });
   if (topic && topic !== "none" && !COURSE_IDS.some((id) => isTopicForCourse(id, topic))) return NextResponse.json({ error: "Unknown topic." }, { status: 400 });
   if (topic && topic !== "none" && course && course !== "none" && !isTopicForCourse(course, topic)) return NextResponse.json({ error: "That topic is not part of the selected course." }, { status: 400 });
-  if (status && !["live", "not_live"].includes(status)) return NextResponse.json({ error: "Unknown live status." }, { status: 400 });
-  if (review && !["flagged", "not_flagged"].includes(review)) return NextResponse.json({ error: "Unknown review flag." }, { status: 400 });
+  if (status && !["live", "not_live", "flagged"].includes(status)) return NextResponse.json({ error: "Unknown question status." }, { status: 400 });
   if (scenario && !["grouped", "scenario", "group", "standalone"].includes(scenario)) return NextResponse.json({ error: "Unknown question structure." }, { status: 400 });
   const sql = getSql(); const pattern = `%${search}%`;
   if (["grouped", "scenario", "group"].includes(scenario)) {
@@ -64,9 +71,8 @@ export async function GET(request: Request) {
         AND (${scenario}='grouped' OR (${scenario}='scenario' AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NOT NULL) OR (${scenario}='group' AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NULL))
         AND (${course}='' OR (${course}='none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general')) IS NULL) OR (${course}<>'none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'))=${course}))
         AND (${search}='' OR q.stem ILIKE ${pattern} OR q.shared_context ILIKE ${pattern})
-        AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')))
+        AND (${status}='' OR (${status}='flagged' AND (EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) OR EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open'))) OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected') AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AND NOT EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected') AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AND NOT EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')))
         AND (${topic}='' OR (${topic}='none' AND NULLIF(q.topic,'') IS NULL) OR (${topic}<>'none' AND q.topic=${topic}))
-        AND (${review}='' OR (${review}='flagged' AND EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)) OR (${review}='not_flagged' AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)))
     ` as { total: number }[];
     const total = groupCounts[0]?.total ?? 0;
     const questions = await sql`
@@ -77,14 +83,13 @@ export async function GET(request: Request) {
           AND (${scenario}='grouped' OR (${scenario}='scenario' AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NOT NULL) OR (${scenario}='group' AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NULL))
           AND (${course}='' OR (${course}='none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general')) IS NULL) OR (${course}<>'none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'))=${course}))
           AND (${search}='' OR q.stem ILIKE ${pattern} OR q.shared_context ILIKE ${pattern})
-          AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')))
+          AND (${status}='' OR (${status}='flagged' AND (EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) OR EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open'))) OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected') AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AND NOT EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected') AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AND NOT EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')))
           AND (${topic}='' OR (${topic}='none' AND NULLIF(q.topic,'') IS NULL) OR (${topic}<>'none' AND q.topic=${topic}))
-          AND (${review}='' OR (${review}='flagged' AND EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)) OR (${review}='not_flagged' AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)))
         GROUP BY q.context_group_id ORDER BY newest_id DESC LIMIT ${limit} OFFSET ${offset}
       )
       SELECT q.id,COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'),'') AS course,q.topic,q.stem,q.options,q.material_supported_key,q.explanation,q.explanation_citations,q.verification_status,q.shared_context,q.context_group_id,q.context_position,s.display_name,
-             EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AS admin_flagged,
-             (SELECT qf.note FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL ORDER BY qf.created_at DESC LIMIT 1) AS admin_flag_note
+             (EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) OR EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')) AS admin_flagged,
+             (SELECT qf.note FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL ORDER BY qf.created_at DESC LIMIT 1) AS admin_flag_note
       FROM matching_groups mg JOIN questions q ON q.context_group_id=mg.context_group_id LEFT JOIN source_documents s ON s.id=q.source_document_id
       ORDER BY mg.newest_id DESC,q.context_position,q.id
     `;
@@ -92,17 +97,16 @@ export async function GET(request: Request) {
   }
   const questions = await sql`
     SELECT q.id,COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'),'') AS course,q.topic,q.stem,q.options,q.material_supported_key,q.explanation,q.explanation_citations,q.verification_status,q.shared_context,q.context_group_id,q.context_position,s.display_name,
-           EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AS admin_flagged,
-           (SELECT qf.note FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL ORDER BY qf.created_at DESC LIMIT 1) AS admin_flag_note
+           (EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) OR EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')) AS admin_flagged,
+           (SELECT qf.note FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL ORDER BY qf.created_at DESC LIMIT 1) AS admin_flag_note
     FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id
     WHERE q.question_type='mcq' AND (${course}='' OR (${course}='none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general')) IS NULL) OR (${course}<>'none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'))=${course})) AND (${search}='' OR q.stem ILIKE ${pattern})
-      AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected')))
+      AND (${status}='' OR (${status}='flagged' AND (EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) OR EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open'))) OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected') AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AND NOT EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected') AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AND NOT EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')))
       AND (${topic}='' OR (${topic}='none' AND NULLIF(q.topic,'') IS NULL) OR (${topic}<>'none' AND q.topic=${topic}))
       AND (${scenario}='' OR (${scenario}='grouped' AND q.context_group_id IS NOT NULL) OR (${scenario}='scenario' AND q.context_group_id IS NOT NULL AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NOT NULL) OR (${scenario}='group' AND q.context_group_id IS NOT NULL AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NULL) OR (${scenario}='standalone' AND q.context_group_id IS NULL))
-      AND (${review}='' OR (${review}='flagged' AND EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)) OR (${review}='not_flagged' AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)))
     ORDER BY CASE WHEN q.context_group_id IS NULL THEN 1 ELSE 0 END, q.context_group_id, q.context_position, q.id DESC LIMIT ${limit} OFFSET ${offset}
   `;
-  const counts = await sql`SELECT count(*)::int AS total FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id WHERE q.question_type='mcq' AND (${course}='' OR (${course}='none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general')) IS NULL) OR (${course}<>'none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'))=${course})) AND (${search}='' OR q.stem ILIKE ${pattern}) AND (${status}='' OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected'))) AND (${topic}='' OR (${topic}='none' AND NULLIF(q.topic,'') IS NULL) OR (${topic}<>'none' AND q.topic=${topic})) AND (${scenario}='' OR (${scenario}='grouped' AND q.context_group_id IS NOT NULL) OR (${scenario}='scenario' AND q.context_group_id IS NOT NULL AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NOT NULL) OR (${scenario}='group' AND q.context_group_id IS NOT NULL AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NULL) OR (${scenario}='standalone' AND q.context_group_id IS NULL)) AND (${review}='' OR (${review}='flagged' AND EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)) OR (${review}='not_flagged' AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.user_id=${auth.user.id} AND qf.kind='admin_review' AND qf.resolved_at IS NULL)))` as { total: number }[];
+  const counts = await sql`SELECT count(*)::int AS total FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id WHERE q.question_type='mcq' AND (${course}='' OR (${course}='none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general')) IS NULL) OR (${course}<>'none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'))=${course})) AND (${search}='' OR q.stem ILIKE ${pattern}) AND (${status}='' OR (${status}='flagged' AND (EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) OR EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open'))) OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected') AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AND NOT EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected') AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AND NOT EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open'))) AND (${topic}='' OR (${topic}='none' AND NULLIF(q.topic,'') IS NULL) OR (${topic}<>'none' AND q.topic=${topic})) AND (${scenario}='' OR (${scenario}='grouped' AND q.context_group_id IS NOT NULL) OR (${scenario}='scenario' AND q.context_group_id IS NOT NULL AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NOT NULL) OR (${scenario}='group' AND q.context_group_id IS NOT NULL AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NULL) OR (${scenario}='standalone' AND q.context_group_id IS NULL))` as { total: number }[];
   return NextResponse.json({ questions, page, total: counts[0]?.total ?? 0, hasMore: offset + questions.length < (counts[0]?.total ?? 0) });
 }
 
@@ -116,7 +120,8 @@ export async function PATCH(request: Request) {
       const updated = await getSql()`UPDATE questions SET verification_status='staff_corrected',updated_at=now() WHERE id=ANY(${questionIds}) AND question_type='mcq' AND material_supported_key IS NOT NULL AND NULLIF(trim(explanation),'') IS NOT NULL AND course=ANY(${COURSE_IDS}) AND NULLIF(trim(topic),'') IS NOT NULL RETURNING id` as { id: number }[];
       const publishedIds = updated.map((question) => question.id);
       const resolved = publishedIds.length ? await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=ANY(${publishedIds}) AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[] : [];
-      return NextResponse.json({ ok: true, updated: updated.length, skipped: questionIds.length - updated.length, resolvedReviewFlags: resolved.length });
+      const resolvedReports = publishedIds.length ? await getSql()`UPDATE question_reports SET status='resolved',resolved_by=${auth.user.id},resolved_at=now(),resolution_note='Question reviewed and published by admin.' WHERE question_id=ANY(${publishedIds}) AND status='open' RETURNING id` as { id: number }[] : [];
+      return NextResponse.json({ ok: true, updated: updated.length, skipped: questionIds.length - updated.length, resolvedReviewFlags: resolved.length + resolvedReports.length });
     }
     if (body.action === "bulk_unpublish") {
       const updated = await getSql()`UPDATE questions SET verification_status='unreviewed',updated_at=now() WHERE id=ANY(${questionIds}) RETURNING id` as { id: number }[];
@@ -124,13 +129,14 @@ export async function PATCH(request: Request) {
     }
     if (body.action === "bulk_flag") {
       await getSql()`INSERT INTO question_flags(question_id,user_id,kind) SELECT selected.selected_id,${auth.user.id},'admin_review' FROM unnest(${questionIds}::bigint[]) AS selected(selected_id) ON CONFLICT (user_id,question_id,kind) WHERE resolved_at IS NULL DO NOTHING`;
+      await getSql()`UPDATE questions SET verification_status='unreviewed',updated_at=now() WHERE id=ANY(${questionIds})`;
       return NextResponse.json({ ok: true, updated: questionIds.length, skipped: 0 });
     }
     if (body.action === "bulk_delete") {
       const deleted = await getSql()`DELETE FROM questions WHERE id=ANY(${questionIds}) RETURNING id` as { id: number }[];
       return NextResponse.json({ ok: true, updated: deleted.length, skipped: questionIds.length - deleted.length });
     }
-    const updated = await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=ANY(${questionIds}) AND user_id=${auth.user.id} AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[];
+    const updated = await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=ANY(${questionIds}) AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[];
     return NextResponse.json({ ok: true, updated: updated.length, skipped: questionIds.length - updated.length });
   }
   if (body.action === "group_scenario") {
@@ -176,10 +182,11 @@ export async function PATCH(request: Request) {
   }
   if (body.action === "flag") {
     await getSql()`INSERT INTO question_flags(question_id,user_id,kind) VALUES(${questionId},${auth.user.id},'admin_review') ON CONFLICT (user_id,question_id,kind) WHERE resolved_at IS NULL DO NOTHING`;
+    await getSql()`UPDATE questions SET verification_status='unreviewed',updated_at=now() WHERE id=${questionId}`;
     return NextResponse.json({ ok: true, flagged: true });
   }
   if (body.action === "unflag") {
-    await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=${questionId} AND user_id=${auth.user.id} AND kind='admin_review' AND resolved_at IS NULL`;
+    await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=${questionId} AND kind='admin_review' AND resolved_at IS NULL`;
     return NextResponse.json({ ok: true, flagged: false });
   }
   if (body.action === "unpublish") {
@@ -206,9 +213,10 @@ export async function PATCH(request: Request) {
   if (citations) await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic || null},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey || null},verification_status=${publishStatus},explanation=${explanation || null},explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
   else await getSql()`UPDATE questions SET course=${body.course},topic=${body.topic || null},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey || null},verification_status=${publishStatus},explanation=${explanation || null},updated_at=now() WHERE id=${questionId}`;
   let resolvedReviewFlags = 0;
-  if (publishStatus === "staff_corrected" && body.resolveReviewFlags) {
+  if (publishStatus === "staff_corrected") {
     const resolved = await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=${questionId} AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[];
-    resolvedReviewFlags = resolved.length;
+    const resolvedLearnerReports = await getSql()`UPDATE question_reports SET status='resolved',resolved_by=${auth.user.id},resolved_at=now(),resolution_note='Question reviewed and published by admin.' WHERE question_id=${questionId} AND status='open' RETURNING id` as { id: number }[];
+    resolvedReviewFlags = resolved.length + resolvedLearnerReports.length;
   }
   if (body.structure !== undefined) {
     const existing = await getSql()`SELECT context_group_id FROM questions WHERE id=${questionId} LIMIT 1` as { context_group_id: string | null }[];
