@@ -344,8 +344,8 @@ form .primary-button { margin-top: 14px; }
 .admin-quick-edit-button.labeled { height: auto; padding: 8px 12px; width: auto; }
 .admin-quick-edit-button.labeled span { white-space: nowrap; }
 .scenario-set-launch { display: flex; justify-content: flex-end; margin: 10px 0 20px; }
-.scenario-set-backdrop { z-index: 1100; }
-.scenario-set-editor { left: 50%; max-height: calc(100vh - 32px); overflow: auto; position: fixed; top: 50%; transform: translate(-50%, -50%); width: min(1180px, calc(100vw - 32px)); z-index: 1101; }
+.scenario-set-backdrop { z-index: 1500; }
+.scenario-set-editor { left: 50%; max-height: calc(100vh - 32px); overflow: auto; position: fixed; top: 50%; transform: translate(-50%, -50%); width: min(1180px, calc(100vw - 32px)); z-index: 1501; }
 .scenario-set-details { display: grid; gap: 8px; }
 .scenario-set-details select { width: min(420px, 100%); }
 .scenario-set-context { min-height: 150px; }

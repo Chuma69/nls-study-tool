@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { COURSE_NAMES, COURSE_TOPICS } from "@/lib/course-topics";
 import { QuestionCreator } from "@/components/question-creator";
 import { ModularOptionEditor } from "@/components/modular-option-editor";
+import { SourceMaterialSearch } from "@/components/source-material-search";
 import type { QuestionStructure } from "@/lib/question-structure";
 
 type Option = { key: string; text: string };
@@ -294,6 +295,7 @@ export function ScenarioSetEditor({ contextGroupId, onChanged, triggerClassName,
           {active && <div className="scenario-set-question-editor">
             <p className="eyebrow">Question {questions.findIndex((question) => question.id === active.id) + 1} · {active.verification_status === "material_supported" || active.verification_status === "staff_corrected" ? "Live" : "Not live"}</p>
             <label>Question wording</label><textarea value={active.stem} onChange={(event) => updateActive({ stem: event.target.value })} />
+            <SourceMaterialSearch questionId={active.id} initialQuery={active.stem} />
             <div className="admin-edit-grid"><div><label>Course</label><input value={COURSE_NAMES[active.course as keyof typeof COURSE_NAMES] ?? active.course} disabled /></div><div><label>Topic</label><select value={active.topic ?? ""} onChange={(event) => updateActive({ topic: event.target.value })}><option value="">No topic (offline only)</option>{topics.map((topic) => <option key={topic}>{topic}</option>)}</select></div></div>
             <ModularOptionEditor options={active.options} onChange={(options) => updateActive({ options })} answerKey={active.material_supported_key} onAnswerKeyChange={(material_supported_key) => updateActive({ material_supported_key })} />
             <label>Correct answer</label><select value={active.material_supported_key ?? ""} onChange={(event) => updateActive({ material_supported_key: event.target.value })}><option value="">No correct answer (offline only)</option>{active.options.map((option) => <option key={option.key} value={option.key}>{option.key} — {option.text}</option>)}</select>
