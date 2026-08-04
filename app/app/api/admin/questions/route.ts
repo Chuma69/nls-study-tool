@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 }
 export async function GET(request: Request) {
   const auth = await requireRole("admin"); if (auth.response) return auth.response;
-  const url = new URL(request.url); const requestedQuestionId = Number(url.searchParams.get("questionId")); const search = (url.searchParams.get("search") ?? "").trim().slice(0, 200); const course = url.searchParams.get("course") ?? ""; const topic = url.searchParams.get("topic") ?? ""; const status = url.searchParams.get("status") ?? ""; const scenario = url.searchParams.get("scenario") ?? ""; const allowlist = url.searchParams.get("allowlist") ?? ""; const view = url.searchParams.get("view") ?? "list"; const page = Math.max(1, Number(url.searchParams.get("page")) || 1); const requestedLimit = Number(url.searchParams.get("limit")) || 25; const limit = view === "review" ? 1 : ([10,25,50,100].includes(requestedLimit) ? requestedLimit : 25); const offset = (page - 1) * limit;
+  const url = new URL(request.url); const requestedQuestionId = Number(url.searchParams.get("questionId")); const snapshot = url.searchParams.get("snapshot") === "1"; const search = (url.searchParams.get("search") ?? "").trim().slice(0, 200); const course = url.searchParams.get("course") ?? ""; const topic = url.searchParams.get("topic") ?? ""; const status = url.searchParams.get("status") ?? ""; const scenario = url.searchParams.get("scenario") ?? ""; const allowlist = url.searchParams.get("allowlist") ?? ""; const view = url.searchParams.get("view") ?? "list"; const page = Math.max(1, Number(url.searchParams.get("page")) || 1); const requestedLimit = Number(url.searchParams.get("limit")) || 25; const limit = view === "review" ? 1 : ([10,25,50,100].includes(requestedLimit) ? requestedLimit : 25); const offset = (page - 1) * limit;
   if (Number.isSafeInteger(requestedQuestionId) && requestedQuestionId > 0) {
     const rows = await getSql()`SELECT q.id,COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'),'') AS course,q.topic,q.stem,q.options,q.material_supported_key,q.explanation,q.verification_status,q.shared_context,q.context_group_id,q.context_position,q.allowlisted_at,q.allowlisted_by,(q.allowlisted_at IS NOT NULL) AS allowlisted FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id WHERE q.id=${requestedQuestionId} AND q.question_type='mcq' LIMIT 1`;
     if (!rows.length) return NextResponse.json({ error: "Question not found." }, { status: 404 });
@@ -65,6 +65,21 @@ export async function GET(request: Request) {
   if (allowlist && !["allowlisted", "not_allowlisted"].includes(allowlist)) return NextResponse.json({ error: "Unknown allowlist status." }, { status: 400 });
   if (!['list', 'review'].includes(view)) return NextResponse.json({ error: "Unknown question-bank view." }, { status: 400 });
   const sql = getSql(); const pattern = `%${search}%`;
+  if (snapshot) {
+    const rows = await sql`
+      SELECT q.id
+      FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id
+      WHERE q.question_type='mcq'
+        AND (${course}='' OR (${course}='none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general')) IS NULL) OR (${course}<>'none' AND COALESCE(NULLIF(q.course,'general'),NULLIF(s.course,'general'))=${course}))
+        AND (${search}='' OR q.stem ILIKE ${pattern} OR q.shared_context ILIKE ${pattern})
+        AND (${status}='' OR (${status}='flagged' AND (EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) OR EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open'))) OR (${status}='live' AND q.verification_status IN ('material_supported','staff_corrected') AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AND NOT EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')) OR (${status}='not_live' AND q.verification_status NOT IN ('material_supported','staff_corrected') AND NOT EXISTS(SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL) AND NOT EXISTS(SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')))
+        AND (${topic}='' OR (${topic}='none' AND NULLIF(q.topic,'') IS NULL) OR (${topic}<>'none' AND q.topic=${topic}))
+        AND (${scenario}='' OR (${scenario}='grouped' AND q.context_group_id IS NOT NULL) OR (${scenario}='scenario' AND q.context_group_id IS NOT NULL AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NOT NULL) OR (${scenario}='group' AND q.context_group_id IS NOT NULL AND NULLIF(trim(COALESCE(q.shared_context,'')),'') IS NULL) OR (${scenario}='standalone' AND q.context_group_id IS NULL))
+        AND (${allowlist}='' OR (${allowlist}='allowlisted' AND q.allowlisted_at IS NOT NULL) OR (${allowlist}='not_allowlisted' AND q.allowlisted_at IS NULL))
+      ORDER BY CASE WHEN q.context_group_id IS NULL THEN 1 ELSE 0 END,q.context_group_id,q.context_position,q.id DESC
+    ` as { id: number }[];
+    return NextResponse.json({ questionIds: rows.map((row) => row.id), total: rows.length });
+  }
   if (view !== "review" && ["grouped", "scenario", "group"].includes(scenario)) {
     const groupCounts = await sql`
       SELECT count(DISTINCT q.context_group_id)::int AS total

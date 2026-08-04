@@ -10,6 +10,8 @@ import { QuestionCreator } from "@/components/question-creator";
 import { ScenarioSetEditor } from "@/components/scenario-set-editor";
 import { AdminQuestionQuickEdit } from "@/components/admin-question-quick-edit";
 
+const REVIEW_QUEUE_STORAGE_KEY = "admin-question-review-queue";
+
 type Item = {
   id: string;
   stem: string;
@@ -171,6 +173,7 @@ export default function AdminPage() {
   const [bankFiltersReady, setBankFiltersReady] = useState(false);
   const [bankTotal, setBankTotal] = useState(0);
   const [bankMore, setBankMore] = useState(false);
+  const [reviewQueueIds, setReviewQueueIds] = useState<number[]>([]);
   const [msg, setMsg] = useState("");
   const bankPageCount = Math.max(1, Math.ceil(bankTotal / (bankView === "review" ? 1 : bankPageSize)));
   const bankQuestionGroups = Array.from(
@@ -333,6 +336,57 @@ export default function AdminPage() {
       setMsg("The question bank could not load. Please try again.");
     }
   }
+  async function loadReviewQuestion(position: number, queue = reviewQueueIds) {
+    const questionId = queue[position - 1];
+    if (!questionId) {
+      setBankQuestions([]);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/admin/questions?questionId=${questionId}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not load question.");
+      setBankQuestions([data.question]);
+      setBankPage(position);
+      setBankTotal(queue.length);
+      setBankMore(position < queue.length);
+      sessionStorage.setItem(REVIEW_QUEUE_STORAGE_KEY, JSON.stringify({ questionIds: queue, position }));
+    } catch {
+      setMsg("That review question could not load. Please try again.");
+    }
+  }
+  async function enterReviewMode(filters: BankFilters) {
+    try {
+      const params = new URLSearchParams({ snapshot: "1", view: "review" });
+      if (filters.search.trim()) params.set("search", filters.search.trim());
+      if (filters.course) params.set("course", filters.course);
+      if (filters.topic) params.set("topic", filters.topic);
+      if (filters.status) params.set("status", filters.status);
+      if (filters.scenario) params.set("scenario", filters.scenario);
+      if (filters.allowlist) params.set("allowlist", filters.allowlist);
+      const response = await fetch(`/api/admin/questions?${params}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not start review mode.");
+      const queue = (data.questionIds ?? []) as number[];
+      setReviewQueueIds(queue);
+      sessionStorage.setItem(REVIEW_QUEUE_STORAGE_KEY, JSON.stringify({ questionIds: queue, position: 1 }));
+      setBankView("review");
+      setBankTotal(queue.length);
+      const urlParams = new URLSearchParams(params);
+      urlParams.delete("snapshot");
+      router.replace(`/admin/questions?${urlParams}`);
+      await loadReviewQuestion(1, queue);
+    } catch {
+      setMsg("Review mode could not start. Please try again.");
+    }
+  }
+  function exitReviewMode() {
+    setReviewQueueIds([]);
+    sessionStorage.removeItem(REVIEW_QUEUE_STORAGE_KEY);
+    const filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize: bankPageSize, view: "list" };
+    setBankView("list");
+    applyBankFilters(1, filters);
+  }
   function applyBankFilters(page = 1, filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize: bankPageSize, view: bankView }) {
     const params = new URLSearchParams();
     if (filters.search.trim()) params.set("search", filters.search.trim());
@@ -361,8 +415,26 @@ export default function AdminPage() {
     setBankFiltersReady(true);
   }, []);
   useEffect(() => {
-    if (tab === "questions" && bankFiltersReady) void loadBank();
-  }, [tab, bankFiltersReady]);
+    if (tab !== "questions" || !bankFiltersReady) return;
+    if (bankView !== "review") {
+      void loadBank();
+      return;
+    }
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(REVIEW_QUEUE_STORAGE_KEY) ?? "null") as { questionIds?: number[]; position?: number } | null;
+      const queue = stored?.questionIds?.filter((id) => Number.isSafeInteger(id) && id > 0) ?? [];
+      if (queue.length) {
+        const position = Math.min(Math.max(1, stored?.position ?? 1), queue.length);
+        setReviewQueueIds(queue);
+        void loadReviewQuestion(position, queue);
+        return;
+      }
+    } catch {
+      sessionStorage.removeItem(REVIEW_QUEUE_STORAGE_KEY);
+    }
+    const filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize: bankPageSize, view: "review" };
+    void enterReviewMode(filters);
+  }, [tab, bankFiltersReady, bankView]);
   useEffect(() => {
     if (tab !== "questions" || !bankFiltersReady || attemptedAllowlistSyncStarted.current) return;
     attemptedAllowlistSyncStarted.current = true;
@@ -642,7 +714,7 @@ export default function AdminPage() {
               <main className="admin-review-experience">
                 <header className="admin-review-header">
                   <div><p className="eyebrow">Admin review mode</p><h2>Question {bankPage} of {bankTotal}</h2><p className="muted">{bankCourse ? courseLabel(bankCourse) : "All courses"}{bankTopic ? ` · ${bankTopic}` : ""}</p></div>
-                  <button className="outline-button" type="button" onClick={() => { const filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize: bankPageSize, view: "list" }; setBankView("list"); applyBankFilters(1, filters); }}>Exit review mode</button>
+                  <button className="outline-button" type="button" onClick={exitReviewMode}>Exit review mode</button>
                 </header>
                 {bankQuestions[0] ? (() => { const question = bankQuestions[0]; return (
                   <article className="admin-review-question-card">
@@ -653,21 +725,21 @@ export default function AdminPage() {
                       <div className="admin-review-options">{(question.options ?? []).map((option) => <div className={option.key === question.material_supported_key ? "correct-option" : ""} key={option.key}><strong>{option.key.toUpperCase()}</strong><span>{option.text}</span></div>)}</div>
                       {question.explanation && <section className="admin-review-explanation"><p className="eyebrow">Explanation</p><p>{question.explanation}</p></section>}
                       <div className="button-row">
-                        <AdminQuestionQuickEdit questionId={question.id} forceAdmin onSaved={() => void loadBank(bankPage)} triggerChildren="Edit question" />
-                        {question.context_group_id && <ScenarioSetEditor contextGroupId={question.context_group_id} onChanged={() => void loadBank(bankPage)} triggerClassName="outline-button" triggerChildren="Edit scenario set" />}
+                        <AdminQuestionQuickEdit questionId={question.id} forceAdmin onSaved={() => void loadReviewQuestion(bankPage)} triggerChildren="Edit question" />
+                        {question.context_group_id && <ScenarioSetEditor contextGroupId={question.context_group_id} onChanged={() => void loadReviewQuestion(bankPage)} triggerClassName="outline-button" triggerChildren="Edit scenario set" />}
                         <button className={question.allowlisted ? "outline-button" : "primary-button"} type="button" onClick={() => void toggleQuestionAllowlist(question)}>{question.allowlisted ? "Remove allowlist" : "Allowlist question"}</button>
                       </div>
                     </div>
                   </article>
                 ); })() : <p>No questions match these filters.</p>}
-                <footer className="admin-review-navigation"><button className="secondary" type="button" disabled={bankPage <= 1} onClick={() => applyBankFilters(bankPage - 1)}>Previous question</button><span className="eyebrow">{bankPage} / {bankTotal}</span><button className="primary-button" type="button" disabled={bankPage >= bankTotal} onClick={() => applyBankFilters(bankPage + 1)}>Next question</button></footer>
+                <footer className="admin-review-navigation"><button className="secondary" type="button" disabled={bankPage <= 1} onClick={() => void loadReviewQuestion(bankPage - 1)}>Previous question</button><span className="eyebrow">{bankPage} / {bankTotal}</span><button className="primary-button" type="button" disabled={bankPage >= bankTotal} onClick={() => void loadReviewQuestion(bankPage + 1)}>Next question</button></footer>
               </main>
             </div>
           )}
           <section className="panel question-bank">
             <div className="question-bank-title-row">
               <div><p className="question-bank-heading">Question bank</p><p className="muted">List view supports browsing, batch actions, and scenario management.</p></div>
-              <div className="button-row"><button className="primary-button" type="button" onClick={() => { const filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize: bankPageSize, view: "review" }; setBankView("review"); applyBankFilters(1, filters); }}>Enter review mode</button><QuestionCreator onCreated={() => { void loadBank(1); }} /></div>
+              <div className="button-row"><button className="primary-button" type="button" onClick={() => { const filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize: bankPageSize, view: "review" }; void enterReviewMode(filters); }}>Enter review mode</button><QuestionCreator onCreated={() => { void loadBank(1); }} /></div>
             </div>
             <div className="bank-controls">
               <input
