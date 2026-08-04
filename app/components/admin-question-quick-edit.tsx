@@ -9,7 +9,7 @@ import { ModularOptionEditor } from "@/components/modular-option-editor";
 import { questionStructure, type QuestionStructure } from "@/lib/question-structure";
 
 type Option = { key: string; text: string };
-export type QuickEditQuestion = { id: number; course: string; topic: string | null; stem: string; options: Option[]; material_supported_key: string | null; explanation: string | null; shared_context: string | null; context_group_id: string | null; context_position: number | null };
+export type QuickEditQuestion = { id: number; course: string; topic: string | null; stem: string; options: Option[]; material_supported_key: string | null; explanation: string | null; shared_context: string | null; context_group_id: string | null; context_position: number | null; allowlisted: boolean };
 type ExistingScenario = { context_group_id: string; shared_context: string | null; course: string; question_count: number };
 type CandidateQuestion = { id: number; stem: string; topic: string | null; verification_status: string; context_group_id: string | null; context_position?: number | null };
 type ReviewFlag = { id: number; note: string | null; created_at: string; reviewer: string };
@@ -70,6 +70,21 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
     } else setLinkedQuestions([]);
   }
   function update(patch: Partial<QuickEditQuestion>) { setQuestion((current) => current ? { ...current, ...patch } : current); }
+  async function toggleAllowlist() {
+    if (!question) return;
+    setSaving(true); setError(""); setNotice("");
+    const nextAllowlisted = !question.allowlisted;
+    const response = await fetch("/api/admin/questions", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ questionId: question.id, action: nextAllowlisted ? "allowlist" : "remove_allowlist" }),
+    });
+    const data = await response.json(); setSaving(false);
+    if (!response.ok) { setError(data.error ?? "Could not update the allowlist."); return; }
+    const updated = { ...question, allowlisted: nextAllowlisted };
+    setQuestion(updated); onSaved?.(updated);
+    setNotice(nextAllowlisted ? "Question marked as allowlisted." : "Question removed from the allowlist.");
+  }
   async function save(mode: "save" | "publish") {
     if (!question) return; setSaving(true); setError(""); setNotice("");
     const previousGroupId = question.context_group_id;
@@ -212,6 +227,7 @@ export function AdminQuestionQuickEdit({ questionId, onSaved, onReviewResolved, 
         {structure === "scenario" && <><label>Create or edit case study <span className="muted">(required)</span></label><textarea value={question.shared_context ?? ""} onChange={(event) => update({ shared_context: event.target.value })} placeholder="Add the shared scenario for this question." /></>}
         {structure !== "standalone" && question.context_group_id && <div className="scenario-set-launch"><ScenarioSetEditor contextGroupId={question.context_group_id} onChanged={() => { void findCandidateQuestions(); }} /></div>}
         {structure !== "standalone" && question.context_group_id && <div className="existing-scenario-picker"><label>Questions linked to this {structure === "group" ? "group" : "case study"}</label><p className="muted">These questions always appear together in this fixed order.</p><button className="text-button" type="button" disabled={searchingQuestions} onClick={() => { void findCandidateQuestions(); }}>{linkedQuestions.length ? "Refresh linked questions" : "Show linked questions"}</button>{linkedQuestions.length > 0 && <div className="scenario-search-results linked-question-results">{linkedQuestions.map((linked) => <article key={linked.id}><p>{linked.stem}</p><div><span className="muted">{linked.topic || "No topic"} · {linked.verification_status === "material_supported" || linked.verification_status === "staff_corrected" ? "Live" : "Not live"}</span>{linked.id !== question.id && <AdminQuestionQuickEdit questionId={linked.id} triggerLabel="Review now" />}</div></article>)}</div>}<hr />{showQuestionSearch ? <><div className="scenario-picker-heading"><label>Find more questions for this set</label><button className="text-button" type="button" onClick={() => setShowQuestionSearch(false)}>Close</button></div><div className="scenario-search-row"><input value={questionSearch} onChange={(event) => setQuestionSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void findCandidateQuestions(); } }} placeholder="Search question wording…" /><button type="button" disabled={searchingQuestions} onClick={() => { void findCandidateQuestions(); }}>{searchingQuestions ? "Searching…" : "Search questions"}</button></div>{candidateQuestions.length > 0 && <div className="scenario-search-results">{candidateQuestions.map((candidate) => <article key={candidate.id}><p>{candidate.stem}</p><div><span className="muted">{candidate.topic || "No topic"}</span><div className="scenario-result-actions"><AdminQuestionQuickEdit questionId={candidate.id} triggerLabel="Review now" /><button type="button" disabled={saving} onClick={() => { void attachCandidate(candidate); }}>Add to set</button></div></div></article>)}</div>}<QuestionCreator contextGroupId={question.context_group_id} fixedCourse={question.course} fixedStructure={structure === "group" ? "group" : "scenario"} label="Create and add to this set" onCreated={() => { void findCandidateQuestions(); }} /></> : <button className="text-button" type="button" onClick={() => setShowQuestionSearch(true)}>Find more questions for this set</button>}</div>}
+        <div className="allowlist-editor-control"><div><strong>Allowlisted</strong><p className="muted">Marks this question as manually verified for learner consumption.</p></div><button className={question.allowlisted ? "outline-button" : "primary-button"} type="button" disabled={saving} onClick={() => { void toggleAllowlist(); }}>{question.allowlisted ? "Remove allowlist" : "Mark as allowlisted"}</button></div>
         {error && <p className="error">{error}</p>}{notice && <p className="success-text">{notice}</p>}<div className="button-row"><button className="outline-button" type="button" disabled={saving} onClick={() => { void save("save"); }}>{saving ? "Saving…" : "Save"}</button><button className="primary-button" type="button" disabled={saving} onClick={() => { void save("publish"); }}>{saving ? "Publishing…" : "Publish changes"}</button></div>
         <div className="critical-admin-action"><p><strong>Delete permanently</strong></p><p className="muted">This removes the question and its associated attempts, reports, reviews, flags, and scenario link. It cannot be undone.</p><button className="danger-button" type="button" disabled={saving} onClick={() => { void deleteQuestion(); }}>Delete question permanently</button></div>
       </>}

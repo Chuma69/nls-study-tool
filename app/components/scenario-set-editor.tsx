@@ -10,7 +10,7 @@ import { SourceMaterialSearch } from "@/components/source-material-search";
 import type { QuestionStructure } from "@/lib/question-structure";
 
 type Option = { key: string; text: string };
-type ScenarioQuestion = { id: number; course: string; topic: string | null; stem: string; options: Option[]; material_supported_key: string | null; explanation: string | null; verification_status: string; context_position: number | null; shared_context: string | null };
+type ScenarioQuestion = { id: number; course: string; topic: string | null; stem: string; options: Option[]; material_supported_key: string | null; explanation: string | null; verification_status: string; context_position: number | null; shared_context: string | null; allowlisted: boolean };
 type CandidateQuestion = { id: number; stem: string; topic: string | null; verification_status: string; context_group_id: string | null };
 
 export function ScenarioSetEditor({ contextGroupId, onChanged, triggerClassName, triggerChildren, openOnMount = false, initialQuestionId, hideTrigger = false }: { contextGroupId: string; onChanged?: () => void; triggerClassName?: string; triggerChildren?: ReactNode; openOnMount?: boolean; initialQuestionId?: number; hideTrigger?: boolean }) {
@@ -83,6 +83,19 @@ export function ScenarioSetEditor({ contextGroupId, onChanged, triggerClassName,
     setQuestions((current) => current.map((question) => question.id === questionId
       ? { ...question, verification_status: live ? "staff_corrected" : "unreviewed" }
       : question));
+  }
+  async function toggleActiveAllowlist() {
+    if (!active) return;
+    setSaving(true); setError("");
+    const nextAllowlisted = !active.allowlisted;
+    const response = await fetch("/api/admin/questions", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ questionId: active.id, action: nextAllowlisted ? "allowlist" : "remove_allowlist" }),
+    });
+    const data = await response.json(); setSaving(false);
+    if (!response.ok) { setError(data.error ?? "Could not update the allowlist."); return; }
+    updateActive({ allowlisted: nextAllowlisted });
   }
   async function findQuestions() {
     setSearchingQuestions(true); setError("");
@@ -294,6 +307,7 @@ export function ScenarioSetEditor({ contextGroupId, onChanged, triggerClassName,
           </aside>
           {active && <div className="scenario-set-question-editor">
             <p className="eyebrow">Question {questions.findIndex((question) => question.id === active.id) + 1} · {active.verification_status === "material_supported" || active.verification_status === "staff_corrected" ? "Live" : "Not live"}</p>
+            <div className="allowlist-editor-control"><div><strong>Allowlisted</strong><p className="muted">Marks this question as manually verified.</p></div><button className={active.allowlisted ? "outline-button" : "primary-button"} type="button" disabled={saving} onClick={() => { void toggleActiveAllowlist(); }}>{active.allowlisted ? "Remove allowlist" : "Mark as allowlisted"}</button></div>
             <label>Question wording</label><textarea value={active.stem} onChange={(event) => updateActive({ stem: event.target.value })} />
             <SourceMaterialSearch questionId={active.id} initialQuery={active.stem} />
             <div className="admin-edit-grid"><div><label>Course</label><input value={COURSE_NAMES[active.course as keyof typeof COURSE_NAMES] ?? active.course} disabled /></div><div><label>Topic</label><select value={active.topic ?? ""} onChange={(event) => updateActive({ topic: event.target.value })}><option value="">No topic (offline only)</option>{topics.map((topic) => <option key={topic}>{topic}</option>)}</select></div></div>

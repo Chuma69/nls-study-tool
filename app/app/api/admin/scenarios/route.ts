@@ -42,7 +42,8 @@ export async function GET(request: Request) {
     if (!scenario.length) return NextResponse.json({ error: "The question set could not be found." }, { status: 404 });
     const linkedQuestions = await getSql()`
       SELECT q.id,q.course,q.stem,q.topic,q.verification_status,q.context_group_id,q.context_position,
-             q.shared_context,q.options,q.material_supported_key,q.explanation
+             q.shared_context,q.options,q.material_supported_key,q.explanation,
+             (q.allowlisted_at IS NOT NULL) AS allowlisted
       FROM questions q
       WHERE q.question_type='mcq' AND q.context_group_id=${contextGroupId}
       ORDER BY q.context_position NULLS LAST,q.id
