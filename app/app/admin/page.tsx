@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cleanQuestionStem } from "@/lib/question-text";
 import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS, topicsForCourse } from "@/lib/course-topics";
 import { SourceMaterialSearch } from "@/components/source-material-search";
@@ -68,7 +68,11 @@ type BankQuestion = {
   display_name: string | null;
   admin_flagged: boolean;
   admin_flag_note: string | null;
+  allowlisted: boolean;
+  allowlisted_at: string | null;
+  allowlisted_by: number | null;
 };
+type BankView = "list" | "review";
 type AdminUser = {
   id: number;
   username: string;
@@ -158,13 +162,17 @@ export default function AdminPage() {
   const [bankTopic, setBankTopic] = useState("");
   const [bankStatus, setBankStatus] = useState("");
   const [bankScenario, setBankScenario] = useState("");
+  const [bankAllowlist, setBankAllowlist] = useState("");
+  const [bankView, setBankView] = useState<BankView>("list");
+  const [expandedBankGroups, setExpandedBankGroups] = useState<Set<string>>(new Set());
+  const attemptedAllowlistSyncStarted = useRef(false);
   const [bankPage, setBankPage] = useState(1);
   const [bankPageSize, setBankPageSize] = useState(25);
   const [bankFiltersReady, setBankFiltersReady] = useState(false);
   const [bankTotal, setBankTotal] = useState(0);
   const [bankMore, setBankMore] = useState(false);
   const [msg, setMsg] = useState("");
-  const bankPageCount = Math.max(1, Math.ceil(bankTotal / bankPageSize));
+  const bankPageCount = Math.max(1, Math.ceil(bankTotal / (bankView === "review" ? 1 : bankPageSize)));
   const bankQuestionGroups = Array.from(
     bankQuestions.reduce((groups, question) => {
       const key = question.context_group_id ?? `question-${question.id}`;
@@ -295,10 +303,10 @@ export default function AdminPage() {
       void load();
     }
   }
-  type BankFilters = { search: string; course: string; topic: string; status: string; scenario: string; pageSize: number };
+  type BankFilters = { search: string; course: string; topic: string; status: string; scenario: string; allowlist: string; pageSize: number; view: BankView };
   async function loadBank(
     page = bankPage,
-    filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, pageSize: bankPageSize },
+    filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize: bankPageSize, view: bankView },
   ) {
     try {
       const params = new URLSearchParams({ page: String(page) });
@@ -307,6 +315,8 @@ export default function AdminPage() {
       if (filters.topic) params.set("topic", filters.topic);
       if (filters.status) params.set("status", filters.status);
       if (filters.scenario) params.set("scenario", filters.scenario);
+      if (filters.allowlist) params.set("allowlist", filters.allowlist);
+      params.set("view", filters.view);
       params.set("limit", String(filters.pageSize));
       const response = await fetch(`/api/admin/questions?${params}`);
       const data = await response.json();
@@ -323,13 +333,15 @@ export default function AdminPage() {
       setMsg("The question bank could not load. Please try again.");
     }
   }
-  function applyBankFilters(page = 1, filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, pageSize: bankPageSize }) {
+  function applyBankFilters(page = 1, filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize: bankPageSize, view: bankView }) {
     const params = new URLSearchParams();
     if (filters.search.trim()) params.set("search", filters.search.trim());
     if (filters.course) params.set("course", filters.course);
     if (filters.topic) params.set("topic", filters.topic);
     if (filters.status) params.set("status", filters.status);
     if (filters.scenario) params.set("scenario", filters.scenario);
+    if (filters.allowlist) params.set("allowlist", filters.allowlist);
+    if (filters.view === "review") params.set("view", "review");
     if (filters.pageSize !== 25) params.set("limit", String(filters.pageSize));
     if (page > 1) params.set("page", String(page));
     router.replace(`/admin/questions${params.size ? `?${params}` : ""}`);
@@ -342,6 +354,8 @@ export default function AdminPage() {
     setBankTopic(params.get("topic") ?? "");
     setBankStatus(params.get("status") ?? "");
     setBankScenario(params.get("scenario") ?? "");
+    setBankAllowlist(params.get("allowlist") ?? "");
+    setBankView(params.get("view") === "review" ? "review" : "list");
     setBankPageSize([10,25,50,100].includes(Number(params.get("limit"))) ? Number(params.get("limit")) : 25);
     setBankPage(Math.max(1, Number(params.get("page")) || 1));
     setBankFiltersReady(true);
@@ -349,6 +363,27 @@ export default function AdminPage() {
   useEffect(() => {
     if (tab === "questions" && bankFiltersReady) void loadBank();
   }, [tab, bankFiltersReady]);
+  useEffect(() => {
+    if (tab !== "questions" || !bankFiltersReady || attemptedAllowlistSyncStarted.current) return;
+    attemptedAllowlistSyncStarted.current = true;
+    void fetch("/api/admin/questions", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "allowlist_attempted" }),
+    }).then(async (response) => {
+      const data = await response.json();
+      if (response.ok) {
+        if (data.updated) setMsg(`${data.updated} previously attempted questions were allowlisted.`);
+        void loadBank(1);
+      }
+    });
+  }, [tab, bankFiltersReady]);
+  useEffect(() => {
+    if (bankView !== "review") return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [bankView]);
   useEffect(() => {
     if (!bankEditing) return;
     const previousOverflow = document.body.style.overflow;
@@ -439,6 +474,33 @@ export default function AdminPage() {
   function toggleBankSelection(questionId: number) {
     setBankSelected((selected) => selected.includes(questionId) ? selected.filter((id) => id !== questionId) : [...selected, questionId]);
   }
+  function togglePageSelection() {
+    const ids = bankQuestions.map((question) => question.id);
+    const allSelected = ids.length > 0 && ids.every((id) => bankSelected.includes(id));
+    setBankSelected((selected) => allSelected
+      ? selected.filter((id) => !ids.includes(id))
+      : Array.from(new Set([...selected, ...ids])));
+  }
+  function toggleExpandedGroup(groupId: string) {
+    setExpandedBankGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+      return next;
+    });
+  }
+  async function toggleQuestionAllowlist(question: BankQuestion) {
+    const response = await fetch("/api/admin/questions", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ questionId: question.id, action: question.allowlisted ? "remove_allowlist" : "allowlist" }),
+    });
+    const data = await response.json();
+    if (!response.ok) { setMsg(data.error ?? "Could not update allowlist status."); return; }
+    setBankQuestions((current) => current.map((item) => item.id === question.id
+      ? { ...item, allowlisted: !question.allowlisted, allowlisted_at: !question.allowlisted ? new Date().toISOString() : null }
+      : item));
+    setMsg(question.allowlisted ? "Question removed from the allowlist." : "Question allowlisted.");
+  }
   async function groupSelectedQuestions() {
     const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "group_scenario", questionIds: bankSelected, scenario: scenarioDraft }) });
     const data = await response.json();
@@ -451,12 +513,12 @@ export default function AdminPage() {
     setMsg(response.ok ? `${bankSelected.length} questions grouped in a fixed learner order.` : (data.error ?? "Could not group these questions."));
     if (response.ok) { setBankSelected([]); void loadBank(); }
   }
-  async function runBulkQuestionAction(action: "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag" | "bulk_delete") {
+  async function runBulkQuestionAction(action: "bulk_publish" | "bulk_unpublish" | "bulk_flag" | "bulk_unflag" | "bulk_allowlist" | "bulk_remove_allowlist" | "bulk_delete") {
     if (action === "bulk_unpublish" && !window.confirm(`Unpublish ${bankSelected.length} selected questions? Students will no longer see them.`)) return;
     if (action === "bulk_delete" && !window.confirm(`Permanently delete ${bankSelected.length} selected questions? Their related attempts, reports, reviews, and scenario links will also be removed. This cannot be undone.`)) return;
     const response = await fetch("/api/admin/questions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, questionIds: bankSelected }) });
     const data = await response.json();
-    const labels = { bulk_publish: "published", bulk_unpublish: "unpublished", bulk_flag: "flagged for review", bulk_unflag: "removed from review flags", bulk_delete: "permanently deleted" };
+    const labels = { bulk_publish: "published", bulk_unpublish: "unpublished", bulk_flag: "flagged for review", bulk_unflag: "removed from review flags", bulk_allowlist: "allowlisted", bulk_remove_allowlist: "removed from the allowlist", bulk_delete: "permanently deleted" };
     setMsg(response.ok ? `${data.updated ?? 0} questions ${labels[action]}.${data.skipped ? ` ${data.skipped} skipped because they were ineligible or already updated.` : ""}` : (data.error ?? "Could not update the selected questions."));
     if (response.ok) { setBankSelected([]); void loadBank(); }
   }
@@ -575,14 +637,38 @@ export default function AdminPage() {
       )}
       {tab === "questions" && (
         <>
+          {bankView === "review" && (
+            <div className="admin-review-overlay" role="dialog" aria-modal="true" aria-label="Question review mode">
+              <main className="admin-review-experience">
+                <header className="admin-review-header">
+                  <div><p className="eyebrow">Admin review mode</p><h2>Question {bankPage} of {bankTotal}</h2><p className="muted">{bankCourse ? courseLabel(bankCourse) : "All courses"}{bankTopic ? ` · ${bankTopic}` : ""}</p></div>
+                  <button className="outline-button" type="button" onClick={() => { const filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize: bankPageSize, view: "list" }; setBankView("list"); applyBankFilters(1, filters); }}>Exit review mode</button>
+                </header>
+                {bankQuestions[0] ? (() => { const question = bankQuestions[0]; return (
+                  <article className="admin-review-question-card">
+                    {question.shared_context?.trim() && <aside className="admin-review-scenario"><p className="eyebrow">Case study</p><p>{question.shared_context}</p></aside>}
+                    <div className="admin-review-question-body">
+                      <p className="eyebrow">{courseLabel(question.course)}{question.topic ? ` · ${question.topic}` : " · No topic"} · {question.allowlisted ? "Allowlisted" : "Not allowlisted"}</p>
+                      <h3>{cleanQuestionStem(question.stem)}</h3>
+                      <div className="admin-review-options">{(question.options ?? []).map((option) => <div className={option.key === question.material_supported_key ? "correct-option" : ""} key={option.key}><strong>{option.key.toUpperCase()}</strong><span>{option.text}</span></div>)}</div>
+                      {question.explanation && <section className="admin-review-explanation"><p className="eyebrow">Explanation</p><p>{question.explanation}</p></section>}
+                      <div className="button-row">
+                        <AdminQuestionQuickEdit questionId={question.id} forceAdmin onSaved={() => void loadBank(bankPage)} triggerChildren="Edit question" />
+                        {question.context_group_id && <ScenarioSetEditor contextGroupId={question.context_group_id} onChanged={() => void loadBank(bankPage)} triggerClassName="outline-button" triggerChildren="Edit scenario set" />}
+                        <button className={question.allowlisted ? "outline-button" : "primary-button"} type="button" onClick={() => void toggleQuestionAllowlist(question)}>{question.allowlisted ? "Remove allowlist" : "Allowlist question"}</button>
+                      </div>
+                    </div>
+                  </article>
+                ); })() : <p>No questions match these filters.</p>}
+                <footer className="admin-review-navigation"><button className="secondary" type="button" disabled={bankPage <= 1} onClick={() => applyBankFilters(bankPage - 1)}>Previous question</button><span className="eyebrow">{bankPage} / {bankTotal}</span><button className="primary-button" type="button" disabled={bankPage >= bankTotal} onClick={() => applyBankFilters(bankPage + 1)}>Next question</button></footer>
+              </main>
+            </div>
+          )}
           <section className="panel question-bank">
             <div className="question-bank-title-row">
-              <p className="question-bank-heading">Question bank</p>
-              <QuestionCreator onCreated={() => { void loadBank(1); }} />
+              <div><p className="question-bank-heading">Question bank</p><p className="muted">List view supports browsing, batch actions, and scenario management.</p></div>
+              <div className="button-row"><button className="primary-button" type="button" onClick={() => { const filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize: bankPageSize, view: "review" }; setBankView("review"); applyBankFilters(1, filters); }}>Enter review mode</button><QuestionCreator onCreated={() => { void loadBank(1); }} /></div>
             </div>
-            <p className="muted">
-              Select a row to see its options and review it before publishing.
-            </p>
             <div className="bank-controls">
               <input
                 value={bankSearch}
@@ -629,6 +715,11 @@ export default function AdminPage() {
                 <option value="standalone">Standalone questions</option>
                 <option value="grouped">All ordered sets</option>
               </select>
+              <select value={bankAllowlist} onChange={(event) => setBankAllowlist(event.target.value)}>
+                <option value="">All allowlist states</option>
+                <option value="allowlisted">Allowlisted</option>
+                <option value="not_allowlisted">Not allowlisted</option>
+              </select>
               <button
                 className="primary-button"
                 type="button"
@@ -645,30 +736,33 @@ export default function AdminPage() {
                   ? `${bankTotal.toLocaleString()} matching ${bankScenario === "scenario" ? "scenario sets" : bankScenario === "group" ? "question groups" : bankScenario === "grouped" ? "ordered sets" : "questions"}`
                   : "Opening question bank…"}
               </p>
+              <button className="text-button" type="button" onClick={togglePageSelection}>{bankQuestions.length > 0 && bankQuestions.every((question) => bankSelected.includes(question.id)) ? "Clear page selection" : "Select all on page"}</button>
               <button
                 className="text-button clear-bank-filters"
                 type="button"
                 onClick={() => {
-                  const filters = { search: "", course: "", topic: "", status: "", scenario: "", pageSize: bankPageSize };
+                  const filters: BankFilters = { search: "", course: "", topic: "", status: "", scenario: "", allowlist: "", pageSize: bankPageSize, view: "list" };
                   setBankSearch(filters.search);
                   setBankCourse(filters.course);
                   setBankTopic(filters.topic);
                   setBankStatus(filters.status);
                   setBankScenario(filters.scenario);
+                  setBankAllowlist(filters.allowlist);
+                  setBankView("list");
                   applyBankFilters(1, filters);
                 }}
               >
                 Clear filters
               </button>
             </div>
-            {bankSelected.length > 0 && <div className="scenario-selection-bar"><strong>{bankSelected.length} selected</strong><button className="primary-button" type="button" disabled={bankSelected.length < 2} onClick={() => setShowScenarioBuilder(true)}>Group into scenario</button><button className="outline-button" type="button" disabled={bankSelected.length < 2} onClick={() => void groupSelectedQuestionsInOrder()}>Group in order</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_publish")}>Publish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unpublish")}>Unpublish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_flag")}>Flag for review</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unflag")}>Remove flags</button><button className="danger-button" type="button" onClick={() => void runBulkQuestionAction("bulk_delete")}>Delete</button><button className="text-button" type="button" onClick={() => setBankSelected([])}>Clear selection</button><span className="muted selection-order-note">Selection order becomes learner order.</span></div>}
+            {bankSelected.length > 0 && <div className="scenario-selection-bar"><strong>{bankSelected.length} selected</strong><button className="primary-button" type="button" disabled={bankSelected.length < 2} onClick={() => setShowScenarioBuilder(true)}>Group into scenario</button><button className="outline-button" type="button" disabled={bankSelected.length < 2} onClick={() => void groupSelectedQuestionsInOrder()}>Group in order</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_publish")}>Publish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unpublish")}>Unpublish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_flag")}>Flag for review</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unflag")}>Remove flags</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_allowlist")}>Allowlist</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_remove_allowlist")}>Remove allowlist</button><button className="danger-button" type="button" onClick={() => void runBulkQuestionAction("bulk_delete")}>Delete</button><button className="text-button" type="button" onClick={() => setBankSelected([])}>Clear selection</button><span className="muted selection-order-note">Selection order becomes learner order.</span></div>}
             {showScenarioBuilder && <div className="shared-context scenario-builder"><label htmlFor="scenario-text">Shared scenario</label><textarea id="scenario-text" value={scenarioDraft} onChange={(event) => setScenarioDraft(event.target.value)} placeholder="Paste or write the scenario students must read before answering these questions…" /><div className="button-row"><button className="primary-button" type="button" disabled={bankSelected.length < 2 || !scenarioDraft.trim()} onClick={() => void groupSelectedQuestions()}>Save scenario group</button><button className="text-button" type="button" onClick={() => setShowScenarioBuilder(false)}>Cancel</button></div></div>}
             {bankQuestions.length > 0 && (
               <div className="review-list">
                 {bankQuestionGroups.map((group) => (
                   <section className={group.questions[0]?.context_group_id ? "admin-scenario-group" : undefined} key={group.id}>
-                    {group.questions[0]?.context_group_id && <div className="admin-scenario-context"><ScenarioSetEditor contextGroupId={group.questions[0].context_group_id} onChanged={() => { void loadBank(bankPage); }} triggerClassName="admin-scenario-context-trigger" triggerChildren={group.questions[0].shared_context?.trim() ? <><p className="case-study-label">Case-study set · {group.questions.length} linked questions</p><p>{group.questions[0].shared_context}</p></> : <><p className="case-study-label">Question group · {group.questions.length} linked questions</p><p>Fixed learner order</p></>} /></div>}
-                    <div className="admin-scenario-questions">
+                    {group.questions[0]?.context_group_id && <div className="admin-scenario-context"><button className="admin-scenario-expand" type="button" aria-expanded={expandedBankGroups.has(group.id)} onClick={() => toggleExpandedGroup(group.id)}><span><span className="case-study-label">{group.questions[0].shared_context?.trim() ? "Case-study set" : "Question group"} · {group.questions.length} linked questions</span><span>{group.questions[0].shared_context?.trim() || "Fixed learner order"}</span></span><span aria-hidden="true">{expandedBankGroups.has(group.id) ? "−" : "+"}</span></button><ScenarioSetEditor contextGroupId={group.questions[0].context_group_id} onChanged={() => { void loadBank(bankPage); }} triggerClassName="outline-button" triggerChildren="Edit set" /></div>}
+                    {(!group.questions[0]?.context_group_id || expandedBankGroups.has(group.id)) && <div className="admin-scenario-questions">
                       {group.questions.map((question, index) => (
                         <article
                           key={question.id}
@@ -693,11 +787,12 @@ export default function AdminPage() {
                                 {["material_supported", "staff_corrected"].includes(question.verification_status) && question.material_supported_key ? "live" : "not live"}{question.admin_flagged ? " · flagged for review" : ""}
                               </p>
                               <p>{cleanQuestionStem(question.stem)}</p>
+                              {question.allowlisted && <span className="allowlist-badge">Allowlisted</span>}
                             </>}
                           />
                         </article>
                       ))}
-                    </div>
+                    </div>}
                   </section>
                 ))}
               </div>
@@ -741,7 +836,7 @@ export default function AdminPage() {
                 >
                   Next
                 </button>
-                <label className="page-size-control">Questions per page<select value={bankPageSize} onChange={(event) => { const pageSize = Number(event.target.value); setBankPageSize(pageSize); applyBankFilters(1, { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, pageSize }); }}><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
+                <label className="page-size-control">Questions per page<select value={bankPageSize} onChange={(event) => { const pageSize = Number(event.target.value); setBankPageSize(pageSize); applyBankFilters(1, { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize, view: "list" }); }}><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
               </div>
             )}
           </section>
