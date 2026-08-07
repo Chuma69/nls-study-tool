@@ -81,6 +81,23 @@ type AdminUser = {
   email: string;
   last_seen_at: string;
 };
+type DuplicateQuestion = {
+  id: number;
+  course: string | null;
+  topic: string | null;
+  stem: string;
+  options: { key: string; text: string }[] | null;
+  material_supported_key: string | null;
+  explanation: string | null;
+  shared_context: string | null;
+  context_group_id: string | null;
+  context_position: number | null;
+  verification_status: string;
+  created_at: string;
+  allowlisted: boolean;
+  attempts: number;
+};
+type DuplicateCluster = { key: string; count: number; questions: DuplicateQuestion[] };
 
 const courseNames: Record<string, string> = {
   civil_litigation: "Civil",
@@ -125,6 +142,19 @@ export default function AdminPage() {
   const [reviewPageSize, setReviewPageSize] = useState(10);
   const [reviewStatus, setReviewStatus] = useState<"open" | "resolved" | "all">("open");
   const [reviewCourse, setReviewCourse] = useState("");
+  const [reviewSubTab, setReviewSubTab] = useState<"flags" | "duplicates">("flags");
+  const [dupMode, setDupMode] = useState<"exact" | "similar">("exact");
+  const [dupCourse, setDupCourse] = useState("");
+  const [dupClusters, setDupClusters] = useState<DuplicateCluster[]>([]);
+  const [dupTotal, setDupTotal] = useState(0);
+  const [dupRemovable, setDupRemovable] = useState(0);
+  const [dupPage, setDupPage] = useState(1);
+  const [dupLoading, setDupLoading] = useState(false);
+  const [dupCanonical, setDupCanonical] = useState<Record<string, number>>({});
+  const [dupKept, setDupKept] = useState<Record<string, number[]>>({});
+  const [dupBusyKey, setDupBusyKey] = useState<string | null>(null);
+  const dupPageSize = 10;
+  const dupPageCount = Math.max(1, Math.ceil(dupTotal / dupPageSize));
   const reviewPageCount = Math.max(1, Math.ceil(reviewTotal / reviewPageSize));
   const reviewVisiblePages = Array.from(
     new Set([
@@ -305,6 +335,109 @@ export default function AdminPage() {
       setEditing(null);
       void load();
     }
+  }
+  async function loadDuplicates(page = dupPage, mode = dupMode, course = dupCourse) {
+    setDupLoading(true);
+    try {
+      const params = new URLSearchParams({ mode, page: String(page), limit: String(dupPageSize) });
+      if (course) params.set("course", course);
+      const response = await fetch(`/api/admin/duplicates?${params}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not load duplicates.");
+      const clusters = (data.clusters ?? []) as DuplicateCluster[];
+      setDupClusters(clusters);
+      setDupTotal(data.total ?? 0);
+      setDupRemovable(data.removable ?? 0);
+      setDupPage(page);
+      // Default: keep the allowlisted copy if any (already sorted first), else the first.
+      setDupCanonical((current) => {
+        const next = { ...current };
+        for (const cluster of clusters) if (next[cluster.key] === undefined) next[cluster.key] = cluster.questions[0]?.id;
+        return next;
+      });
+      setDupKept({});
+    } catch (reason) {
+      setDupClusters([]);
+      setDupTotal(0);
+      setDupRemovable(0);
+      setMsg(reason instanceof Error ? reason.message : "Could not load duplicates.");
+    } finally {
+      setDupLoading(false);
+    }
+  }
+  useEffect(() => {
+    if (tab !== "reviews" || reviewSubTab !== "duplicates") return;
+    void loadDuplicates(1, dupMode, dupCourse);
+  }, [tab, reviewSubTab, dupMode, dupCourse]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function mergeDuplicateCluster(cluster: DuplicateCluster) {
+    const canonicalId = dupCanonical[cluster.key] ?? cluster.questions[0]?.id;
+    if (!canonicalId) return;
+    const kept = new Set(dupKept[cluster.key] ?? []);
+    const duplicateIds = cluster.questions.map((q) => q.id).filter((id) => id !== canonicalId && !kept.has(id));
+    if (!duplicateIds.length) { setMsg("Nothing to merge — every other copy is marked to keep."); return; }
+    if (!window.confirm(`Keep question #${canonicalId} and permanently delete ${duplicateIds.length} duplicate${duplicateIds.length === 1 ? "" : "s"} (${duplicateIds.map((id) => `#${id}`).join(", ")})? Their attempts and reports are removed too. The kept question will be allowlisted.`)) return;
+    setDupBusyKey(cluster.key);
+    try {
+      const response = await fetch("/api/admin/duplicates", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "merge", canonicalId, duplicateIds, allowlist: true }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not merge these duplicates.");
+      setMsg(`Merged ${data.merged} duplicate${data.merged === 1 ? "" : "s"} into #${canonicalId}${data.allowlisted ? " and allowlisted it" : ""}.`);
+      await loadDuplicates(dupPage, dupMode, dupCourse);
+    } catch (reason) {
+      setMsg(reason instanceof Error ? reason.message : "Could not merge these duplicates.");
+    } finally {
+      setDupBusyKey(null);
+    }
+  }
+  async function ignoreDuplicateCluster(cluster: DuplicateCluster) {
+    if (!window.confirm("Mark this cluster as 'not duplicates'? It won't appear here again.")) return;
+    setDupBusyKey(cluster.key);
+    try {
+      const response = await fetch("/api/admin/duplicates", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "ignore", clusterKey: cluster.key, mode: dupMode }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not dismiss this cluster.");
+      setMsg("Cluster dismissed as not duplicates.");
+      await loadDuplicates(dupPage, dupMode, dupCourse);
+    } catch (reason) {
+      setMsg(reason instanceof Error ? reason.message : "Could not dismiss this cluster.");
+    } finally {
+      setDupBusyKey(null);
+    }
+  }
+  async function deleteDuplicateCluster(cluster: DuplicateCluster) {
+    const questionIds = cluster.questions.map((q) => q.id);
+    if (!window.confirm(`Permanently delete ALL ${questionIds.length} questions in this cluster (${questionIds.map((id) => `#${id}`).join(", ")})? Nothing is kept. Their attempts and reports are removed too. This cannot be undone.`)) return;
+    setDupBusyKey(cluster.key);
+    try {
+      const response = await fetch("/api/admin/duplicates", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "delete_all", questionIds }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not delete this cluster.");
+      setMsg(`Deleted all ${data.deleted} questions in the cluster.`);
+      await loadDuplicates(dupPage, dupMode, dupCourse);
+    } catch (reason) {
+      setMsg(reason instanceof Error ? reason.message : "Could not delete this cluster.");
+    } finally {
+      setDupBusyKey(null);
+    }
+  }
+  function toggleDuplicateKept(clusterKey: string, questionId: number) {
+    setDupKept((current) => {
+      const kept = new Set(current[clusterKey] ?? []);
+      if (kept.has(questionId)) kept.delete(questionId); else kept.add(questionId);
+      return { ...current, [clusterKey]: [...kept] };
+    });
   }
   type BankFilters = { search: string; course: string; topic: string; status: string; scenario: string; allowlist: string; pageSize: number; view: BankView };
   async function loadBank(
@@ -1060,6 +1193,12 @@ export default function AdminPage() {
       )}
       {tab === "reviews" && (
         <>
+          <nav className="admin-tabs admin-subtabs" aria-label="Review sections">
+            <button className={reviewSubTab === "flags" ? "active" : ""} type="button" onClick={() => setReviewSubTab("flags")}>Flags</button>
+            <button className={reviewSubTab === "duplicates" ? "active" : ""} type="button" onClick={() => setReviewSubTab("duplicates")}>Duplicates</button>
+          </nav>
+          {reviewSubTab === "flags" && (
+          <>
           <section className="panel report-queue">
             <p className="eyebrow">Learner reports</p>
             <h2>Review reported questions.</h2>
@@ -1266,6 +1405,130 @@ export default function AdminPage() {
                   Cancel
                 </button>
               </div>
+            </section>
+          )}
+          </>
+          )}
+          {reviewSubTab === "duplicates" && (
+            <section className="panel report-queue duplicate-sweep">
+              <p className="eyebrow">Duplicate sweep</p>
+              <h2>Find and merge duplicate questions.</h2>
+              <div className="review-queue-summary">
+                <div>
+                  <strong>{dupRemovable.toLocaleString()}</strong>
+                  <span> duplicate{dupRemovable === 1 ? "" : "s"} across {dupTotal.toLocaleString()} cluster{dupTotal === 1 ? "" : "s"}</span>
+                </div>
+                <div className="review-queue-filters">
+                  <label>
+                    Match
+                    <select value={dupMode} onChange={(event) => { setDupPage(1); setDupMode(event.target.value as "exact" | "similar"); }}>
+                      <option value="exact">Exact (scenario + question + options)</option>
+                      <option value="similar">Similar (scenario + question, options differ)</option>
+                    </select>
+                  </label>
+                  <label>
+                    Course
+                    <select value={dupCourse} onChange={(event) => { setDupPage(1); setDupCourse(event.target.value); }}>
+                      <option value="">All courses</option>
+                      {COURSE_IDS.map((id) => <option key={id} value={id}>{COURSE_NAMES[id]}</option>)}
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <p className="muted review-filter-count">
+                {dupMode === "exact"
+                  ? "Exact matches share the same scenario, question wording, and answer options."
+                  : "Similar matches share the scenario and question wording; options or the correct answer may differ, so review carefully."}
+              </p>
+              {dupLoading ? (
+                <p className="muted">Sweeping the question bank…</p>
+              ) : !dupClusters.length ? (
+                <p className="muted">No duplicate clusters match these filters. 🎉</p>
+              ) : (
+                <div className="duplicate-cluster-list">
+                  {dupClusters.map((cluster) => {
+                    const canonicalId = dupCanonical[cluster.key] ?? cluster.questions[0]?.id;
+                    const kept = new Set(dupKept[cluster.key] ?? []);
+                    const toDelete = cluster.questions.filter((q) => q.id !== canonicalId && !kept.has(q.id)).length;
+                    const busy = dupBusyKey === cluster.key;
+                    return (
+                      <article className="duplicate-cluster" key={cluster.key}>
+                        <header className="duplicate-cluster-head">
+                          <div>
+                            <span className="duplicate-count-badge">{cluster.count} copies</span>
+                            <span className="muted"> · {courseLabel(cluster.questions[0]?.course ?? "")}</span>
+                          </div>
+                          <div className="button-row">
+                            <button className="primary-button" type="button" disabled={busy || toDelete === 0} onClick={() => { void mergeDuplicateCluster(cluster); }}>
+                              {busy ? "Working…" : `Merge & allowlist (delete ${toDelete})`}
+                            </button>
+                            <button className="outline-button" type="button" disabled={busy} onClick={() => { void ignoreDuplicateCluster(cluster); }}>Not duplicates</button>
+                            <button className="danger-button" type="button" disabled={busy} onClick={() => { void deleteDuplicateCluster(cluster); }}>Delete all {cluster.count}</button>
+                          </div>
+                        </header>
+                        {cluster.questions[0]?.shared_context?.trim() && (
+                          <aside className="duplicate-scenario"><p className="case-study-label">Shared scenario</p><p>{cluster.questions[0].shared_context}</p></aside>
+                        )}
+                        <div className="duplicate-members">
+                          {cluster.questions.map((question) => {
+                            const isCanonical = question.id === canonicalId;
+                            const isKept = kept.has(question.id);
+                            return (
+                              <div className={`duplicate-member${isCanonical ? " is-canonical" : ""}${!isCanonical && isKept ? " is-kept" : ""}`} key={question.id}>
+                                <div className="duplicate-member-choose">
+                                  <label className="duplicate-keep-radio">
+                                    <input
+                                      type="radio"
+                                      name={`canonical-${cluster.key}`}
+                                      checked={isCanonical}
+                                      onChange={() => setDupCanonical((current) => ({ ...current, [cluster.key]: question.id }))}
+                                    />
+                                    <span>Keep this one</span>
+                                  </label>
+                                  {!isCanonical && (
+                                    <label className="duplicate-keep-check">
+                                      <input type="checkbox" checked={isKept} onChange={() => toggleDuplicateKept(cluster.key, question.id)} />
+                                      <span>Leave separate</span>
+                                    </label>
+                                  )}
+                                </div>
+                                <div className="duplicate-member-body">
+                                  <p className="eyebrow">
+                                    #{question.id} · {question.topic || "No topic"} · {["material_supported", "staff_corrected"].includes(question.verification_status) ? "live" : "not live"} · {question.attempts} attempt{question.attempts === 1 ? "" : "s"}
+                                    {question.allowlisted && " · allowlisted"}
+                                  </p>
+                                  <p className="duplicate-member-stem">{cleanQuestionStem(question.stem)}</p>
+                                  <ul className="duplicate-member-options">
+                                    {(question.options ?? []).map((option) => (
+                                      <li key={option.key} className={option.key === question.material_supported_key ? "correct-option" : ""}>
+                                        <strong>{option.key.toUpperCase()}</strong> {option.text}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  <AdminQuestionQuickEdit
+                                    questionId={question.id}
+                                    forceAdmin
+                                    triggerClassName="text-button"
+                                    triggerChildren="Edit this question"
+                                    onSaved={() => { void loadDuplicates(dupPage, dupMode, dupCourse); }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+              {dupTotal > dupPageSize && (
+                <nav className="bank-pagination question-bank-pages" aria-label="Duplicate pages">
+                  <button className="secondary" type="button" disabled={dupPage <= 1 || dupLoading} onClick={() => void loadDuplicates(dupPage - 1, dupMode, dupCourse)}>Previous</button>
+                  <span className="eyebrow">{dupPage} / {dupPageCount}</span>
+                  <button className="secondary" type="button" disabled={dupPage >= dupPageCount || dupLoading} onClick={() => void loadDuplicates(dupPage + 1, dupMode, dupCourse)}>Next</button>
+                </nav>
+              )}
             </section>
           )}
         </>
