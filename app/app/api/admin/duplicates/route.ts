@@ -97,12 +97,15 @@ export async function GET(request: Request) {
        FROM questions q WHERE q.id = ANY($1::bigint[])`,
       [allIds],
     ) as Array<Record<string, unknown> & { id: number | string }>;
-    const byId = new Map(members.map((row) => [Number(row.id), row]));
-    clusters = clusterRows.map((row) => ({
-      key: row.nkey,
-      count: row.n,
-      questions: row.ids.map((id) => byId.get(Number(id))).filter((q): q is Record<string, unknown> => Boolean(q)),
-    }));
+    const byId = new Map<number, Record<string, unknown>>(members.map((row) => [Number(row.id), row]));
+    clusters = clusterRows.map((row) => {
+      const questions: Record<string, unknown>[] = [];
+      for (const id of row.ids) {
+        const question = byId.get(Number(id));
+        if (question) questions.push(question);
+      }
+      return { key: row.nkey, count: row.n, questions };
+    });
   }
 
   return NextResponse.json({ clusters, total, removable, page, limit, mode, hasMore: offset + clusters.length < total });
