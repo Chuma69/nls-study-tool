@@ -189,6 +189,7 @@ export default function AdminPage() {
   const [editCourse, setEditCourse] = useState("");
   const [editTopic, setEditTopic] = useState("");
   const [bankQuestions, setBankQuestions] = useState<BankQuestion[]>([]);
+  const [bankLoading, setBankLoading] = useState(true);
   const [bankSearch, setBankSearch] = useState("");
   const [bankCourse, setBankCourse] = useState("");
   const [bankTopic, setBankTopic] = useState("");
@@ -444,6 +445,7 @@ export default function AdminPage() {
     page = bankPage,
     filters: BankFilters = { search: bankSearch, course: bankCourse, topic: bankTopic, status: bankStatus, scenario: bankScenario, allowlist: bankAllowlist, pageSize: bankPageSize, view: bankView },
   ) {
+    setBankLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page) });
       if (filters.search.trim()) params.set("search", filters.search.trim());
@@ -467,6 +469,8 @@ export default function AdminPage() {
       setBankTotal(0);
       setBankMore(false);
       setMsg("The question bank could not load. Please try again.");
+    } finally {
+      setBankLoading(false);
     }
   }
   async function loadReviewQuestion(position: number, queue = reviewQueueIds) {
@@ -534,6 +538,18 @@ export default function AdminPage() {
     router.replace(`/admin/questions${params.size ? `?${params}` : ""}`);
     void loadBank(page, filters);
   }
+  function clearBankFilters() {
+    const filters: BankFilters = { search: "", course: "", topic: "", status: "", scenario: "", allowlist: "", pageSize: bankPageSize, view: "list" };
+    setBankSearch(filters.search);
+    setBankCourse(filters.course);
+    setBankTopic(filters.topic);
+    setBankStatus(filters.status);
+    setBankScenario(filters.scenario);
+    setBankAllowlist(filters.allowlist);
+    setBankView("list");
+    applyBankFilters(1, filters);
+  }
+  const hasActiveBankFilters = Boolean(bankSearch || bankCourse || bankTopic || bankStatus || bankScenario || bankAllowlist);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setBankSearch(params.get("search") ?? "");
@@ -937,31 +953,36 @@ export default function AdminPage() {
             </div>
             <div className="bank-results-summary">
               <p className="muted">
-                {bankTotal
-                  ? `${bankTotal.toLocaleString()} matching ${bankScenario === "scenario" ? "scenario sets" : bankScenario === "group" ? "question groups" : bankScenario === "grouped" ? "ordered sets" : "questions"}`
-                  : "Opening question bank…"}
+                {bankLoading
+                  ? "Opening question bank…"
+                  : bankTotal
+                    ? `${bankTotal.toLocaleString()} matching ${bankScenario === "scenario" ? "scenario sets" : bankScenario === "group" ? "question groups" : bankScenario === "grouped" ? "ordered sets" : "questions"}`
+                    : "No matching questions"}
               </p>
               <button className="text-button" type="button" onClick={togglePageSelection}>{bankQuestions.length > 0 && bankQuestions.every((question) => bankSelected.includes(question.id)) ? "Clear page selection" : "Select all on page"}</button>
               <button
                 className="text-button clear-bank-filters"
                 type="button"
-                onClick={() => {
-                  const filters: BankFilters = { search: "", course: "", topic: "", status: "", scenario: "", allowlist: "", pageSize: bankPageSize, view: "list" };
-                  setBankSearch(filters.search);
-                  setBankCourse(filters.course);
-                  setBankTopic(filters.topic);
-                  setBankStatus(filters.status);
-                  setBankScenario(filters.scenario);
-                  setBankAllowlist(filters.allowlist);
-                  setBankView("list");
-                  applyBankFilters(1, filters);
-                }}
+                onClick={clearBankFilters}
               >
                 Clear filters
               </button>
             </div>
             {bankSelected.length > 0 && <div className="scenario-selection-bar"><strong>{bankSelected.length} selected</strong><button className="primary-button" type="button" disabled={bankSelected.length < 2} onClick={() => setShowScenarioBuilder(true)}>Group into scenario</button><button className="outline-button" type="button" disabled={bankSelected.length < 2} onClick={() => void groupSelectedQuestionsInOrder()}>Group in order</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_publish")}>Publish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unpublish")}>Unpublish</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_flag")}>Flag for review</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_unflag")}>Remove flags</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_allowlist")}>Allowlist</button><button className="outline-button" type="button" onClick={() => void runBulkQuestionAction("bulk_remove_allowlist")}>Remove allowlist</button><button className="danger-button" type="button" onClick={() => void runBulkQuestionAction("bulk_delete")}>Delete</button><button className="text-button" type="button" onClick={() => setBankSelected([])}>Clear selection</button><span className="muted selection-order-note">Selection order becomes learner order.</span></div>}
             {showScenarioBuilder && <div className="shared-context scenario-builder"><label htmlFor="scenario-text">Shared scenario</label><textarea id="scenario-text" value={scenarioDraft} onChange={(event) => setScenarioDraft(event.target.value)} placeholder="Paste or write the scenario students must read before answering these questions…" /><div className="button-row"><button className="primary-button" type="button" disabled={bankSelected.length < 2 || !scenarioDraft.trim()} onClick={() => void groupSelectedQuestions()}>Save scenario group</button><button className="text-button" type="button" onClick={() => setShowScenarioBuilder(false)}>Cancel</button></div></div>}
+            {!bankLoading && bankQuestions.length === 0 && (
+              <div className="bank-empty-state">
+                <p className="bank-empty-title">No questions</p>
+                <p className="muted">
+                  {hasActiveBankFilters
+                    ? "No questions match these filters. Try widening or clearing them."
+                    : "There are no questions in the bank yet."}
+                </p>
+                {hasActiveBankFilters && (
+                  <button className="outline-button" type="button" onClick={clearBankFilters}>Clear filters</button>
+                )}
+              </div>
+            )}
             {bankQuestions.length > 0 && (
               <div className="review-list">
                 {bankQuestionGroups.map((group) => (
