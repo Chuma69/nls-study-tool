@@ -445,12 +445,14 @@ form .primary-button { margin-top: 14px; }
 .case-study-copy { font-family: Newsreader, Georgia, serif; font-size: clamp(1.25rem, 2vw, 1.7rem); line-height: 1.5; margin-top: 18px; white-space: pre-wrap; }
 .practice-actions { align-items: stretch; }
 .practice-actions > button { margin-top: 0; }
-/* Keep the primary action (Check / Next) pinned in view so a long stem or explanation never pushes it off-screen. */
-.practice-action-bar { position: sticky; bottom: 0; z-index: 5; margin: 16px -30px 0; padding: 14px 30px calc(14px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -10px 24px -18px oklch(0.2 0.03 240 / 0.5); }
-.practice-action-bar > button { flex: 1 1 auto; }
-.practice-action-bar > .outline-button { flex: 0 0 auto; }
 .add-note-toggle { margin-top: 14px; }
-@media (max-width: 640px) { .practice-action-bar { margin-left: -22px; margin-right: -22px; padding-left: 22px; padding-right: 22px; } }
+/* During active practice the topic filter shrinks to a slim one-line bar so questions get more screen. */
+.topic-filter-compact { padding: 10px 18px; }
+.topic-filter-compact .course-checklist-heading { margin-top: 0; }
+.topic-filter-compact .topic-filter-label { align-items: baseline; display: flex; gap: 10px; }
+.topic-filter-compact .topic-filter-label .eyebrow { margin: 0; }
+.topic-filter-compact .topic-filter-label .muted { margin: 0; }
+.topic-filter-compact .topic-heading-actions .outline-button { margin: 0; min-height: 34px; padding: 6px 14px; }
 .sprint-end-button { background: transparent; border: 0; color: var(--bad); padding: 0; text-decoration: underline; text-underline-offset: 3px; }
 .linked-question-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .linked-question-list .secondary { min-height: 34px; padding: 6px 10px; }

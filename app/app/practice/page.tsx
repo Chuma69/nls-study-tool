@@ -201,7 +201,7 @@ function PracticeContent() {
     <main className="narrow practice-run-shell">
       <Link className="back-link" href="/">← Back to home</Link>
       <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><p className="meta">{course && selectedTopics.length ? <>Attempted {attemptedQuestions} / {totalQuestions}<br />Session {clock((practiceSession?.total_seconds ?? 0) + currentQuestionSeconds)}</> : "Choose topics to begin"}</p></div>
-      {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : <section className="topic-filter panel"><div className="course-checklist-heading"><div><p className="eyebrow">Topics</p><p className="muted">{selectedTopics.length ? `${selectedTopics.length} selected` : "Choose at least one topic to begin"}</p></div><div className="topic-heading-actions"><button className="text-button" type="button" onClick={() => { setTopicDraft(courseTopics); setShowTopics(true); }}>Select all</button><button className={showTopics ? "text-button" : "primary-button"} type="button" onClick={() => setShowTopics((open) => !open)}>{showTopics ? "Close" : selectedTopics.length ? "Edit topics" : "Choose topics"}</button></div></div>{showTopics && <><div className="course-checklist">{courseTopics.map((topic) => <label className="course-check" key={topic}><input type="checkbox" checked={topicDraft.includes(topic)} onChange={() => toggleTopic(topic)} /><span>{topic}</span></label>)}</div><div className="button-row"><button className="primary-button" type="button" disabled={!topicDraft.length} onClick={applyTopics}>Start practice</button></div></>}</section>}
+      {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : <section className={`topic-filter panel${!showTopics && selectedTopics.length > 0 ? " topic-filter-compact" : ""}`}><div className="course-checklist-heading"><div className="topic-filter-label"><p className="eyebrow">Topics</p><p className="muted">{selectedTopics.length ? `${selectedTopics.length} selected` : "Choose at least one topic to begin"}</p></div><div className="topic-heading-actions"><button className="text-button" type="button" onClick={() => { setTopicDraft(courseTopics); setShowTopics(true); }}>Select all</button><button className={showTopics ? "text-button" : selectedTopics.length ? "outline-button" : "primary-button"} type="button" onClick={() => setShowTopics((open) => !open)}>{showTopics ? "Close" : selectedTopics.length ? "Edit topics" : "Choose topics"}</button></div></div>{showTopics && <><div className="course-checklist">{courseTopics.map((topic) => <label className="course-check" key={topic}><input type="checkbox" checked={topicDraft.includes(topic)} onChange={() => toggleTopic(topic)} /><span>{topic}</span></label>)}</div><div className="button-row"><button className="primary-button" type="button" disabled={!topicDraft.length} onClick={applyTopics}>Start practice</button></div></>}</section>}
       {course && selectedTopics.length > 0 && (question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>No live questions match this topic selection yet. Choose different topics or ask an administrator to assign questions to these topics.</p> : (
         <div className={`scenario-question-layout ${question.shared_context ? "has-case-study" : ""}`}>
           {question.shared_context && <aside className="case-study-side-panel" aria-label="Case study">
@@ -229,7 +229,9 @@ function PracticeContent() {
           </div>
           <QuestionReport questionId={question.id} />
           {error && <p className="error" role="alert">{error}</p>}
-          {result && (
+          {!result ? <div className="button-row practice-actions">{previousQuestions.length > 0 && <button className="outline-button" type="button" onClick={previousQuestion}>← Previous question</button>}<button className="primary-button" type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
+            {chosenKey ? "Check answer" : "Choose an option above first"}
+          </button></div> : (
             <div className={`result ${result.matchesMaterialKey ? "" : "incorrect"}`} role="status">
               <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}: ${question.options.find((option) => option.key === result.materialSupportedKey)?.text ?? ""}`}</strong></p>
               <p>{question.explanation?.replace(/^(The materials (expressly )?(state|say) that|According to the materials,?\s*)/i, "") ?? "A fuller tutor explanation is being prepared for this verified answer."}</p>
@@ -238,14 +240,9 @@ function PracticeContent() {
               ) : (
                 <button type="button" className="text-button add-note-toggle" onClick={() => setShowResultNote(true)}>+ Add a note for later revision</button>
               )}
+              <div className="button-row practice-actions">{previousQuestions.length > 0 && <button className="outline-button" type="button" onClick={previousQuestion}>← Previous question</button>}<button className="primary-button" type="button" onClick={nextQuestion}>Next question</button></div>
             </div>
           )}
-          <div className="button-row practice-actions practice-action-bar">
-            {previousQuestions.length > 0 && <button className="outline-button" type="button" onClick={previousQuestion}>← Previous question</button>}
-            {!result
-              ? <button className="primary-button" type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>{chosenKey ? "Check answer" : "Choose an option above first"}</button>
-              : <button className="primary-button" type="button" onClick={nextQuestion}>Next question</button>}
-          </div>
           </section>
         </div>
       ))}
