@@ -29,7 +29,7 @@ export async function GET() {
   const sql = getSql();
   const sessions = await sql`
     SELECT id, course, started_at, last_activity_at, answers_count, correct_count, total_seconds
-    FROM practice_sessions WHERE user_id = ${user.id}
+    FROM practice_sessions WHERE user_id = ${user.id} AND answers_count > 0
     ORDER BY last_activity_at DESC LIMIT 50
   ` as SessionRow[];
   const sprints = await sql`
