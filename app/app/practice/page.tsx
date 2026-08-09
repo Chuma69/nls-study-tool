@@ -65,6 +65,7 @@ function PracticeContent() {
   const [saved, setSaved] = useState(false);
   const [note, setNote] = useState("");
   const [showSaveNote, setShowSaveNote] = useState(false);
+  const [showResultNote, setShowResultNote] = useState(false);
   const [topicDraft, setTopicDraft] = useState<string[]>(selectedTopics);
   const [showTopics, setShowTopics] = useState(false);
   const [previousQuestions, setPreviousQuestions] = useState<QuestionView[]>([]);
@@ -94,7 +95,7 @@ function PracticeContent() {
     setAttemptedQuestions(data.attemptedQuestions ?? 0);
     setQuestion(data.question);
     setScenarioQueue((data.questionGroup ?? []).slice(1));
-    setSaved(false); setNote(""); setShowSaveNote(false);
+    setSaved(false); setNote(""); setShowSaveNote(false); setShowResultNote(false);
     setQuestionStartedAt(data.question ? Date.now() : null);
     setCurrentQuestionSeconds(0);
     if (data.question) {
@@ -159,7 +160,7 @@ function PracticeContent() {
 
   function restoreView(view: QuestionView) {
     setQuestion(view.question); setScenarioQueue(view.scenarioQueue); setChosenKey(view.chosenKey); setResult(view.result);
-    setSaved(view.saved); setNote(view.note); setShowSaveNote(false); setError("");
+    setSaved(view.saved); setNote(view.note); setShowSaveNote(false); setShowResultNote(false); setError("");
     setQuestionStartedAt(view.result ? null : Date.now()); setCurrentQuestionSeconds(0);
     replaceQuestionInUrl(view.question.id);
   }
@@ -188,7 +189,7 @@ function PracticeContent() {
     if (scenarioQueue.length) {
       const [next, ...remaining] = scenarioQueue;
       setScenarioQueue(remaining); setQuestion(next); setChosenKey(""); setResult(null); setError("");
-      setSaved(false); setNote(""); setShowSaveNote(false);
+      setSaved(false); setNote(""); setShowSaveNote(false); setShowResultNote(false);
       setQuestionStartedAt(Date.now()); setCurrentQuestionSeconds(0);
       replaceQuestionInUrl(next.id);
       return;
@@ -228,16 +229,23 @@ function PracticeContent() {
           </div>
           <QuestionReport questionId={question.id} />
           {error && <p className="error" role="alert">{error}</p>}
-          {!result ? <div className="button-row practice-actions">{previousQuestions.length > 0 && <button className="outline-button" type="button" onClick={previousQuestion}>← Previous question</button>}<button className="primary-button" type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>
-            {chosenKey ? "Check answer" : "Choose an option above first"}
-          </button></div> : (
+          {result && (
             <div className={`result ${result.matchesMaterialKey ? "" : "incorrect"}`} role="status">
               <p><strong>{result.matchesMaterialKey ? "Correct." : `Not quite — answer is ${result.materialSupportedKey}: ${question.options.find((option) => option.key === result.materialSupportedKey)?.text ?? ""}`}</strong></p>
               <p>{question.explanation?.replace(/^(The materials (expressly )?(state|say) that|According to the materials,?\s*)/i, "") ?? "A fuller tutor explanation is being prepared for this verified answer."}</p>
-              <div className="note-box"><label htmlFor="question-note">Your note</label><textarea id="question-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a reminder for later revision…" /><button type="button" className="outline-button" onClick={() => { void saveFlag(true, note); }}>Save note</button></div>
-              <div className="button-row practice-actions">{previousQuestions.length > 0 && <button className="outline-button" type="button" onClick={previousQuestion}>← Previous question</button>}<button className="primary-button" type="button" onClick={nextQuestion}>Next question</button></div>
+              {showResultNote ? (
+                <div className="note-box"><label htmlFor="question-note">Your note</label><textarea id="question-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a reminder for later revision…" /><div className="button-row"><button type="button" className="outline-button" onClick={() => { void saveFlag(true, note); }}>Save note</button><button type="button" className="text-button" onClick={() => setShowResultNote(false)}>Hide</button></div></div>
+              ) : (
+                <button type="button" className="text-button add-note-toggle" onClick={() => setShowResultNote(true)}>+ Add a note for later revision</button>
+              )}
             </div>
           )}
+          <div className="button-row practice-actions practice-action-bar">
+            {previousQuestions.length > 0 && <button className="outline-button" type="button" onClick={previousQuestion}>← Previous question</button>}
+            {!result
+              ? <button className="primary-button" type="button" disabled={!chosenKey} onClick={() => { void checkAnswer(); }}>{chosenKey ? "Check answer" : "Choose an option above first"}</button>
+              : <button className="primary-button" type="button" onClick={nextQuestion}>Next question</button>}
+          </div>
           </section>
         </div>
       ))}
