@@ -57,6 +57,7 @@ function PracticeContent() {
   const [chosenKey, setChosenKey] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [attemptedQuestions, setAttemptedQuestions] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [practiceSession, setPracticeSession] = useState<PracticeSession | null>(null);
@@ -117,7 +118,7 @@ function PracticeContent() {
   useEffect(() => {
     let cancelled = false;
     if (!course || !selectedTopics.length) { setQuestion(null); setPracticeSession(null); return; }
-    setQuestion(undefined); setAttemptedQuestions(0); setPracticeSession(null); setPreviousQuestions([]); setNextQuestions([]);
+    setQuestion(undefined); setAttemptedQuestions(0); setPracticeSession(null); setPreviousQuestions([]); setNextQuestions([]); setNotice("");
     void fetch("/api/practice-sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ course }) })
       .then((response) => response.json().then((data) => ({ response, data })))
       .then(({ response, data }) => {
@@ -155,7 +156,7 @@ function PracticeContent() {
     window.addEventListener("pagehide", beaconEndSession);
     return () => { window.removeEventListener("pagehide", beaconEndSession); beaconEndSession(); };
   }, [beaconEndSession]);
-  // Explicit exits (End session, Back to home) end the session, then navigate.
+  // "Back to home" ends the session, then leaves practice.
   const leavePractice = useCallback(async (destination: string) => {
     const id = sessionIdRef.current;
     sessionIdRef.current = null;
@@ -164,6 +165,19 @@ function PracticeContent() {
     }
     router.push(destination);
   }, [router]);
+  // "End session" records the current run and returns to this course's topic picker —
+  // it does not leave practice or open the progress tab.
+  const endSession = useCallback(async () => {
+    const id = sessionIdRef.current;
+    sessionIdRef.current = null;
+    if (id) {
+      try { await fetch("/api/practice-sessions", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: id }), keepalive: true }); } catch { /* the session simply stays resumable */ }
+    }
+    setNotice("Session recorded. It's in your progress log.");
+    const params = new URLSearchParams();
+    if (course) params.set("course", course);
+    router.replace(`/practice${params.size ? `?${params}` : ""}`);
+  }, [router, course]);
 
   const courseChoices = COURSE_IDS.map((id) => [id, id === "civil_litigation" ? "CIV" : id === "criminal_litigation" ? "CRIM" : id === "corporate_law_practice" ? "CORP" : id === "property_law_practice" ? "PROP" : "ETH", COURSE_NAMES[id]]);
   const courseTitle = course && course in COURSE_TOPICS ? COURSE_NAMES[course as keyof typeof COURSE_TOPICS] : "Practice";
@@ -228,8 +242,9 @@ function PracticeContent() {
   return (
     <main className="narrow practice-run-shell">
       <a className="back-link" href="/" onClick={(event) => { event.preventDefault(); void leavePractice("/"); }}>← Back to home</a>
-      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><div className="practice-header-meta"><p className="meta">{course && selectedTopics.length ? <>Attempted {attemptedQuestions} / {totalQuestions}<br />Session {clock((practiceSession?.total_seconds ?? 0) + currentQuestionSeconds)}</> : "Choose topics to begin"}</p>{course && selectedTopics.length > 0 && practiceSession && <button type="button" className="outline-button end-session-button" onClick={() => { void leavePractice("/progress"); }}>End session</button>}</div></div>
-      {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : <section className={`topic-filter panel${!showTopics && selectedTopics.length > 0 ? " topic-filter-compact" : ""}`}><div className="course-checklist-heading"><div className="topic-filter-label"><p className="eyebrow">Topics</p><p className="muted">{selectedTopics.length ? `${selectedTopics.length} selected` : "Choose at least one topic to begin"}</p></div><div className="topic-heading-actions"><button className="text-button" type="button" onClick={() => { setTopicDraft(courseTopics); setShowTopics(true); }}>Select all</button><button className={showTopics ? "text-button" : selectedTopics.length ? "outline-button" : "primary-button"} type="button" onClick={() => setShowTopics((open) => !open)}>{showTopics ? "Close" : selectedTopics.length ? "Edit topics" : "Choose topics"}</button></div></div>{showTopics && <><div className="course-checklist">{courseTopics.map((topic) => <label className="course-check" key={topic}><input type="checkbox" checked={topicDraft.includes(topic)} onChange={() => toggleTopic(topic)} /><span>{topic}</span></label>)}</div><div className="button-row"><button className="primary-button" type="button" disabled={!topicDraft.length} onClick={applyTopics}>Start practice</button></div></>}</section>}
+      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><div className="practice-header-meta"><p className="meta">{course && selectedTopics.length ? <>{practiceSession?.answers_count ?? 0} answered this session<br />Session {clock((practiceSession?.total_seconds ?? 0) + currentQuestionSeconds)}</> : "Choose topics to begin"}</p>{course && selectedTopics.length > 0 && practiceSession && <button type="button" className="outline-button end-session-button" onClick={() => { void endSession(); }}>End session</button>}</div></div>
+      {notice && <p className="status-message" role="status">{notice}</p>}
+      {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : <section className={`topic-filter panel${!showTopics && selectedTopics.length > 0 ? " topic-filter-compact" : ""}`}><div className="course-checklist-heading"><div className="topic-filter-label"><p className="eyebrow">Topics</p><p className="muted">{selectedTopics.length ? `${selectedTopics.length} selected${totalQuestions ? ` · ${attemptedQuestions} of ${totalQuestions} attempted overall` : ""}` : "Choose at least one topic to begin"}</p></div><div className="topic-heading-actions"><button className="text-button" type="button" onClick={() => { setTopicDraft(courseTopics); setShowTopics(true); }}>Select all</button><button className={showTopics ? "text-button" : selectedTopics.length ? "outline-button" : "primary-button"} type="button" onClick={() => setShowTopics((open) => !open)}>{showTopics ? "Close" : selectedTopics.length ? "Edit topics" : "Choose topics"}</button></div></div>{showTopics && <><div className="course-checklist">{courseTopics.map((topic) => <label className="course-check" key={topic}><input type="checkbox" checked={topicDraft.includes(topic)} onChange={() => toggleTopic(topic)} /><span>{topic}</span></label>)}</div><div className="button-row"><button className="primary-button" type="button" disabled={!topicDraft.length} onClick={applyTopics}>Start practice</button></div></>}</section>}
       {course && selectedTopics.length > 0 && (question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>No live questions match this topic selection yet. Choose different topics or ask an administrator to assign questions to these topics.</p> : (
         <div className={`scenario-question-layout ${question.shared_context ? "has-case-study" : ""}`}>
           {question.shared_context && <aside className="case-study-side-panel" aria-label="Case study">
