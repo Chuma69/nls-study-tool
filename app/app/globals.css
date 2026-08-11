@@ -212,7 +212,7 @@ form .primary-button { margin-top: 14px; }
 .empty-state { margin-top: 28px; }
 .progress-page { max-width: 1120px; }
 .progress-page > h1 { margin-bottom: 48px; }
-.progress-stat-grid { display: grid; gap: 18px; grid-template-columns: repeat(4, 1fr); }
+.progress-stat-grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .progress-stat { min-height: 182px; padding: 28px 34px; }
 .progress-stat > strong { display: block; font-family: Newsreader, Georgia, serif; font-size: 58px; font-weight: 500; letter-spacing: -.04em; line-height: 1; margin: 16px 0 14px; }
 .progress-stat > span { color: var(--muted); font-size: 13px; }
@@ -606,6 +606,22 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "I
 @media (max-width: 720px) {
   .admin-user-row { grid-template-columns: 1fr; }
   .user-detail-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Signed-out landing / sign-in */
+.signin-layout { align-items: start; display: grid; gap: 40px; grid-template-columns: 1.05fr 0.95fr; margin-top: 8px; }
+.signin-hero { padding-top: 6px; }
+.signin-tagline { font-size: clamp(2.4rem, 4.5vw, 3.6rem); letter-spacing: -0.02em; line-height: 1.03; margin: 10px 0 16px; }
+.signin-hero .lead { max-width: 44ch; }
+.signin-points { color: var(--ink); display: grid; gap: 12px; list-style: none; margin: 24px 0 0; padding: 0; }
+.signin-points li { font-size: 15px; line-height: 1.5; padding-left: 26px; position: relative; }
+.signin-points li::before { color: var(--good); content: "✓"; font-weight: 600; left: 0; position: absolute; }
+.signin-card { align-self: start; }
+.signin-consent { border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 20px; padding-top: 16px; }
+.signin-consent a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+
+@media (max-width: 820px) {
+  .signin-layout { grid-template-columns: 1fr; gap: 26px; }
 }
 
 /* Legal / policy pages */

@@ -102,7 +102,6 @@ export default function Home() {
 
           <section className="shortcut-grid exact-shortcuts">
             <Link id="sprints" href="/sprint" className="card shortcut-card blue"><h3>Test sprint</h3><p className="muted">Pick a clock and a question count.</p></Link>
-            <Link id="cards" href="/cards" className="card shortcut-card green"><h3>Rule cards</h3><p className="muted">Recall verified rules at your own pace.</p></Link>
             <Link id="saved" className="card shortcut-card amber" href="/saved"><h3>Saved &amp; notes</h3><p className="muted">Return to questions you flagged.</p></Link>
           </section>
           <section id="progress" className="coverage-panel"><p className="eyebrow">Coverage so far</p><div className="coverage-grid"><div><strong>{coverage?.answered ?? 0}</strong><span>of {coverage?.questions ?? 0} questions answered</span></div><div><strong>{coverage?.topicsCovered ?? 0}</strong><span>of {coverage?.topics ?? 0} topics covered</span></div><div><strong>{coverage?.percentage ?? 0}%</strong><span>question-bank completion</span></div></div></section>
@@ -111,23 +110,36 @@ export default function Home() {
           <button className="text-button" type="button" onClick={() => { void fetch("/api/session", { method: "DELETE" }).then(() => setUser(null)); }}>End this session</button>
         </>
       ) : (
-        <section className="panel">
-          <h2>{inviteToken ? "Join as an expert reviewer" : "Start studying"}</h2>
-          <p className="muted">Create a private study profile, or try the tool as a guest.</p>
-          <form onSubmit={submit}>
-            <label htmlFor="name">Name</label>
-            <input id="name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required />
-            <label htmlFor="email">Email</label>
-            <input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
-            {error && <p className="error" role="alert">{error}</p>}
-            <button className="primary-button" type="submit" disabled={busy}>{busy ? "Starting…" : "Create or resume private profile"}</button>
-          </form>
-          <div className="divider">or</div>
-          <button type="button" className="secondary" disabled={busy} onClick={() => { void start("guest"); }}>
-            Continue as guest
-          </button>
-          <p className="hint">Guest progress is private to this browser and cannot be recovered elsewhere.</p>
-        </section>
+        <div className="signin-layout">
+          <section className="signin-hero">
+            <p className="eyebrow">Nigerian Law School · Bar Part II</p>
+            <h1 className="signin-tagline">Practice your way to the Bar.</h1>
+            <p className="lead">Verified past-question practice, timed exam sprints, and progress that shows exactly where you stand — free, for the Bar Part II finals.</p>
+            <ul className="signin-points">
+              <li>Thousands of verified multiple-choice questions across all five courses.</li>
+              <li>Timed sprints that mirror exam pressure.</li>
+              <li>Coverage and accuracy tracking, saved for whenever you return.</li>
+            </ul>
+          </section>
+          <section className="panel signin-card">
+            <h2>{inviteToken ? "Join as an expert reviewer" : "Start studying"}</h2>
+            <p className="muted">Create a private study profile, or try the tool as a guest.</p>
+            <form onSubmit={submit}>
+              <label htmlFor="name">Name</label>
+              <input id="name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required />
+              <label htmlFor="email">Email</label>
+              <input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
+              {error && <p className="error" role="alert">{error}</p>}
+              <button className="primary-button" type="submit" disabled={busy}>{busy ? "Starting…" : "Create or resume private profile"}</button>
+            </form>
+            <div className="divider">or</div>
+            <button type="button" className="secondary" disabled={busy} onClick={() => { void start("guest"); }}>
+              Continue as guest
+            </button>
+            <p className="hint">Guest progress is private to this browser and cannot be recovered elsewhere.</p>
+            <p className="signin-consent">By creating a profile or continuing as a guest, you agree to our <Link href="/terms">Terms of Use</Link> and <Link href="/privacy">Privacy Policy</Link>.</p>
+          </section>
+        </div>
       )}
 
       <StudyFooter />
