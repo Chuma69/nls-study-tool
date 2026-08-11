@@ -607,3 +607,18 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "I
   .admin-user-row { grid-template-columns: 1fr; }
   .user-detail-stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* Legal / policy pages */
+.legal-page { padding-bottom: 20px; }
+.legal-page h1 { margin-top: 6px; }
+.legal-page h2 { font-family: Newsreader, Georgia, serif; font-size: 22px; font-weight: 500; margin: 34px 0 8px; }
+.legal-page p, .legal-page li { color: var(--ink); font-size: 15px; line-height: 1.65; max-width: 70ch; }
+.legal-page p { margin-top: 12px; }
+.legal-page ul { display: grid; gap: 8px; margin: 12px 0 0; padding-left: 20px; }
+.legal-page a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.legal-updated { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 12px; margin-top: 10px; }
+.legal-review { background: oklch(.95 .09 95); border-radius: 4px; color: oklch(.42 .12 70); font-family: "IBM Plex Mono", monospace; font-size: 12px; padding: 1px 5px; }
+.legal-disclaimer-note { border-top: 1px solid var(--line); color: var(--muted); margin-top: 34px; padding-top: 18px; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 12px; }
+.footer-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.footer-links a:hover { color: var(--ink); }
