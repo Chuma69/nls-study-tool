@@ -554,3 +554,56 @@ footer { border-top: 1px solid var(--line); color: var(--muted); font-family: "I
 @media (max-width: 720px) {
   .duplicate-member { grid-template-columns: 1fr; }
 }
+
+/* Admin → Users: cohort insights + interactive student list */
+.admin-user-summary { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-top: 20px; }
+.admin-stat { padding: 18px 20px; }
+.admin-stat strong { color: var(--accent); display: block; font-family: Newsreader, Georgia, serif; font-size: 34px; font-weight: 500; line-height: 1.05; margin: 6px 0 4px; }
+.admin-stat span { color: var(--muted); font-size: 12px; }
+.admin-user-controls { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.admin-user-controls input, .admin-user-controls select { min-height: 40px; width: auto; }
+.admin-user-search { flex: 1 1 220px; min-width: 180px; }
+.admin-user-toggle { align-items: center; display: flex; gap: 8px; margin: 0; white-space: nowrap; }
+.admin-user-toggle input { flex: 0 0 auto; height: 16px; min-height: 0; padding: 0; width: 16px; }
+.admin-user-count { margin-top: 14px; }
+.admin-user-list { display: grid; gap: 10px; margin-top: 8px; }
+.admin-user-row { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; display: grid; gap: 16px; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.6fr) 90px; padding: 14px 16px; text-align: left; width: 100%; }
+.admin-user-row:hover { border-color: var(--accent); }
+.admin-user-id strong { display: block; font-family: Newsreader, Georgia, serif; font-size: 20px; font-weight: 500; }
+.admin-user-id > span { color: var(--muted); display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-user-badges { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.role-badge { border-radius: 99px; font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .06em; padding: 3px 8px; text-transform: uppercase; }
+.role-learner { background: oklch(.94 .02 245); color: var(--accent); }
+.role-expert { background: oklch(.93 .05 165); color: oklch(.4 .09 165); }
+.role-admin { background: var(--dark); color: #fff; }
+.role-guest { background: oklch(.94 .01 240); color: var(--muted); }
+.admin-user-lastactive { color: var(--muted); font-size: 11px; }
+.admin-user-metrics { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
+.admin-user-metrics .metric strong { color: var(--ink); display: block; font-family: Newsreader, Georgia, serif; font-size: 20px; font-weight: 500; line-height: 1; }
+.admin-user-metrics .metric span { color: var(--muted); font-size: 11px; }
+.admin-user-accuracy { background: oklch(.93 .01 240); border-radius: 999px; height: 6px; overflow: hidden; }
+.admin-user-accuracy .accuracy-fill { display: block; height: 100%; }
+.accuracy-fill.good { background: var(--good); }
+.accuracy-fill.mid { background: var(--mid); }
+.accuracy-fill.bad { background: var(--bad); }
+.admin-user-empty { padding: 24px 0; }
+.user-detail-modal { left: 50%; margin: 0; max-height: min(88vh, 720px); max-width: 640px; overflow-y: auto; position: fixed; top: 50%; transform: translate(-50%, -50%); width: calc(100vw - 36px); z-index: 20; }
+.user-detail-modal h2 { font-size: 30px; margin: 6px 0 2px; }
+.user-detail-stats { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); margin-top: 20px; }
+.user-detail-stats > div { background: var(--page); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.user-detail-stats strong { color: var(--ink); display: block; font-family: Newsreader, Georgia, serif; font-size: 24px; font-weight: 500; line-height: 1; }
+.user-detail-stats strong.good { color: var(--good); }
+.user-detail-stats strong.mid { color: var(--mid); }
+.user-detail-stats strong.bad { color: var(--bad); }
+.user-detail-stats span { color: var(--muted); font-size: 11px; }
+.user-detail-meta { margin-top: 14px; }
+.user-detail-course-heading { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 16px; }
+.user-detail-courses { display: grid; gap: 14px; margin-top: 12px; }
+.user-course-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.user-course-head strong { font-size: 14px; }
+.user-course-head span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+@media (max-width: 720px) {
+  .admin-user-row { grid-template-columns: 1fr; }
+  .user-detail-stats { grid-template-columns: repeat(2, 1fr); }
+}

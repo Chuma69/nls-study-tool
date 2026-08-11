@@ -19,10 +19,12 @@ type Item = {
   review_count: number;
   status: string;
 };
-type CourseUsage = {
+type ActivityCourse = {
   course: string;
-  answers_count: number;
+  answers: number;
+  correct: number;
   total_seconds: number;
+  accuracy: number;
 };
 type ActivityUser = {
   id: number;
@@ -30,11 +32,21 @@ type ActivityUser = {
   email: string;
   identity_type: "registered" | "guest";
   role: string;
+  created_at: string;
   last_active_at: string;
   questions_answered: number;
+  distinct_questions: number;
+  correct_count: number;
+  accuracy: number;
+  active_days: number;
   sessions_count: number;
   total_seconds: number;
-  courses: CourseUsage[];
+  courses: ActivityCourse[];
+};
+type ActivitySummary = {
+  totalUsers: number; registered: number; guests: number; experts: number; admins: number;
+  active24h: number; active7d: number; newThisWeek: number; activeLearners: number;
+  totalAnswers: number; totalSeconds: number; avgAccuracy: number;
 };
 type Report = {
   id: number;
@@ -122,6 +134,20 @@ function timeLabel(seconds: number) {
   const minutes = Math.round((seconds % 3600) / 60);
   return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
+function relativeTime(value: string) {
+  const then = new Date(value).getTime();
+  if (!then) return "—";
+  const diff = Date.now() - then;
+  const minute = 60_000, hour = 3_600_000, day = 86_400_000;
+  if (diff < minute) return "just now";
+  if (diff < hour) return `${Math.floor(diff / minute)}m ago`;
+  if (diff < day) return `${Math.floor(diff / hour)}h ago`;
+  if (diff < 30 * day) return `${Math.floor(diff / day)}d ago`;
+  return new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+function accuracyTone(accuracy: number) {
+  return accuracy >= 70 ? "good" : accuracy >= 50 ? "mid" : "bad";
+}
 
 export default function AdminPage() {
   const pathname = usePathname();
@@ -135,6 +161,13 @@ export default function AdminPage() {
   const [invite, setInvite] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [users, setUsers] = useState<ActivityUser[]>([]);
+  const [activitySummary, setActivitySummary] = useState<ActivitySummary | null>(null);
+  const [userSearch, setUserSearch] = useState("");
+  const [userRole, setUserRole] = useState<"all" | "learner" | "expert" | "admin">("all");
+  const [userIdentity, setUserIdentity] = useState<"all" | "registered" | "guest">("all");
+  const [userSort, setUserSort] = useState<"recent" | "answers" | "accuracy" | "time" | "joined">("recent");
+  const [userActiveOnly, setUserActiveOnly] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<ActivityUser | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [reviewPage, setReviewPage] = useState(1);
   const [reviewTotal, setReviewTotal] = useState(0);
@@ -242,6 +275,7 @@ export default function AdminPage() {
         ]);
       setItems(consensusData.items ?? []);
       setUsers(activityData.users ?? []);
+      setActivitySummary(activityData.summary ?? null);
       setReports(reportData.reports ?? []);
       setReviewTotal(reportData.total ?? 0);
       setReviewOpenTotal(reportData.openTotal ?? 0);
@@ -760,6 +794,29 @@ export default function AdminPage() {
       void load();
     }
   }
+  useEffect(() => {
+    if (!selectedUser) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setSelectedUser(null); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", closeOnEscape); };
+  }, [selectedUser]);
+  const userQuery = userSearch.trim().toLowerCase();
+  const visibleUsers = users
+    .filter((user) => userRole === "all" || user.role === userRole)
+    .filter((user) => userIdentity === "all" || user.identity_type === userIdentity)
+    .filter((user) => !userActiveOnly || user.questions_answered > 0)
+    .filter((user) => !userQuery || user.username.toLowerCase().includes(userQuery) || user.email.toLowerCase().includes(userQuery))
+    .sort((first, second) => {
+      switch (userSort) {
+        case "answers": return second.questions_answered - first.questions_answered;
+        case "accuracy": return second.accuracy - first.accuracy || second.questions_answered - first.questions_answered;
+        case "time": return second.total_seconds - first.total_seconds;
+        case "joined": return new Date(second.created_at).getTime() - new Date(first.created_at).getTime();
+        default: return new Date(second.last_active_at).getTime() - new Date(first.last_active_at).getTime();
+      }
+    });
   return (
     <main>
       <Link className="back-link" href="/">
@@ -806,54 +863,94 @@ export default function AdminPage() {
       </nav>
       {tab === "users" && (
         <>
+          <section className="admin-user-summary" aria-label="Cohort insights">
+            <article className="panel admin-stat"><p className="eyebrow">Students</p><strong>{activitySummary?.totalUsers ?? 0}</strong><span>{activitySummary?.registered ?? 0} registered · {activitySummary?.guests ?? 0} guest</span></article>
+            <article className="panel admin-stat"><p className="eyebrow">Active this week</p><strong>{activitySummary?.active7d ?? 0}</strong><span>{activitySummary?.active24h ?? 0} in the last 24h</span></article>
+            <article className="panel admin-stat"><p className="eyebrow">Questions answered</p><strong>{(activitySummary?.totalAnswers ?? 0).toLocaleString()}</strong><span>{activitySummary?.activeLearners ?? 0} learners practicing</span></article>
+            <article className="panel admin-stat"><p className="eyebrow">Study time</p><strong>{timeLabel(activitySummary?.totalSeconds ?? 0)}</strong><span>across all sessions</span></article>
+            <article className="panel admin-stat"><p className="eyebrow">Avg accuracy</p><strong>{activitySummary?.avgAccuracy ?? 0}%</strong><span>{activitySummary?.experts ?? 0} experts · {activitySummary?.admins ?? 0} admins</span></article>
+            <article className="panel admin-stat"><p className="eyebrow">New this week</p><strong>{activitySummary?.newThisWeek ?? 0}</strong><span>joined in the last 7 days</span></article>
+          </section>
           <section className="panel admin-activity">
             <p className="eyebrow">User activity</p>
             <h2>Students using the tool.</h2>
-            <p className="muted">
-              {users.length} profile{users.length === 1 ? "" : "s"} · question
-              and time totals update after each answer.
-            </p>
-            <div className="activity-list">
-              {users.map((user) => (
-                <article className="activity-row" key={user.id}>
-                  <div className="activity-person">
+            <div className="admin-user-controls">
+              <input className="admin-user-search" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Search name or email" aria-label="Search students" />
+              <select value={userRole} onChange={(event) => setUserRole(event.target.value as typeof userRole)} aria-label="Filter by role">
+                <option value="all">All roles</option>
+                <option value="learner">Learners</option>
+                <option value="expert">Experts</option>
+                <option value="admin">Admins</option>
+              </select>
+              <select value={userIdentity} onChange={(event) => setUserIdentity(event.target.value as typeof userIdentity)} aria-label="Filter by identity">
+                <option value="all">All accounts</option>
+                <option value="registered">Registered</option>
+                <option value="guest">Guest</option>
+              </select>
+              <select value={userSort} onChange={(event) => setUserSort(event.target.value as typeof userSort)} aria-label="Sort students">
+                <option value="recent">Most recent</option>
+                <option value="answers">Most answers</option>
+                <option value="accuracy">Highest accuracy</option>
+                <option value="time">Most study time</option>
+                <option value="joined">Newest joined</option>
+              </select>
+              <label className="admin-user-toggle"><input type="checkbox" checked={userActiveOnly} onChange={(event) => setUserActiveOnly(event.target.checked)} />Active only</label>
+            </div>
+            <p className="muted admin-user-count">{visibleUsers.length} of {users.length} student{users.length === 1 ? "" : "s"} · click a student for full insights.</p>
+            <div className="admin-user-list">
+              {visibleUsers.length ? visibleUsers.map((user) => (
+                <button type="button" className="admin-user-row" key={user.id} onClick={() => setSelectedUser(user)}>
+                  <div className="admin-user-id">
                     <strong>{user.username}</strong>
-                    <span>
-                      {user.identity_type === "guest"
-                        ? "Guest session"
-                        : user.email}{" "}
-                      · {user.role}
-                    </span>
-                    <small>
-                      Last active{" "}
-                      {new Date(user.last_active_at).toLocaleString()}
-                    </small>
+                    <span>{user.identity_type === "guest" ? "Guest session" : user.email}</span>
+                    <div className="admin-user-badges">
+                      <span className={`role-badge role-${user.role}`}>{user.role}</span>
+                      {user.identity_type === "guest" && <span className="role-badge role-guest">guest</span>}
+                      <span className="admin-user-lastactive">{relativeTime(user.last_active_at)}</span>
+                    </div>
                   </div>
-                  <div className="activity-stat">
-                    <strong>{user.questions_answered}</strong>
-                    <span>answers</span>
+                  <div className="admin-user-metrics">
+                    <div className="metric"><strong>{user.questions_answered.toLocaleString()}</strong><span>answers</span></div>
+                    <div className="metric"><strong>{user.questions_answered ? `${user.accuracy}%` : "—"}</strong><span>accuracy</span></div>
+                    <div className="metric"><strong>{timeLabel(user.total_seconds)}</strong><span>studied</span></div>
+                    <div className="metric"><strong>{user.courses.length}</strong><span>course{user.courses.length === 1 ? "" : "s"}</span></div>
                   </div>
-                  <div className="activity-stat">
-                    <strong>{timeLabel(user.total_seconds)}</strong>
-                    <span>studied</span>
-                  </div>
-                  <div className="activity-courses">
-                    {user.courses.length ? (
-                      user.courses.map((course) => (
-                        <span key={course.course}>
-                          {courseNames[course.course] ?? course.course}:{" "}
-                          {course.answers_count} ·{" "}
-                          {timeLabel(course.total_seconds)}
-                        </span>
-                      ))
-                    ) : (
-                      <span>No course activity yet</span>
-                    )}
-                  </div>
-                </article>
-              ))}
+                  <div className="admin-user-accuracy" aria-hidden="true"><span className={`accuracy-fill ${accuracyTone(user.accuracy)}`} style={{ width: `${user.questions_answered ? user.accuracy : 0}%` }} /></div>
+                </button>
+              )) : <p className="muted admin-user-empty">No students match these filters.</p>}
             </div>
           </section>
+          {selectedUser && (
+            <>
+              <div className="modal-backdrop" aria-hidden="true" onClick={() => setSelectedUser(null)} />
+              <section className="panel user-detail-modal" role="dialog" aria-modal="true" aria-label={`Insights for ${selectedUser.username}`}>
+                <button className="modal-close-button" type="button" aria-label="Close insights" onClick={() => setSelectedUser(null)}>×</button>
+                <p className="eyebrow">Student insights</p>
+                <h2>{selectedUser.username}</h2>
+                <p className="muted">{selectedUser.identity_type === "guest" ? "Guest session" : selectedUser.email} · {selectedUser.role}</p>
+                <div className="user-detail-stats">
+                  <div><strong>{selectedUser.questions_answered.toLocaleString()}</strong><span>answers</span></div>
+                  <div><strong>{selectedUser.distinct_questions.toLocaleString()}</strong><span>unique questions</span></div>
+                  <div><strong className={accuracyTone(selectedUser.accuracy)}>{selectedUser.questions_answered ? `${selectedUser.accuracy}%` : "—"}</strong><span>accuracy</span></div>
+                  <div><strong>{timeLabel(selectedUser.total_seconds)}</strong><span>study time</span></div>
+                  <div><strong>{selectedUser.sessions_count}</strong><span>sessions</span></div>
+                  <div><strong>{selectedUser.active_days}</strong><span>active day{selectedUser.active_days === 1 ? "" : "s"}</span></div>
+                </div>
+                <p className="muted user-detail-meta">Joined {new Date(selectedUser.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })} · last active {relativeTime(selectedUser.last_active_at)}{selectedUser.questions_answered ? ` · ${selectedUser.total_seconds && selectedUser.questions_answered ? Math.round(selectedUser.total_seconds / selectedUser.questions_answered) : 0}s per answer` : ""}</p>
+                <div className="user-detail-course-heading"><p className="eyebrow">By course</p></div>
+                {selectedUser.courses.length ? (
+                  <div className="user-detail-courses">
+                    {selectedUser.courses.map((course) => (
+                      <div className="user-course-row" key={course.course}>
+                        <div className="user-course-head"><strong>{courseLabel(course.course)}</strong><span>{course.answers} answer{course.answers === 1 ? "" : "s"} · {timeLabel(course.total_seconds)} · {course.accuracy}%</span></div>
+                        <div className={`bar ${accuracyTone(course.accuracy)}`}><span style={{ width: `${course.accuracy}%` }} /></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="muted">No course activity yet.</p>}
+              </section>
+            </>
+          )}
         </>
       )}
       {tab === "questions" && (
