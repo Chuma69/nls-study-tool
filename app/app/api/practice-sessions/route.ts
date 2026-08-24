@@ -26,34 +26,44 @@ async function endActiveSession(userId: number, sessionId: number | null, course
   return { ended: true, recorded: false, sessionId: session.id };
 }
 
+// A run can span several courses. The session's `course` column stores a canonical
+// key: the selected course ids sorted and comma-joined (a single course stays as its
+// own id, so existing single-course sessions keep working unchanged).
+function courseKeyFrom(body: { course?: string; courses?: string[] }) {
+  const list = Array.isArray(body.courses) ? body.courses : body.course ? [body.course] : [];
+  const valid = [...new Set(list.filter((course) => courses.has(course)))].sort();
+  return valid.length ? valid.join(",") : null;
+}
+
 export async function POST(request: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Start a private or guest session first." }, { status: 401 });
-  let body: { course?: string; action?: string; sessionId?: number | string };
+  let body: { course?: string; courses?: string[]; action?: string; sessionId?: number | string };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Please choose a course." }, { status: 400 }); }
   // Ending can also arrive here (not only via PATCH) so navigator.sendBeacon can record a
   // session as the user leaves the page — sendBeacon only issues POST requests.
   if (body.action === "end") {
     const sessionId = Number(body.sessionId);
-    const course = body.course && courses.has(body.course) ? body.course : null;
-    if (!Number.isSafeInteger(sessionId) && !course) return NextResponse.json({ error: "Nothing to end." }, { status: 400 });
-    const result = await endActiveSession(user.id, Number.isSafeInteger(sessionId) ? sessionId : null, course);
+    const courseKey = courseKeyFrom(body);
+    if (!Number.isSafeInteger(sessionId) && !courseKey) return NextResponse.json({ error: "Nothing to end." }, { status: 400 });
+    const result = await endActiveSession(user.id, Number.isSafeInteger(sessionId) ? sessionId : null, courseKey);
     return NextResponse.json({ ok: true, ...result });
   }
-  if (!body.course || !courses.has(body.course)) return NextResponse.json({ error: "Choose one of the listed courses." }, { status: 400 });
+  const courseKey = courseKeyFrom(body);
+  if (!courseKey) return NextResponse.json({ error: "Choose one of the listed courses." }, { status: 400 });
 
   const sql = getSql();
   const existing = await sql`
     SELECT id, answers_count, total_seconds, last_question_id
     FROM practice_sessions
-    WHERE user_id = ${user.id} AND course = ${body.course} AND ended_at IS NULL
+    WHERE user_id = ${user.id} AND course = ${courseKey} AND ended_at IS NULL
     LIMIT 1
   ` as SessionRow[];
   if (existing[0]) return NextResponse.json({ session: existing[0], resumed: true });
 
   const created = await sql`
     INSERT INTO practice_sessions (user_id, course)
-    VALUES (${user.id}, ${body.course})
+    VALUES (${user.id}, ${courseKey})
     RETURNING id, answers_count, total_seconds, last_question_id
   ` as SessionRow[];
   return NextResponse.json({ session: created[0], resumed: false });
@@ -62,11 +72,11 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Start a private or guest session first." }, { status: 401 });
-  let body: { sessionId?: number | string; course?: string };
+  let body: { sessionId?: number | string; course?: string; courses?: string[] };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Nothing to end." }, { status: 400 }); }
   const sessionId = Number(body.sessionId);
-  const course = body.course && courses.has(body.course) ? body.course : null;
-  if (!Number.isSafeInteger(sessionId) && !course) return NextResponse.json({ error: "Nothing to end." }, { status: 400 });
-  const result = await endActiveSession(user.id, Number.isSafeInteger(sessionId) ? sessionId : null, course);
+  const courseKey = courseKeyFrom(body);
+  if (!Number.isSafeInteger(sessionId) && !courseKey) return NextResponse.json({ error: "Nothing to end." }, { status: 400 });
+  const result = await endActiveSession(user.id, Number.isSafeInteger(sessionId) ? sessionId : null, courseKey);
   return NextResponse.json({ ok: true, ...result });
 }

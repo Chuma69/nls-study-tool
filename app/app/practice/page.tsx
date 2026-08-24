@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cleanQuestionStem } from "@/lib/question-text";
 import { QuestionReport } from "@/components/question-report";
 import { StudyFooter } from "@/components/study-footer";
 import { AdminQuestionQuickEdit } from "@/components/admin-question-quick-edit";
-import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS } from "@/lib/course-topics";
+import { COURSE_IDS, COURSE_NAMES, COURSE_TOPICS, type CourseId } from "@/lib/course-topics";
 
 type Question = {
   id: number;
@@ -41,16 +40,26 @@ function yearsLabel(years: string[]) {
 }
 function clock(seconds: number) { return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; }
 
+const DEFAULT_RUN_SIZE = 20;
+const MAX_RUN_SIZE = 100;
+function clampRunSize(value: number) { return Number.isFinite(value) && value >= 1 ? Math.min(Math.floor(value), MAX_RUN_SIZE) : DEFAULT_RUN_SIZE; }
+// The default run size is 20 questions for each selected course, capped at the max.
+function defaultRunSizeForCourses(courseCount: number) { return courseCount > 0 ? Math.min(MAX_RUN_SIZE, courseCount * DEFAULT_RUN_SIZE) : DEFAULT_RUN_SIZE; }
+
 function PracticeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const course = searchParams.get("course");
-  const courseTopics = course && course in COURSE_TOPICS ? COURSE_TOPICS[course as keyof typeof COURSE_TOPICS].topics : [];
+  const selectedCourses = [...new Set(searchParams.getAll("course").filter((id) => id in COURSE_TOPICS))] as CourseId[];
+  const runSize = searchParams.get("count") ? clampRunSize(Number(searchParams.get("count"))) : DEFAULT_RUN_SIZE;
+  // Topic names are unique across courses, so the union is unambiguous for filtering.
+  const courseTopics = [...new Set(selectedCourses.flatMap((id) => COURSE_TOPICS[id].topics))];
   const selectedTopics = [...new Set([
     ...searchParams.getAll("topic"),
     ...(searchParams.get("topics") ?? "").split(","),
-  ].map((topic) => topic.trim()).filter((topic) => Boolean(topic) && (!course || courseTopics.includes(topic))))];
+  ].map((topic) => topic.trim()).filter((topic) => Boolean(topic) && (!selectedCourses.length || courseTopics.includes(topic))))];
   const topicSelectionKey = selectedTopics.join("\u001f");
+  const courseSelectionKey = selectedCourses.slice().sort().join("|");
+  const runActive = selectedCourses.length > 0 && selectedTopics.length > 0;
   const requestedQuestion = Number(searchParams.get("question")) || 0;
   const [question, setQuestion] = useState<Question | null | undefined>(undefined);
   const [scenarioQueue, setScenarioQueue] = useState<Question[]>([]);
@@ -66,10 +75,23 @@ function PracticeContent() {
   const [note, setNote] = useState("");
   const [showSaveNote, setShowSaveNote] = useState(false);
   const [showResultNote, setShowResultNote] = useState(false);
+  const [courseDraft, setCourseDraft] = useState<CourseId[]>(selectedCourses);
+  const [expandedCourses, setExpandedCourses] = useState<CourseId[]>([]);
+  const [showAddCourses, setShowAddCourses] = useState(false);
   const [topicDraft, setTopicDraft] = useState<string[]>(selectedTopics);
   const [showTopics, setShowTopics] = useState(false);
+  const courseDraftTopics = [...new Set(courseDraft.flatMap((id) => COURSE_TOPICS[id].topics))];
   const [previousQuestions, setPreviousQuestions] = useState<QuestionView[]>([]);
   const [nextQuestions, setNextQuestions] = useState<QuestionView[]>([]);
+  const [countDraft, setCountDraft] = useState(runSize);
+  const [countEdited, setCountEdited] = useState(false);
+  const [answeredInRun, setAnsweredInRun] = useState(0);
+  const [runCorrect, setRunCorrect] = useState(0);
+  const [runComplete, setRunComplete] = useState(false);
+  // Every question shown this run — excluded from further loads so a run never repeats itself.
+  const runSeenIdsRef = useRef<Set<number>>(new Set());
+  // Distinct questions answered this run — drives the "X of N" progress and the completion gate.
+  const runAnsweredIdsRef = useRef<Set<number>>(new Set());
 
   const replaceQuestionInUrl = useCallback((questionId: number | null) => {
     const params = new URLSearchParams(window.location.search);
@@ -82,19 +104,26 @@ function PracticeContent() {
   const loadQuestion = useCallback(async (sessionId: number, excludeQuestionId?: number, questionId?: number) => {
     setQuestion(undefined); setChosenKey(""); setResult(null); setError("");
     const params = new URLSearchParams();
-    if (course) params.set("course", course);
+    selectedCourses.forEach((id) => params.append("course", id));
     selectedTopics.forEach((topic) => params.append("topic", topic));
     params.set("session", String(sessionId));
     if (excludeQuestionId) params.set("exclude", String(excludeQuestionId));
     if (questionId) params.set("question", String(questionId));
+    const seenIds = [...runSeenIdsRef.current];
+    if (seenIds.length) params.set("seen", seenIds.join(","));
     const response = await fetch(`/api/questions/next${params.size ? `?${params}` : ""}`);
     const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not load a question."); setQuestion(null); return; }
     const nextTotal = data.totalQuestions ?? 0;
     setTotalQuestions(nextTotal);
     setAttemptedQuestions(data.attemptedQuestions ?? 0);
+    const questionGroup = (data.questionGroup ?? []) as Question[];
+    questionGroup.forEach((item) => runSeenIdsRef.current.add(Number(item.id)));
+    if (data.question) runSeenIdsRef.current.add(Number(data.question.id));
+    // The eligible pool drained mid-run before the target count — treat that as a finished run.
+    if (!data.question && runAnsweredIdsRef.current.size > 0) setRunComplete(true);
     setQuestion(data.question);
-    setScenarioQueue((data.questionGroup ?? []).slice(1));
+    setScenarioQueue(questionGroup.slice(1));
     setSaved(false); setNote(""); setShowSaveNote(false); setShowResultNote(false);
     setQuestionStartedAt(data.question ? Date.now() : null);
     setCurrentQuestionSeconds(0);
@@ -104,9 +133,13 @@ function PracticeContent() {
         if (flag) { setSaved(Boolean(flag.saved)); setNote(flag.note ?? ""); }
       });
     }
-  }, [course, topicSelectionKey, replaceQuestionInUrl]);
+  }, [courseSelectionKey, topicSelectionKey, replaceQuestionInUrl]);
 
-  useEffect(() => setTopicDraft(selectedTopics), [course, topicSelectionKey]);
+  useEffect(() => setTopicDraft(selectedTopics), [courseSelectionKey, topicSelectionKey]);
+  // Arriving with course(s) in the URL (e.g. from a home-page course card) opens straight into
+  // the topic-selection view with those courses expanded.
+  useEffect(() => { setCourseDraft(selectedCourses); setExpandedCourses(selectedCourses); setShowAddCourses(false); }, [courseSelectionKey]);
+  useEffect(() => setCountDraft(runSize), [runSize]);
 
   useEffect(() => {
     if (!questionStartedAt || result) return;
@@ -116,9 +149,11 @@ function PracticeContent() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!course || !selectedTopics.length) { setQuestion(null); setPracticeSession(null); return; }
+    if (!selectedCourses.length || !selectedTopics.length) { setQuestion(null); setPracticeSession(null); return; }
     setQuestion(undefined); setAttemptedQuestions(0); setPracticeSession(null); setPreviousQuestions([]); setNextQuestions([]);
-    void fetch("/api/practice-sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ course }) })
+    runSeenIdsRef.current = new Set(); runAnsweredIdsRef.current = new Set();
+    setAnsweredInRun(0); setRunCorrect(0); setRunComplete(false);
+    void fetch("/api/practice-sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ courses: selectedCourses }) })
       .then((response) => response.json().then((data) => ({ response, data })))
       .then(({ response, data }) => {
         if (cancelled) return;
@@ -128,7 +163,7 @@ function PracticeContent() {
         void loadQuestion(session.id, undefined, requestedQuestion || undefined);
       }).catch(() => { if (!cancelled) { setError("Could not start practice."); setQuestion(null); } });
     return () => { cancelled = true; };
-  }, [course, topicSelectionKey, loadQuestion]);
+  }, [courseSelectionKey, topicSelectionKey, runSize, loadQuestion]);
 
   async function saveFlag(nextSaved = saved, nextNote = note) {
     if (!question) return;
@@ -165,10 +200,40 @@ function PracticeContent() {
     router.push(destination);
   }, [router]);
 
-  const courseChoices = COURSE_IDS.map((id) => [id, id === "civil_litigation" ? "CIV" : id === "criminal_litigation" ? "CRIM" : id === "corporate_law_practice" ? "CORP" : id === "property_law_practice" ? "PROP" : "ETH", COURSE_NAMES[id]]);
-  const courseTitle = course && course in COURSE_TOPICS ? COURSE_NAMES[course as keyof typeof COURSE_TOPICS] : "Practice";
+  const courseTitle = selectedCourses.length === 0 ? "Practice" : selectedCourses.length === 1 ? COURSE_NAMES[selectedCourses[0]] : `${selectedCourses.length} courses`;
   function toggleTopic(topic: string) { setTopicDraft((topics) => topics.includes(topic) ? topics.filter((item) => item !== topic) : [...topics, topic]); }
-  function applyTopics() { if (!topicDraft.length) { setError("Choose at least one topic before starting practice."); return; } const params = new URLSearchParams(); if (course) params.set("course", course); topicDraft.forEach((topic) => params.append("topic", topic)); router.replace(`/practice?${params.toString()}`); setShowTopics(false); }
+  function toggleCourse(courseId: CourseId) {
+    const wasSelected = courseDraft.includes(courseId);
+    // Selecting a course auto-expands it so its topics are ready to pick; deselecting collapses it.
+    setExpandedCourses((prev) => wasSelected ? prev.filter((id) => id !== courseId) : [...new Set([...prev, courseId])]);
+    setCourseDraft((prev) => {
+      const next = prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId];
+      const allowed = new Set(next.flatMap((id) => COURSE_TOPICS[id].topics));
+      setTopicDraft((topics) => topics.filter((topic) => allowed.has(topic)));
+      if (!countEdited) setCountDraft(defaultRunSizeForCourses(next.length));
+      return next;
+    });
+  }
+  function toggleExpanded(courseId: CourseId) {
+    setExpandedCourses((prev) => prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId]);
+  }
+  function applyStart() {
+    if (!courseDraft.length) { setError("Choose at least one course before starting practice."); return; }
+    if (!topicDraft.length) { setError("Choose at least one topic before starting practice."); return; }
+    const params = new URLSearchParams();
+    courseDraft.forEach((id) => params.append("course", id));
+    topicDraft.forEach((topic) => params.append("topic", topic));
+    params.set("count", String(clampRunSize(countDraft)));
+    router.replace(`/practice?${params.toString()}`);
+    setShowTopics(false);
+  }
+  function startNewRun() {
+    if (!practiceSession) return;
+    runSeenIdsRef.current = new Set(); runAnsweredIdsRef.current = new Set();
+    setAnsweredInRun(0); setRunCorrect(0); setRunComplete(false);
+    setPreviousQuestions([]); setNextQuestions([]);
+    void loadQuestion(practiceSession.id);
+  }
 
   async function checkAnswer() {
     if (!question || !chosenKey) return;
@@ -178,6 +243,11 @@ function PracticeContent() {
     if (!response.ok) { setError(data.error ?? "Could not save your answer."); return; }
     setPracticeSession((session) => session ? { ...session, answers_count: session.answers_count + 1, total_seconds: session.total_seconds + secondsSpent, last_question_id: question.id } : session);
     if (data.firstAttempt) setAttemptedQuestions((count) => Math.min(count + 1, totalQuestions));
+    if (!runAnsweredIdsRef.current.has(question.id)) {
+      runAnsweredIdsRef.current.add(question.id);
+      setAnsweredInRun(runAnsweredIdsRef.current.size);
+      if (data.matchesMaterialKey) setRunCorrect((value) => value + 1);
+    }
     setResult(data);
   }
 
@@ -222,15 +292,23 @@ function PracticeContent() {
       replaceQuestionInUrl(next.id);
       return;
     }
+    if (answeredInRun >= runSize) { setRunComplete(true); replaceQuestionInUrl(null); return; }
     void loadQuestion(practiceSession.id, question.id);
   }
 
   return (
     <main className="narrow practice-run-shell">
       <a className="back-link" href="/" onClick={(event) => { event.preventDefault(); void leavePractice("/"); }}>← Back to home</a>
-      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{course ? courseTitle : "Choose a course"}</h1></div><div className="practice-header-meta"><p className="meta">{course && selectedTopics.length ? <>{practiceSession?.answers_count ?? 0} answered this session<br />Session {clock((practiceSession?.total_seconds ?? 0) + currentQuestionSeconds)}</> : "Choose topics to begin"}</p>{course && selectedTopics.length > 0 && practiceSession && <button type="button" className="outline-button end-session-button" onClick={() => { void leavePractice("/"); }}>End session</button>}</div></div>
-      {!course ? <section className="course-picker"><p className="lead">Choose a course before you begin. You&apos;ll only see questions with answers supported by the loaded materials.</p><div className="picker-grid">{courseChoices.map(([id, code, label]) => <Link key={id} href={`/practice?course=${id}`} className="card picker-card"><span className="course-code">{code}</span><h3>{label}</h3><span className="picker-arrow">→</span></Link>)}</div></section> : <section className={`topic-filter panel${!showTopics && selectedTopics.length > 0 ? " topic-filter-compact" : ""}`}><div className="course-checklist-heading"><div className="topic-filter-label"><p className="eyebrow">Topics</p><p className="muted">{selectedTopics.length ? `${selectedTopics.length} selected${totalQuestions ? ` · ${attemptedQuestions} of ${totalQuestions} attempted overall` : ""}` : "Choose at least one topic to begin"}</p></div><div className="topic-heading-actions"><button className="text-button" type="button" onClick={() => { setTopicDraft(courseTopics); setShowTopics(true); }}>Select all</button><button className={showTopics ? "text-button" : selectedTopics.length ? "outline-button" : "primary-button"} type="button" onClick={() => setShowTopics((open) => !open)}>{showTopics ? "Close" : selectedTopics.length ? "Edit topics" : "Choose topics"}</button></div></div>{showTopics && <><div className="course-checklist">{courseTopics.map((topic) => <label className="course-check" key={topic}><input type="checkbox" checked={topicDraft.includes(topic)} onChange={() => toggleTopic(topic)} /><span>{topic}</span></label>)}</div><div className="button-row"><button className="primary-button" type="button" disabled={!topicDraft.length} onClick={applyTopics}>Start practice</button></div></>}</section>}
-      {course && selectedTopics.length > 0 && (question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>No live questions match this topic selection yet. Choose different topics or ask an administrator to assign questions to these topics.</p> : (
+      <div className="practice-header"><div><p className="eyebrow">MCQ practice</p><h1 className="course-practice-title">{!runActive || showTopics ? "Set up your Practice" : courseTitle}</h1></div><div className="practice-header-meta"><p className="meta">{runActive ? <>{runComplete ? `Run complete · ${runCorrect}/${answeredInRun} correct` : `Question ${Math.min(answeredInRun + 1, runSize)} of ${runSize}`}<br />Session {clock((practiceSession?.total_seconds ?? 0) + currentQuestionSeconds)}</> : "Choose courses to begin"}</p>{runActive && practiceSession && <button type="button" className="outline-button end-session-button" onClick={() => { void leavePractice("/"); }}>End session</button>}</div></div>
+      <section className={`topic-filter panel${runActive && !showTopics ? " topic-filter-compact" : ""}`}><div className="course-checklist-heading"><div className="topic-filter-label"><p className="eyebrow">Setup</p><p className="muted">{runActive ? `${selectedCourses.length} course${selectedCourses.length === 1 ? "" : "s"} · ${selectedTopics.length} topic${selectedTopics.length === 1 ? "" : "s"} · ${runSize} questions per run${totalQuestions ? ` · ${attemptedQuestions} of ${totalQuestions} attempted` : ""}` : "Choose courses and topics to begin"}</p></div>{runActive && <div className="topic-heading-actions"><button className={showTopics ? "text-button" : "outline-button"} type="button" onClick={() => setShowTopics((open) => !open)}>{showTopics ? "Close" : "Edit setup"}</button></div>}</div>{(showTopics || !runActive) && <><div className="run-size-picker"><p className="eyebrow">Number of Questions</p><div className="number-stepper"><button type="button" aria-label="Reduce question count" onClick={() => { setCountEdited(true); setCountDraft((value) => Math.max(1, Math.min(MAX_RUN_SIZE, value - 1))); }}>−</button><input aria-label="Number of questions" type="number" min={1} max={MAX_RUN_SIZE} value={countDraft || ""} onChange={(event) => { setCountEdited(true); setCountDraft(Math.max(0, Math.min(MAX_RUN_SIZE, Math.floor(Number(event.target.value)) || 0))); }} /><span>questions</span><button type="button" aria-label="Increase question count" onClick={() => { setCountEdited(true); setCountDraft((value) => Math.max(1, Math.min(MAX_RUN_SIZE, value + 1))); }}>+</button></div><p className="hint">The default is 20 questions per course per run.</p></div>{courseDraft.length === 0 ? <><div className="topic-checklist-heading"><p className="eyebrow topic-checklist-label">Courses</p><div className="topic-checklist-actions"><button type="button" className="text-button" onClick={() => { setCourseDraft(COURSE_IDS); setExpandedCourses([]); if (!countEdited) setCountDraft(defaultRunSizeForCourses(COURSE_IDS.length)); }}>Select all</button></div></div><div className="course-checklist course-checklist-grid">{COURSE_IDS.map((id) => <label className="course-check" key={id}><input type="checkbox" checked={false} onChange={() => toggleCourse(id)} /><span>{COURSE_NAMES[id]}</span></label>)}</div></> : <><div className="topic-checklist-heading"><p className="eyebrow topic-checklist-label">Topics</p><div className="topic-checklist-actions">{courseDraft.length === COURSE_IDS.length && <button type="button" className="text-button" onClick={() => setTopicDraft(courseDraftTopics)}>Select all topics</button>}<button type="button" className="text-button" onClick={() => { setCourseDraft([]); setTopicDraft([]); setExpandedCourses([]); setShowAddCourses(false); if (!countEdited) setCountDraft(DEFAULT_RUN_SIZE); }}>Clear</button></div></div><div className="course-accordion-stack">{COURSE_IDS.filter((id) => courseDraft.includes(id)).map((id) => { const expanded = expandedCourses.includes(id); const topics = COURSE_TOPICS[id].topics; return <div className={`course-accordion selected${expanded ? " expanded" : ""}`} key={id}><div className="course-accordion-header"><button type="button" className="course-accordion-title" aria-label={expanded ? "Collapse topics" : "Expand topics"} onClick={() => toggleExpanded(id)}><span className="course-accordion-chevron">{expanded ? "▾" : "▸"}</span>{COURSE_NAMES[id]}</button><button type="button" className="course-accordion-remove" onClick={() => toggleCourse(id)}>Remove</button></div>{expanded && <div className="course-accordion-body"><div className="topic-checklist-heading"><p className="eyebrow topic-checklist-label course-group-label">Topics</p><div className="topic-checklist-actions"><button type="button" className="text-button" onClick={() => setTopicDraft((prev) => [...new Set([...prev, ...topics])])}>Select all</button><button type="button" className="text-button" onClick={() => setTopicDraft((prev) => prev.filter((topic) => !topics.includes(topic)))}>Clear</button></div></div><div className="course-accordion-topics">{topics.map((topic) => <label className="course-check" key={topic}><input type="checkbox" checked={topicDraft.includes(topic)} onChange={() => toggleTopic(topic)} /><span>{topic}</span></label>)}</div></div>}</div>; })}</div>{courseDraft.length < COURSE_IDS.length && (showAddCourses ? <div className="add-courses-panel"><div className="topic-checklist-heading"><p className="eyebrow topic-checklist-label">Add courses</p><div className="topic-checklist-actions"><button type="button" className="text-button" onClick={() => setShowAddCourses(false)}>Done</button></div></div><div className="course-checklist course-checklist-grid">{COURSE_IDS.filter((id) => !courseDraft.includes(id)).map((id) => <label className="course-check" key={id}><input type="checkbox" checked={false} onChange={() => toggleCourse(id)} /><span>{COURSE_NAMES[id]}</span></label>)}</div></div> : <button type="button" className="text-button add-courses-toggle" onClick={() => setShowAddCourses(true)}>+ Add other courses</button>)}</>}<div className="button-row"><button className="primary-button" type="button" disabled={!courseDraft.length || !topicDraft.length} onClick={applyStart}>Start practice</button></div></>}</section>
+      {runActive && !showTopics && (runComplete ? (
+        <section className="panel run-complete-panel">
+          <p className="eyebrow">Run complete</p>
+          <h2>You answered {answeredInRun} question{answeredInRun === 1 ? "" : "s"}</h2>
+          <p className="lead">{runCorrect} correct · {answeredInRun - runCorrect} to review</p>
+          <div className="button-row"><button className="primary-button" type="button" onClick={startNewRun}>Start a new run</button><button className="outline-button" type="button" onClick={() => { void leavePractice("/"); }}>Back to home</button></div>
+        </section>
+      ) : question === undefined ? <p>Choosing a question…</p> : error && !question ? <p role="alert">{error}</p> : !question ? <p>No live questions match this topic selection yet. Choose different topics or ask an administrator to assign questions to these topics.</p> : (
         <div className={`scenario-question-layout ${question.shared_context ? "has-case-study" : ""}`}>
           {question.shared_context && <aside className="case-study-side-panel" aria-label="Case study">
             <p className="case-study-label">Case study</p>
@@ -238,7 +316,7 @@ function PracticeContent() {
           </aside>}
           <section className="panel question-panel">
           <div className="question-admin-heading"><p className="question-meta">{question.topic ?? courseTitle} · {yearsLabel(question.exam_years)}</p><div className="question-heading-actions">{!result && <button className="text-button question-skip-button" type="button" onClick={nextQuestion}>Skip question →</button>}<AdminQuestionQuickEdit questionId={question.id} onSaved={(updated) => setQuestion((current) => current ? { ...current, course: updated.course, topic: updated.topic, stem: updated.stem, options: updated.options, explanation: updated.explanation, shared_context: updated.shared_context } : current)} /></div></div>
-          <div className="practice-progress" aria-hidden="true"><span /></div>
+          <div className="practice-progress" aria-hidden="true"><span style={{ width: `${Math.min(100, Math.round((answeredInRun / runSize) * 100))}%` }} /></div>
           <p className="stem">{cleanQuestionStem(question.stem)}</p>
           <button type="button" className={`flag-button ${saved ? "saved" : ""}`} onClick={() => { if (!saved) void saveFlag(true); setShowSaveNote(true); }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-6-4-6 4v-17Z" /></svg>{saved ? "Saved for later" : "Save for later"}</button>
           {showSaveNote && <div className="save-note-box"><label htmlFor="save-for-later-note">Add a note <span>(optional)</span></label><textarea id="save-for-later-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="What should you remember when you return to this?" /><div className="button-row"><button className="outline-button" type="button" onClick={() => { void saveFlag(true, note); setShowSaveNote(false); }}>Save note</button><button className="text-button" type="button" onClick={() => setShowSaveNote(false)}>Skip</button></div></div>}

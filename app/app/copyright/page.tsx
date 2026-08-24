@@ -11,8 +11,7 @@ export default function CopyrightPage() {
   return (
     <main className="narrow legal-page">
       <Link className="back-link" href="/">← Back to home</Link>
-      <p className="eyebrow">Copyright &amp; takedown</p>
-      <h1>Sources and how to raise a concern.</h1>
+      <h1 className="legal-title">Copyright &amp; takedown</h1>
       <p className="legal-updated">Last updated: 11 August 2026</p>
 
       <h2>Purpose and acknowledgements</h2>

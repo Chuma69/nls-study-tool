@@ -30,26 +30,29 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Start a private or guest session first." }, { status: 401 });
 
   const url = new URL(request.url);
-  const selectedCourse = url.searchParams.get("course") ?? "";
+  const selectedCourses = [...new Set(url.searchParams.getAll("course").map((course) => course.trim()).filter(Boolean))];
   const selectedTopics = [...new Set([
     ...url.searchParams.getAll("topic"),
     ...(url.searchParams.get("topics") ?? "").split(","),
   ].map((topic) => topic.trim()).filter(Boolean))];
   const excludedQuestionId = Number(new URL(request.url).searchParams.get("exclude")) || 0;
+  // Questions already served in the current run — excluded so a single run never repeats a question.
+  const seenQuestionIds = [...new Set((url.searchParams.get("seen") ?? "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isSafeInteger(value) && value > 0))];
   const requestedQuestionId = Number(new URL(request.url).searchParams.get("question")) || 0;
   const requestedSessionId = Number(new URL(request.url).searchParams.get("session")) || 0;
-  if (selectedCourse && !isCourse(selectedCourse)) {
+  if (selectedCourses.some((course) => !isCourse(course))) {
     return NextResponse.json({ error: "Choose one of the listed courses." }, { status: 400 });
   }
-  if (selectedTopics.length && (!selectedCourse || selectedTopics.some((topic) => !isTopicForCourse(selectedCourse, topic)))) {
-    return NextResponse.json({ error: "Choose topics from the selected course." }, { status: 400 });
+  // Topic names are unique across courses, so a topic is valid if it belongs to any selected course.
+  if (selectedTopics.length && (!selectedCourses.length || selectedTopics.some((topic) => !selectedCourses.some((course) => isTopicForCourse(course, topic))))) {
+    return NextResponse.json({ error: "Choose topics from the selected courses." }, { status: 400 });
   }
   if (!selectedTopics.length) {
     return NextResponse.json({ error: "Choose at least one topic before starting practice." }, { status: 400 });
   }
   const sessions = requestedSessionId ? await getSql()`
     SELECT id, answers_count, last_question_id FROM practice_sessions
-    WHERE id = ${requestedSessionId} AND user_id = ${user.id} AND course = ${selectedCourse} AND ended_at IS NULL
+    WHERE id = ${requestedSessionId} AND user_id = ${user.id} AND ended_at IS NULL
     LIMIT 1
   ` as SessionRow[] : [];
   const session = sessions[0] ?? null;
@@ -64,7 +67,7 @@ export async function GET(request: Request) {
       AND q.verification_status IN ('material_supported', 'staff_corrected')
       AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
       AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')
-      AND (${selectedCourse} = '' OR q.course = ${selectedCourse})
+      AND (cardinality(${selectedCourses}::text[]) = 0 OR q.course = ANY(${selectedCourses}))
       AND (cardinality(${selectedTopics}::text[]) = 0 OR q.topic = ANY(${selectedTopics}))
     LIMIT 1
   ` as QuestionRow[] : await getSql()`
@@ -80,14 +83,23 @@ export async function GET(request: Request) {
       AND q.verification_status IN ('material_supported', 'staff_corrected')
       AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
       AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')
-      AND (${selectedCourse} = '' OR q.course = ${selectedCourse})
+      AND (cardinality(${selectedCourses}::text[]) = 0 OR q.course = ANY(${selectedCourses}))
       AND (cardinality(${selectedTopics}::text[]) = 0 OR q.topic = ANY(${selectedTopics}))
       AND (${excludedQuestionId} = 0 OR q.id <> ${excludedQuestionId})
       AND (${sessionLastQuestionId} = 0 OR q.id <> ${sessionLastQuestionId})
+      AND (cardinality(${seenQuestionIds}::int[]) = 0 OR q.id <> ALL(${seenQuestionIds}::int[]))
       AND (q.context_group_id IS NULL OR q.context_position=1)
     GROUP BY q.id, s.display_name, s.rel_source_path
-    HAVING NOT COALESCE(bool_or(a.is_correct), false)
-    ORDER BY COALESCE(bool_or(a.is_correct = false), false) ASC, random()
+    ORDER BY
+      -- Tier fresh questions first, then ones the learner has failed, and finally
+      -- ones already answered correctly (surfaced only as backfill, so mastered
+      -- questions resurface far less often across runs). Random within each tier.
+      CASE
+        WHEN bool_or(a.is_correct) IS NULL THEN 0
+        WHEN bool_or(a.is_correct) THEN 2
+        ELSE 1
+      END,
+      random()
     LIMIT 1
   ` as QuestionRow[];
 
@@ -122,7 +134,7 @@ export async function GET(request: Request) {
       AND q.verification_status IN ('material_supported', 'staff_corrected')
       AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
       AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')
-      AND (${selectedCourse} = '' OR q.course = ${selectedCourse})
+      AND (cardinality(${selectedCourses}::text[]) = 0 OR q.course = ANY(${selectedCourses}))
       AND (cardinality(${selectedTopics}::text[]) = 0 OR q.topic = ANY(${selectedTopics}))
   ` as CountRow[];
 
