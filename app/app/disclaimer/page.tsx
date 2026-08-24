@@ -11,8 +11,7 @@ export default function DisclaimerPage() {
   return (
     <main className="narrow legal-page">
       <Link className="back-link" href="/">← Back to home</Link>
-      <p className="eyebrow">Disclaimer</p>
-      <h1>Read this before you rely on it.</h1>
+      <h1 className="legal-title">Disclaimer</h1>
       <p className="legal-updated">Last updated: 11 August 2026</p>
 
       <p>

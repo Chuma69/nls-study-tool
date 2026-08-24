@@ -42,6 +42,7 @@ export default function Home() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "We could not start your study session.");
       setUser(data.user);
+      window.dispatchEvent(new Event("callready:session"));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Please try again.");
     } finally {
@@ -107,7 +108,7 @@ export default function Home() {
           <section id="progress" className="coverage-panel"><p className="eyebrow">Coverage so far</p><div className="coverage-grid"><div><strong>{coverage?.answered ?? 0}</strong><span>of {coverage?.questions ?? 0} questions answered</span></div><div><strong>{coverage?.topicsCovered ?? 0}</strong><span>of {coverage?.topics ?? 0} topics covered</span></div><div><strong>{coverage?.percentage ?? 0}%</strong><span>question-bank completion</span></div></div></section>
           {(user.role === "expert" || user.role === "admin") && <Link className="text-link" href="/expert">Open expert review →</Link>}
           {user.role === "admin" && <Link className="text-link" href="/admin">Open admin review →</Link>}
-          <button className="text-button" type="button" onClick={() => { void fetch("/api/session", { method: "DELETE" }).then(() => setUser(null)); }}>End this session</button>
+          <button className="text-button" type="button" onClick={() => { void fetch("/api/session", { method: "DELETE" }).then(() => { setUser(null); window.dispatchEvent(new Event("callready:session")); }); }}>End this session</button>
         </>
       ) : (
         <div className="signin-layout">
@@ -136,7 +137,7 @@ export default function Home() {
             <button type="button" className="secondary" disabled={busy} onClick={() => { void start("guest"); }}>
               Continue as guest
             </button>
-            <p className="hint">Guest progress is private to this browser and cannot be recovered elsewhere.</p>
+            <p className="guest-note">Guest progress is private to this browser and cannot be recovered elsewhere.</p>
             <p className="signin-consent">By creating a profile or continuing as a guest, you agree to our <Link href="/terms">Terms of Use</Link> and <Link href="/privacy">Privacy Policy</Link>.</p>
           </section>
         </div>

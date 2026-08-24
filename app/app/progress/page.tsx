@@ -40,7 +40,7 @@ export default function ProgressPage() {
   const averagePace = practiceAnswers ? Math.round(practiceSeconds / practiceAnswers) : 0;
   const log = progress ? [
     ...progress.sprints.map((sprint) => ({ id: `sprint-${sprint.id}`, at: sprint.completed_at ?? sprint.started_at, label: `Sprint · ${sprint.answered_count}/${sprint.question_count} answered · ${duration(sprint.duration_seconds)}`, score: `${sprint.correct_count}/${sprint.question_count}`, tone: accuracyTone(sprint.question_count ? Math.round(sprint.correct_count / sprint.question_count * 100) : 0) })),
-    ...progress.sessions.map((session) => ({ id: `practice-${session.id}`, at: session.last_activity_at, label: `MCQ set · ${courseNames[session.course] ?? session.course} · ${duration(session.total_seconds)}`, score: `${session.correct_count}/${session.answers_count}`, tone: accuracyTone(session.answers_count ? Math.round(session.correct_count / session.answers_count * 100) : 0) })),
+    ...progress.sessions.map((session) => ({ id: `practice-${session.id}`, at: session.last_activity_at, label: `MCQ set · ${session.course.split(",").map((id) => courseNames[id] ?? id).join(" + ")} · ${duration(session.total_seconds)}`, score: `${session.correct_count}/${session.answers_count}`, tone: accuracyTone(session.answers_count ? Math.round(session.correct_count / session.answers_count * 100) : 0) })),
   ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 12) : [];
   return <main className="progress-page">
     <Link className="back-link" href="/">← Back to home</Link>
