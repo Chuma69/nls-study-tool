@@ -77,6 +77,7 @@ export function SiteNav() {
     <Link className="brand" href="/"><span className="brand-name">Call Ready</span><span className="brand-meta">Bar Part II Prep</span></Link>
     <nav className="nav-links" aria-label="Primary navigation">
       {links.map(([label, href]) => <Link key={href} className={`nav-link ${pathname === href ? "active" : ""}`} href={href}>{label}</Link>)}
+      <button type="button" className="nav-link nav-link-button" onClick={() => { void signOut(); }}>Sign out</button>
     </nav>
   </div></header>;
 }
