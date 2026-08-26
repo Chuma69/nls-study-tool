@@ -47,7 +47,7 @@ export default function DisclaimerPage() {
       <h2>Report an issue</h2>
       <p>
         Spotted a wrong answer or a problem? Use the &ldquo;Report a problem with this question&rdquo; link in practice, or email
-        <a href="mailto:hi@raymondchuma.com"> hi@raymondchuma.com</a>. Your reports help us fix the bank.
+        <a href="mailto:hi@callready.ng"> hi@callready.ng</a>. Your reports help us fix the bank.
       </p>
 
       <p className="legal-disclaimer-note">
