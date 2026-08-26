@@ -302,6 +302,16 @@ form .primary-button { margin-top: 14px; }
 .invite-controls { align-items: center; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) auto; margin-top: 18px; }
 .invite-controls .primary-button { margin: 0; white-space: nowrap; }
 .review-queue .review-row:last-child { padding-bottom: 0; }
+.expert-row-name { color: var(--ink); font-size: 15px; font-weight: 600; margin: 0; }
+.status-pill { border-radius: 999px; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .08em; padding: 3px 10px; text-transform: uppercase; white-space: nowrap; }
+.status-active { background: oklch(0.93 0.06 150); color: oklch(0.42 0.11 150); }
+.status-admin { background: oklch(0.93 0.04 245); color: var(--accent); }
+.status-pending { background: oklch(0.94 0.04 85); color: oklch(0.46 0.09 75); }
+.status-expired, .status-removed { background: var(--line); color: var(--muted); }
+.expert-join-page { margin: 0 auto; max-width: 520px; padding: 40px 24px 64px; }
+.expert-join-card .field-hint { color: var(--muted); font-size: 12.5px; margin: -4px 0 2px; }
+.expert-join-card input[readonly] { background: oklch(0.96 0.008 240); color: var(--muted); }
+.switch-note { background: oklch(0.94 0.04 85); border-radius: 9px; color: oklch(0.42 0.08 70); font-size: 13px; line-height: 1.5; margin: 4px 0 6px; padding: 10px 12px; }
 .review-queue-summary { align-items: end; border-bottom: 1px solid var(--line); display: flex; gap: 24px; justify-content: space-between; margin: 20px 0 0; padding-bottom: 18px; }
 .review-queue-summary > div:first-child strong { color: var(--accent); font-family: "Newsreader", serif; font-size: 44px; font-weight: 500; line-height: 1; }
 .review-queue-summary > div:first-child span { color: var(--muted); }
