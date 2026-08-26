@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       AND (${course}='' OR q.course=${course})
       AND q.options IS NOT NULL AND COALESCE(s.rel_source_path,'') !~* 'answer'
       AND NOT EXISTS (SELECT 1 FROM expert_reviews er WHERE er.question_id=q.id AND er.expert_id=${expertId} AND er.status='submitted')
-    ORDER BY CASE WHEN c.status='conflicted' THEN 0 ELSE 1 END,q.id LIMIT 20`;
+    ORDER BY COALESCE(c.review_count,0) ASC, random() LIMIT 20`;
   // How many this reviewer has done, and how many still await them, broken down by course.
   const reviewed = await sql`SELECT count(*)::int AS c FROM expert_reviews WHERE expert_id=${expertId} AND status='submitted'` as { c: number }[];
   const byCourse = await sql`SELECT q.course, count(*)::int AS c
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     ON CONFLICT(question_id,expert_id) DO UPDATE SET selected_key=EXCLUDED.selected_key,explanation=EXCLUDED.explanation,citations=EXCLUDED.citations,confidence=EXCLUDED.confidence,status='submitted',updated_at=now()`;
   if (auth.user.role === "admin") {
     const reviewCount = await sql`SELECT count(*)::int AS count FROM expert_reviews WHERE question_id=${questionId} AND status='submitted'` as { count: number }[];
-    await sql`UPDATE questions SET material_supported_key=${body.selectedKey},verification_status='staff_corrected',explanation=${body.explanation.trim()},explanation_version=1,explanation_citations=${JSON.stringify(citations)}::jsonb,updated_at=now() WHERE id=${questionId}`;
+    await sql`UPDATE questions SET material_supported_key=${body.selectedKey},verification_status='staff_corrected',explanation=${body.explanation.trim()},explanation_version=1,explanation_citations=${JSON.stringify(citations)}::jsonb,allowlisted_at=COALESCE(allowlisted_at,now()),allowlisted_by=COALESCE(allowlisted_by,${auth.user.id}),updated_at=now() WHERE id=${questionId}`;
     await sql`INSERT INTO question_consensus(question_id,selected_key,review_count,status,reviewed_by,reviewed_at,updated_at)
       VALUES(${questionId},${body.selectedKey},${reviewCount[0]?.count ?? 1},'staff_approved',${auth.user.id},now(),now())
       ON CONFLICT(question_id) DO UPDATE SET selected_key=EXCLUDED.selected_key,review_count=EXCLUDED.review_count,status='staff_approved',reviewed_by=EXCLUDED.reviewed_by,reviewed_at=now(),updated_at=now()`;

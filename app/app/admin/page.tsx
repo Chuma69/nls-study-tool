@@ -18,6 +18,8 @@ type Item = {
   selected_key: string;
   review_count: number;
   status: string;
+  options?: { key: string; text: string }[];
+  reviews?: Array<{ selected_key: string; explanation: string | null; confidence: string; expert: string }>;
 };
 type ActivityCourse = {
   course: string;
@@ -359,13 +361,13 @@ export default function AdminPage() {
     await fetch("/api/admin/invites", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: row.email }) });
     void loadExperts();
   }
-  async function act(id: string, action: "approve" | "reject") {
+  async function act(id: string, action: "approve" | "reject", selectedKey?: string) {
     await fetch("/api/admin/consensus", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ questionId: id, action }),
+      body: JSON.stringify({ questionId: id, action, selectedKey }),
     });
-    setMsg("Decision saved.");
+    setMsg(action === "reject" ? "Rejected." : "Answer approved and published.");
     void load();
   }
   async function refreshReviewQueue() {
@@ -1769,25 +1771,28 @@ export default function AdminPage() {
             <section className="panel compact-panel review-queue">
               <p className="eyebrow">Expert answer submissions</p>
               <h2>Expert answer queue.</h2>
-              {items.map((item) => (
-                <div key={item.id} className="review-row">
-                  <div className="review-row-top">
+              {items.map((item) => {
+                const answers = [...new Set((item.reviews ?? []).map((r) => r.selected_key))];
+                const conflicted = answers.length > 1;
+                return (
+                  <div key={item.id} className="review-row">
+                    <div className="review-row-top">
+                      <p className={`eyebrow${conflicted ? " status-conflicted" : ""}`}>{item.status.replaceAll("_", " ")} · {item.review_count} review{item.review_count === 1 ? "" : "s"}{conflicted ? " · conflict" : ""}</p>
+                      <Link className="source" href={`/expert?question=${item.id}`}>Open in review view →</Link>
+                    </div>
                     <p>{cleanQuestionStem(item.stem)}</p>
-                    {item.status === "awaiting_reviews" && !item.selected_key && (
-                      <Link className="outline-button" href={`/expert?question=${item.id}`}>Review answer</Link>
-                    )}
-                  </div>
-                  <p className="source">
-                    {item.review_count} expert submission{item.review_count === 1 ? "" : "s"} · proposed {item.selected_key ?? "answer not selected"}
-                  </p>
-                  {item.selected_key && (
+                    {(item.reviews ?? []).map((r, i) => (
+                      <p className="saved-note" key={i}><strong>{r.expert} → {r.selected_key}</strong> <span className="muted">({r.confidence} confidence)</span>{r.explanation ? `: ${r.explanation}` : ""}</p>
+                    ))}
                     <div className="button-row">
-                      <button type="button" onClick={() => { void act(item.id, "approve"); }}>Approve answer</button>
+                      {answers.length ? answers.map((k) => (
+                        <button key={k} type="button" onClick={() => { void act(item.id, "approve", k); }}>{conflicted ? `Publish ${k}` : "Approve answer"}</button>
+                      )) : <Link className="outline-button" href={`/expert?question=${item.id}`}>Review answer</Link>}
                       <button className="secondary" type="button" onClick={() => { void act(item.id, "reject"); }}>Reject</button>
                     </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
               {!items.length && <p className="muted">No expert submissions awaiting action.</p>}
             </section>
           )}

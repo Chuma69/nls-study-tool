@@ -114,7 +114,7 @@ export async function PATCH(request: Request) {
   const { isCourse, isTopicForCourse } = await import("@/lib/course-topics");
   if (!body.course || !isCourse(body.course)) return NextResponse.json({ error: "Choose one of the five courses." }, { status: 400 });
   if (!body.topic || !isTopicForCourse(body.course, body.topic)) return NextResponse.json({ error: "Choose an official topic for the selected course." }, { status: 400 });
-  await sql`UPDATE questions SET course=${body.course},topic=${body.topic},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status='staff_corrected',explanation=${explanation},updated_at=now() WHERE id=${report[0].question_id}`;
+  await sql`UPDATE questions SET course=${body.course},topic=${body.topic},stem=${stem},options=${JSON.stringify(options)}::jsonb,material_supported_key=${body.answerKey},verification_status='staff_corrected',explanation=${explanation},allowlisted_at=COALESCE(allowlisted_at,now()),allowlisted_by=COALESCE(allowlisted_by,${auth.user.id}),updated_at=now() WHERE id=${report[0].question_id}`;
   const resolvedReports = await sql`
     UPDATE question_reports
     SET status='resolved', resolved_by=${auth.user.id}, resolved_at=now(), resolution_note='Question updated by admin.'
