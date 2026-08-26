@@ -64,7 +64,7 @@ type Report = {
   course: string;
   topic: string | null;
   review_count: number;
-  reviews: Array<{ id: number; review_source: "learner_report" | "admin_flag"; category: string; details: string | null; reporter: string; created_at: string; queue_status: "open" | "resolved" }>;
+  reviews: Array<{ id: number; review_source: "learner_report" | "admin_flag" | "expert_answer"; category: string; details: string | null; reporter: string; created_at: string; queue_status: "open" | "resolved"; proposed_course?: string | null; proposed_topic?: string | null }>;
 };
 type BankQuestion = {
   id: number;
@@ -171,8 +171,9 @@ export default function AdminPage() {
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [invite, setInvite] = useState("");
   const [inviteNote, setInviteNote] = useState("");
-  const [expertSubTab, setExpertSubTab] = useState<"reviewers" | "queue">("reviewers");
+  const [expertSubTab, setExpertSubTab] = useState<"reviewers" | "queue" | "activity">("reviewers");
   const [experts, setExperts] = useState<ExpertRow[]>([]);
+  const [expertActivity, setExpertActivity] = useState<Report[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [users, setUsers] = useState<ActivityUser[]>([]);
   const [activitySummary, setActivitySummary] = useState<ActivitySummary | null>(null);
@@ -367,6 +368,23 @@ export default function AdminPage() {
     setMsg("Decision saved.");
     void load();
   }
+  async function refreshReviewQueue() {
+    try {
+      const data = await fetch(reviewQueueUrl()).then((r) => r.json());
+      setReports(data.reports ?? []); setReviewTotal(data.total ?? 0); setReviewOpenTotal(data.openTotal ?? 0);
+    } catch { setMsg("The review queue could not load."); }
+  }
+  async function loadExpertActivity() {
+    try {
+      const data = await fetch("/api/admin/question-reports?source=expert&status=open&limit=50").then((r) => r.json());
+      setExpertActivity(data.reports ?? []);
+    } catch { setMsg("Expert activity could not load."); }
+  }
+  async function applyReclassify(reviewId: number) {
+    await fetch("/api/admin/question-reports", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ reportId: reviewId, action: "apply_reclassify" }) });
+    setMsg("Reassignment applied to the question.");
+    void loadExpertActivity();
+  }
   function beginEdit(report: Report) {
     setEditing(report);
     setEditStem(report.stem);
@@ -443,7 +461,8 @@ export default function AdminPage() {
   useEffect(() => {
     if (tab !== "experts") return;
     void loadExperts();
-  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (expertSubTab === "activity") void loadExpertActivity();
+  }, [tab, expertSubTab]); // eslint-disable-line react-hooks/exhaustive-deps
   async function mergeDuplicateCluster(cluster: DuplicateCluster) {
     const canonicalId = dupCanonical[cluster.key] ?? cluster.questions[0]?.id;
     if (!canonicalId) return;
@@ -1423,11 +1442,20 @@ export default function AdminPage() {
                             {report.queue_status} · {report.review_count} review{report.review_count === 1 ? "" : "s"}
                           </p>
                           <p>{report.stem}</p>
-                          {report.reviews.map((review) => (
-                            <p className="saved-note" key={`${review.review_source}-${review.id}`}>
-                              {review.review_source === "admin_flag" ? "Admin flag" : review.category.replaceAll("_", " ")}: {review.details?.trim() || "No additional comment."}
-                            </p>
-                          ))}
+                          {report.reviews.map((review) => {
+                            const label = review.review_source === "admin_flag" ? "Admin flag"
+                              : review.review_source === "expert_answer" ? "Expert answer"
+                              : review.category === "reclassify" ? "Course/topic suggestion"
+                              : review.category.replaceAll("_", " ");
+                            const body = review.category === "reclassify"
+                              ? `→ ${review.proposed_course ? (COURSE_NAMES[review.proposed_course as keyof typeof COURSE_NAMES] ?? review.proposed_course) : "?"} / ${review.proposed_topic ?? "?"}${review.details?.trim() ? ` — ${review.details.trim()}` : ""}`
+                              : (review.details?.trim() || "No additional comment.");
+                            return (
+                              <p className="saved-note" key={`${review.review_source}-${review.id}`}>
+                                <strong>{label}</strong>{review.reporter ? ` · ${review.reporter}` : ""}: {body}
+                              </p>
+                            );
+                          })}
                           <span className="source">Open full question editor</span>
                         </div>
                       }
@@ -1696,6 +1724,7 @@ export default function AdminPage() {
           <nav className="admin-tabs admin-subtabs" aria-label="Expert sections">
             <button className={expertSubTab === "reviewers" ? "active" : ""} type="button" onClick={() => setExpertSubTab("reviewers")}>Reviewers</button>
             <button className={expertSubTab === "queue" ? "active" : ""} type="button" onClick={() => setExpertSubTab("queue")}>Answer queue</button>
+            <button className={expertSubTab === "activity" ? "active" : ""} type="button" onClick={() => setExpertSubTab("activity")}>Question activity</button>
           </nav>
           {expertSubTab === "reviewers" && (
             <div className="expert-workspace">
@@ -1760,6 +1789,34 @@ export default function AdminPage() {
                 </div>
               ))}
               {!items.length && <p className="muted">No expert submissions awaiting action.</p>}
+            </section>
+          )}
+          {expertSubTab === "activity" && (
+            <section className="panel compact-panel review-queue">
+              <p className="eyebrow">Expert activity</p>
+              <h2>Actions on questions.</h2>
+              {!expertActivity.length && <p className="muted">No open expert activity on questions.</p>}
+              {expertActivity.map((report) => (
+                <div key={report.question_id} className="review-row expert-activity-row">
+                  <p className="eyebrow">{report.queue_status} · {report.course ? (COURSE_NAMES[report.course as keyof typeof COURSE_NAMES] ?? report.course) : "Course not set"}</p>
+                  <p>{cleanQuestionStem(report.stem)}</p>
+                  {report.reviews.map((review) => {
+                    const label = review.review_source === "expert_answer" ? "Answer review" : review.category === "reclassify" ? "Course/topic suggestion" : `Flag · ${review.category.replaceAll("_", " ")}`;
+                    const body = review.category === "reclassify"
+                      ? `→ ${review.proposed_course ? (COURSE_NAMES[review.proposed_course as keyof typeof COURSE_NAMES] ?? review.proposed_course) : "?"} / ${review.proposed_topic ?? "?"}${review.details?.trim() ? ` — ${review.details.trim()}` : ""}`
+                      : (review.details?.trim() || "No additional comment.");
+                    return (
+                      <div className="expert-activity-item" key={`${review.review_source}-${review.id}`}>
+                        <p className="saved-note"><strong>{label}</strong>{review.reporter ? ` · ${review.reporter}` : ""}: {body}</p>
+                        {review.category === "reclassify" && review.queue_status === "open" && (
+                          <button type="button" className="outline-button" onClick={() => { void applyReclassify(review.id); }}>Apply reassignment</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <Link className="source" href={`/expert?question=${report.question_id}`}>Open in review view →</Link>
+                </div>
+              ))}
             </section>
           )}
         </>

@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { cleanQuestionStem } from "@/lib/question-text";
 import { COURSE_IDS, COURSE_NAMES } from "@/lib/course-topics";
+import { QuestionReport } from "@/components/question-report";
+import { ExpertReclassify } from "@/components/expert-reclassify";
 
 type Question = {
   id: string;
@@ -65,6 +67,14 @@ export default function ExpertPage() {
     setKey(""); setExplanation("");
   }
 
+  function skip() {
+    if (!active) return;
+    const remaining = items.filter((x) => x.id !== active.id);
+    setItems(remaining);
+    setActive(remaining[0] ?? null);
+    setKey(""); setExplanation(""); setMessage("");
+  }
+
   return (
     <main className="narrow expert-page">
       <div className="expert-header">
@@ -121,6 +131,12 @@ export default function ExpertPage() {
           </select>
           <button className="primary-button" type="button" disabled={!key || !explanation.trim()} onClick={() => void submit()}>Submit independent review</button>
           {active.source_name && <p className="source">Source: {active.source_name}{active.source_locator ? ` · ${active.source_locator}` : ""}</p>}
+          <div className="expert-question-actions">
+            <p className="eyebrow">Something off with this question?</p>
+            <QuestionReport questionId={active.id} />
+            <ExpertReclassify questionId={active.id} currentCourse={active.course} />
+            <button type="button" className="text-button" onClick={skip}>Skip for now →</button>
+          </div>
         </section>
       )}
       {message && <p className="status-message" role="status">{message}</p>}

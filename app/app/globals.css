@@ -328,6 +328,13 @@ form .primary-button { margin-top: 14px; }
 .expert-review-card .field-hint { font-size: 12.5px; margin: 0 0 8px; }
 .expert-review-card textarea, .expert-review-card select { width: 100%; }
 .expert-review-card .primary-button { margin-top: 18px; }
+.expert-question-actions { border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 20px; padding-top: 16px; }
+.expert-question-actions .eyebrow { flex-basis: 100%; margin: 0; }
+.expert-action { position: relative; }
+.expert-action-form { display: grid; gap: 6px; margin-top: 8px; max-width: 420px; }
+.expert-activity-item { align-items: baseline; display: flex; gap: 12px; justify-content: space-between; }
+.expert-activity-item .saved-note { margin: 6px 0; }
+.expert-activity-item .outline-button { flex: 0 0 auto; min-height: 32px; padding: 5px 12px; white-space: nowrap; }
 .review-queue-summary { align-items: end; border-bottom: 1px solid var(--line); display: flex; gap: 24px; justify-content: space-between; margin: 20px 0 0; padding-bottom: 18px; }
 .review-queue-summary > div:first-child strong { color: var(--accent); font-family: "Newsreader", serif; font-size: 44px; font-weight: 500; line-height: 1; }
 .review-queue-summary > div:first-child span { color: var(--muted); }
