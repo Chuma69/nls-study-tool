@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cleanQuestionStem } from "@/lib/question-text";
 
@@ -60,10 +59,7 @@ export default function ExpertPage() {
     setExplanation("");
   }
   return (
-    <main>
-      <Link className="back-link" href="/">
-        ← Home
-      </Link>
+    <main className="narrow">
       <p className="eyebrow">Expert review</p>
       <h1>Resolve open questions.</h1>
       {!active ? (

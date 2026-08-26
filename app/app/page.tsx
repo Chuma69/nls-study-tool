@@ -39,8 +39,10 @@ export default function Home() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(mode === "guest" ? { mode } : { mode, username: name, email, inviteToken }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? "We could not start your study session.");
+      // A crashed/empty server response has no JSON body — parse defensively so the user
+      // sees a friendly message rather than a raw "Unexpected end of JSON input" error.
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.user) throw new Error(data?.error ?? "We couldn't reach the server. Please try again in a moment.");
       setUser(data.user);
       window.dispatchEvent(new Event("callready:session"));
     } catch (reason) {

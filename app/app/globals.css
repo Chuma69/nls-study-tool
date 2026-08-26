@@ -32,6 +32,7 @@ button:disabled { cursor: not-allowed; opacity: .52; }
 .nav-links { display: flex; flex-wrap: wrap; gap: 3px; }
 .nav-link { border: 1px solid transparent; border-radius: 7px; color: oklch(.88 .02 220); font-size: 13px; padding: 6px 10px; text-decoration: none; }
 .nav-link:hover, .nav-link.active { background: rgba(255,255,255,.1); color: #fff; }
+.nav-link-button { background: transparent; cursor: pointer; font-family: inherit; }
 
 main { margin: 0 auto; max-width: 1120px; padding: 40px 24px 72px; }
 .narrow { max-width: 880px; }
