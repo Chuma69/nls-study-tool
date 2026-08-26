@@ -312,6 +312,22 @@ form .primary-button { margin-top: 14px; }
 .expert-join-card .field-hint { color: var(--muted); font-size: 12.5px; margin: -4px 0 2px; }
 .expert-join-card input[readonly] { background: oklch(0.96 0.008 240); color: var(--muted); }
 .switch-note { background: oklch(0.94 0.04 85); border-radius: 9px; color: oklch(0.42 0.08 70); font-size: 13px; line-height: 1.5; margin: 4px 0 6px; padding: 10px 12px; }
+.dual-account-note { background: oklch(0.95 0.03 245); border-radius: 9px; color: var(--ink); font-size: 13px; line-height: 1.55; margin: 0 0 6px; padding: 10px 12px; }
+.expert-page { padding-bottom: 40px; }
+.expert-header { align-items: flex-end; display: flex; gap: 24px; justify-content: space-between; flex-wrap: wrap; }
+.expert-stats { display: flex; gap: 26px; }
+.expert-stats div { display: flex; flex-direction: column; }
+.expert-stats strong { color: var(--accent); font-family: Newsreader, Georgia, serif; font-size: 32px; font-weight: 500; line-height: 1; }
+.expert-stats span { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .1em; margin-top: 4px; text-transform: uppercase; }
+.course-filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0 20px; }
+.course-chip { align-items: center; background: transparent; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); cursor: pointer; display: inline-flex; font-size: 13px; gap: 8px; padding: 7px 14px; }
+.course-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.course-chip-count { background: var(--line); border-radius: 999px; color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 11px; padding: 1px 7px; }
+.course-chip.active .course-chip-count { background: rgba(255,255,255,.25); color: #fff; }
+.expert-review-card > label { display: block; font-weight: 600; margin: 18px 0 2px; }
+.expert-review-card .field-hint { font-size: 12.5px; margin: 0 0 8px; }
+.expert-review-card textarea, .expert-review-card select { width: 100%; }
+.expert-review-card .primary-button { margin-top: 18px; }
 .review-queue-summary { align-items: end; border-bottom: 1px solid var(--line); display: flex; gap: 24px; justify-content: space-between; margin: 20px 0 0; padding-bottom: 18px; }
 .review-queue-summary > div:first-child strong { color: var(--accent); font-family: "Newsreader", serif; font-size: 44px; font-weight: 500; line-height: 1; }
 .review-queue-summary > div:first-child span { color: var(--muted); }
