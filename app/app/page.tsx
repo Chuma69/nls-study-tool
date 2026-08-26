@@ -109,8 +109,7 @@ export default function Home() {
           </section>
           <section id="progress" className="coverage-panel"><p className="eyebrow">Coverage so far</p><div className="coverage-grid"><div><strong>{coverage?.answered ?? 0}</strong><span>of {coverage?.questions ?? 0} questions answered</span></div><div><strong>{coverage?.topicsCovered ?? 0}</strong><span>of {coverage?.topics ?? 0} topics covered</span></div><div><strong>{coverage?.percentage ?? 0}%</strong><span>question-bank completion</span></div></div></section>
           {(user.role === "expert" || user.role === "admin") && <Link className="text-link" href="/expert">Open expert review →</Link>}
-          {user.role === "admin" && <Link className="text-link" href="/admin">Open admin review →</Link>}
-          <button className="text-button" type="button" onClick={() => { void fetch("/api/session", { method: "DELETE" }).then(() => { setUser(null); window.dispatchEvent(new Event("callready:session")); }); }}>End this session</button>
+          {user.role === "admin" && <Link className="text-link" href="/admin">Open admin dashboard →</Link>}
         </>
       ) : (
         <div className="signin-layout">
