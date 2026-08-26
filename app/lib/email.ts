@@ -29,7 +29,26 @@ function inviteEmailHtml(inviteUrl: string, expiresLabel: string) {
   </body></html>`;
 }
 
-export async function sendExpertInviteEmail(to: string, inviteUrl: string, expiresLabel: string): Promise<SendResult> {
+function addedEmailHtml(inviteUrl: string) {
+  return `<!doctype html><html><body style="margin:0;background:#f2f5f8;font-family:'Segoe UI',Helvetica,Arial,sans-serif;color:#1c2733;">
+    <div style="max-width:520px;margin:0 auto;padding:32px 20px;">
+      <p style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#5b6b7c;margin:0 0 6px;">Call Ready · Bar Part II Prep</p>
+      <h1 style="font-size:24px;margin:0 0 14px;color:#12202e;">You're now an expert reviewer</h1>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 20px;">
+        Your Call Ready account has been added to the expert review panel. You can now help verify
+        answers to Bar Part II practice questions — your reviews stay independent and private until you submit.
+      </p>
+      <p style="margin:0 0 24px;">
+        <a href="${inviteUrl}" style="display:inline-block;background:#1f5f8b;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:9px;font-size:15px;">Start reviewing</a>
+      </p>
+      <p style="font-size:12px;line-height:1.6;color:#8a97a4;margin:16px 0 0;word-break:break-all;">
+        If the button doesn't work, paste this link into your browser:<br/>${inviteUrl}
+      </p>
+    </div>
+  </body></html>`;
+}
+
+async function sendEmail(to: string, subject: string, html: string): Promise<SendResult> {
   const apiKey = process.env.RESEND_API_KEY;
   // A verified sending domain is required to email arbitrary recipients in production.
   // Until one is set via EXPERT_INVITE_FROM, fall back to Resend's shared test sender.
@@ -39,12 +58,7 @@ export async function sendExpertInviteEmail(to: string, inviteUrl: string, expir
     const response = await fetch(RESEND_ENDPOINT, {
       method: "POST",
       headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        from,
-        to,
-        subject: "You're invited to review questions on Call Ready",
-        html: inviteEmailHtml(inviteUrl, expiresLabel),
-      }),
+      body: JSON.stringify({ from, to, subject, html }),
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
@@ -54,4 +68,14 @@ export async function sendExpertInviteEmail(to: string, inviteUrl: string, expir
   } catch (error) {
     return { sent: false, reason: "send_error", detail: error instanceof Error ? error.message : String(error) };
   }
+}
+
+// New reviewer: invite them to create a profile and join.
+export function sendExpertInviteEmail(to: string, inviteUrl: string, expiresLabel: string) {
+  return sendEmail(to, "You're invited to review questions on Call Ready", inviteEmailHtml(inviteUrl, expiresLabel));
+}
+
+// Existing Call Ready user: tell them they've been added and link straight into reviewing.
+export function sendExpertAddedEmail(to: string, inviteUrl: string) {
+  return sendEmail(to, "You've been added as an expert reviewer on Call Ready", addedEmailHtml(inviteUrl));
 }

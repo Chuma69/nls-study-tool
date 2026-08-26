@@ -93,6 +93,17 @@ type AdminUser = {
   email: string;
   last_seen_at: string;
 };
+type ExpertRow = {
+  email: string;
+  name: string | null;
+  role: "learner" | "expert" | "admin" | null;
+  invited_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  user_id: number | null;
+  review_count: number;
+  last_review_at: string | null;
+};
 type DuplicateQuestion = {
   id: number;
   course: string | null;
@@ -160,6 +171,8 @@ export default function AdminPage() {
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [invite, setInvite] = useState("");
   const [inviteNote, setInviteNote] = useState("");
+  const [expertSubTab, setExpertSubTab] = useState<"reviewers" | "queue">("reviewers");
+  const [experts, setExperts] = useState<ExpertRow[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [users, setUsers] = useState<ActivityUser[]>([]);
   const [activitySummary, setActivitySummary] = useState<ActivitySummary | null>(null);
@@ -325,9 +338,25 @@ export default function AdminPage() {
     setInvite(data.inviteUrl ?? "");
     setInviteNote(
       data.emailed
-        ? `Invite emailed to ${data.email}.`
+        ? `${data.isExisting ? "Existing account added" : "Invite emailed"} — ${data.email}.`
         : `Email not sent${data.emailReason === "no_api_key" ? " — email isn't configured yet" : ""}. Copy the link below and send it manually.`,
     );
+    setEmail("");
+    void loadExperts();
+  }
+  async function loadExperts() {
+    try {
+      const response = await fetch("/api/admin/invites");
+      if (!response.ok) return;
+      const data = await response.json();
+      setExperts(data.experts ?? []);
+    } catch { /* leave the list as-is on a transient error */ }
+  }
+  async function revokeExpert(row: ExpertRow) {
+    const accepted = Boolean(row.accepted_at);
+    if (!window.confirm(accepted ? `Remove expert access for ${row.email}? They'll become a regular learner.` : `Revoke the pending invite for ${row.email}?`)) return;
+    await fetch("/api/admin/invites", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: row.email }) });
+    void loadExperts();
   }
   async function act(id: string, action: "approve" | "reject") {
     await fetch("/api/admin/consensus", {
@@ -411,6 +440,10 @@ export default function AdminPage() {
     if (tab !== "reviews" || reviewSubTab !== "duplicates") return;
     void loadDuplicates(1, dupMode, dupCourse);
   }, [tab, reviewSubTab, dupMode, dupCourse]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (tab !== "experts") return;
+    void loadExperts();
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
   async function mergeDuplicateCluster(cluster: DuplicateCluster) {
     const canonicalId = dupCanonical[cluster.key] ?? cluster.questions[0]?.id;
     if (!canonicalId) return;
@@ -1660,36 +1693,50 @@ export default function AdminPage() {
       )}
       {tab === "experts" && (
         <>
-          <div className="expert-workspace">
-            <section className="panel compact-panel">
-              <p className="eyebrow">Experts</p>
-              <h2>Invite an expert.</h2>
-              <p className="muted">
-                They can independently review questions that need a second
-                opinion.
-              </p>
-              <div className="invite-controls">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="expert@example.com"
-                />
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => {
-                    void makeInvite();
-                  }}
-                >
-                  Create invite
-                </button>
-              </div>
-              {inviteNote && <p className="muted invite-note">{inviteNote}</p>}
-              {invite && (
-                <p className="source">One-time link: {invite}</p>
-              )}
-            </section>
+          <nav className="admin-tabs admin-subtabs" aria-label="Expert sections">
+            <button className={expertSubTab === "reviewers" ? "active" : ""} type="button" onClick={() => setExpertSubTab("reviewers")}>Reviewers</button>
+            <button className={expertSubTab === "queue" ? "active" : ""} type="button" onClick={() => setExpertSubTab("queue")}>Answer queue</button>
+          </nav>
+          {expertSubTab === "reviewers" && (
+            <div className="expert-workspace">
+              <section className="panel compact-panel">
+                <p className="eyebrow">Experts</p>
+                <h2>Invite an expert.</h2>
+                <p className="muted">Existing Call Ready accounts are added instantly and emailed a link to start reviewing; new addresses get an invitation to join.</p>
+                <div className="invite-controls">
+                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="expert@example.com" />
+                  <button className="primary-button" type="button" onClick={() => { void makeInvite(); }}>Create invite</button>
+                </div>
+                {inviteNote && <p className="muted invite-note">{inviteNote}</p>}
+                {invite && <p className="source">One-time link: {invite}</p>}
+              </section>
+              <section className="panel compact-panel">
+                <p className="eyebrow">Review panel</p>
+                <h2>Invited reviewers.</h2>
+                {!experts.length && <p className="muted">No reviewers invited yet.</p>}
+                {experts.map((row) => {
+                  const expired = !row.accepted_at && new Date(row.expires_at).getTime() <= Date.now();
+                  const status = row.accepted_at ? (row.role === "expert" ? "Active" : row.role === "admin" ? "Admin" : "Removed") : expired ? "Expired" : "Pending";
+                  return (
+                    <div key={row.email} className="review-row expert-row">
+                      <div className="review-row-top">
+                        <div><p className="expert-row-name">{row.name ?? row.email}</p>{row.name && <p className="source">{row.email}</p>}</div>
+                        <span className={`status-pill status-${status.toLowerCase()}`}>{status}</span>
+                      </div>
+                      <p className="source">
+                        {row.accepted_at ? `${row.review_count} review${row.review_count === 1 ? "" : "s"} submitted` : `Invited ${new Date(row.invited_at).toLocaleDateString()}`}
+                        {row.last_review_at ? ` · last active ${new Date(row.last_review_at).toLocaleDateString()}` : ""}
+                      </p>
+                      <div className="button-row">
+                        <button className="secondary" type="button" onClick={() => { void revokeExpert(row); }}>{row.accepted_at ? "Remove access" : "Revoke invite"}</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+            </div>
+          )}
+          {expertSubTab === "queue" && (
             <section className="panel compact-panel review-queue">
               <p className="eyebrow">Expert answer submissions</p>
               <h2>Expert answer queue.</h2>
@@ -1698,9 +1745,7 @@ export default function AdminPage() {
                   <div className="review-row-top">
                     <p>{cleanQuestionStem(item.stem)}</p>
                     {item.status === "awaiting_reviews" && !item.selected_key && (
-                      <Link className="outline-button" href={`/expert?question=${item.id}`}>
-                        Review answer
-                      </Link>
+                      <Link className="outline-button" href={`/expert?question=${item.id}`}>Review answer</Link>
                     )}
                   </div>
                   <p className="source">
@@ -1716,7 +1761,7 @@ export default function AdminPage() {
               ))}
               {!items.length && <p className="muted">No expert submissions awaiting action.</p>}
             </section>
-          </div>
+          )}
         </>
       )}
       {tab === "team" && (
