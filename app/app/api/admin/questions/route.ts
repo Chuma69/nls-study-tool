@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     contextGroupId = crypto.randomUUID(); sharedContext = null; position = 1;
   }
   const fingerprint = `admin:${crypto.randomUUID()}`;
-  const inserted = await getSql()`INSERT INTO questions(question_fingerprint,question_type,course,topic,stem,options,material_supported_key,verification_status,explanation,source_locator,context_group_id,shared_context,context_position) VALUES(${fingerprint},'mcq',${course},${topic || null},${stem},${JSON.stringify(options)}::jsonb,${answerKey || null},${wantsPublish ? "staff_corrected" : "unreviewed"},${explanation || null},'admin-created',${contextGroupId},${sharedContext},${position}) RETURNING id,course,topic,stem,options,material_supported_key,explanation,verification_status,context_group_id,shared_context,context_position`;
+  const inserted = await getSql()`INSERT INTO questions(question_fingerprint,question_type,course,topic,stem,options,material_supported_key,verification_status,explanation,source_locator,context_group_id,shared_context,context_position,allowlisted_at,allowlisted_by) VALUES(${fingerprint},'mcq',${course},${topic || null},${stem},${JSON.stringify(options)}::jsonb,${answerKey || null},${wantsPublish ? "staff_corrected" : "unreviewed"},${explanation || null},'admin-created',${contextGroupId},${sharedContext},${position},${wantsPublish ? new Date().toISOString() : null},${wantsPublish ? auth.user.id : null}) RETURNING id,course,topic,stem,options,material_supported_key,explanation,verification_status,context_group_id,shared_context,context_position`;
   return NextResponse.json({ ok: true, question: inserted[0] }, { status: 201 });
 }
 export async function GET(request: Request) {
@@ -141,7 +141,7 @@ export async function PATCH(request: Request) {
     const questionIds = [...new Set((body.questionIds ?? []).map(Number).filter(Number.isSafeInteger))].slice(0, 250);
     if (!questionIds.length) return NextResponse.json({ error: "Select at least one question." }, { status: 400 });
     if (body.action === "bulk_publish") {
-      const updated = await getSql()`UPDATE questions SET verification_status='staff_corrected',updated_at=now() WHERE id=ANY(${questionIds}) AND question_type='mcq' AND material_supported_key IS NOT NULL AND NULLIF(trim(explanation),'') IS NOT NULL AND course=ANY(${COURSE_IDS}) AND NULLIF(trim(topic),'') IS NOT NULL RETURNING id` as { id: number }[];
+      const updated = await getSql()`UPDATE questions SET verification_status='staff_corrected',allowlisted_at=COALESCE(allowlisted_at,now()),allowlisted_by=COALESCE(allowlisted_by,${auth.user.id}),updated_at=now() WHERE id=ANY(${questionIds}) AND question_type='mcq' AND material_supported_key IS NOT NULL AND NULLIF(trim(explanation),'') IS NOT NULL AND course=ANY(${COURSE_IDS}) AND NULLIF(trim(topic),'') IS NOT NULL RETURNING id` as { id: number }[];
       const publishedIds = updated.map((question) => question.id);
       const resolved = publishedIds.length ? await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=ANY(${publishedIds}) AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[] : [];
       const resolvedReports = publishedIds.length ? await getSql()`UPDATE question_reports SET status='resolved',resolved_by=${auth.user.id},resolved_at=now(),resolution_note='Question reviewed and published by admin.' WHERE question_id=ANY(${publishedIds}) AND status='open' RETURNING id` as { id: number }[] : [];
