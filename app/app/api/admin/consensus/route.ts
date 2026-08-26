@@ -16,7 +16,9 @@ export async function GET() {
         WHERE er.question_id=q.id AND er.status='submitted'
       ),'[]'::json) AS reviews
     FROM question_consensus c JOIN questions q ON q.id=c.question_id
-    WHERE c.status IN ('awaiting_reviews','consensus_reached','conflicted') ORDER BY c.updated_at DESC LIMIT 50`;
+    WHERE c.status IN ('awaiting_reviews','consensus_reached','conflicted')
+      AND q.verification_status NOT IN ('material_supported','staff_corrected')
+    ORDER BY c.updated_at DESC LIMIT 50`;
   return NextResponse.json({ items: rows });
 }
 

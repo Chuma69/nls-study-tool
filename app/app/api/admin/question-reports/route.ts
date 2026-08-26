@@ -122,5 +122,7 @@ export async function PATCH(request: Request) {
     RETURNING id
   ` as { id: number }[];
   const resolvedFlags = await sql`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=${report[0].question_id} AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[];
+  // Clear any pending consensus so a now-live question leaves the expert answer queue.
+  await sql`UPDATE question_consensus SET status='staff_approved',reviewed_by=${auth.user.id},reviewed_at=now(),updated_at=now() WHERE question_id=${report[0].question_id} AND status IN ('awaiting_reviews','consensus_reached','conflicted')`;
   return NextResponse.json({ ok: true, resolvedReports: resolvedReports.length, resolvedReviewFlags: resolvedFlags.length });
 }

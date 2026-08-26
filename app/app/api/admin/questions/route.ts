@@ -145,6 +145,8 @@ export async function PATCH(request: Request) {
       const publishedIds = updated.map((question) => question.id);
       const resolved = publishedIds.length ? await getSql()`UPDATE question_flags SET resolved_at=now(),resolved_by=${String(auth.user.id)} WHERE question_id=ANY(${publishedIds}) AND kind='admin_review' AND resolved_at IS NULL RETURNING id` as { id: number }[] : [];
       const resolvedReports = publishedIds.length ? await getSql()`UPDATE question_reports SET status='resolved',resolved_by=${auth.user.id},resolved_at=now(),resolution_note='Question reviewed and published by admin.' WHERE question_id=ANY(${publishedIds}) AND status='open' RETURNING id` as { id: number }[] : [];
+      // Clear any pending consensus so a now-live question drops out of the expert answer queue.
+      if (publishedIds.length) await getSql()`UPDATE question_consensus SET status='staff_approved',reviewed_by=${auth.user.id},reviewed_at=now(),updated_at=now() WHERE question_id=ANY(${publishedIds}) AND status IN ('awaiting_reviews','consensus_reached','conflicted')`;
       return NextResponse.json({ ok: true, updated: updated.length, skipped: questionIds.length - updated.length, resolvedReviewFlags: resolved.length + resolvedReports.length });
     }
     if (body.action === "bulk_unpublish") {
