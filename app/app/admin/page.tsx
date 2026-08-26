@@ -159,6 +159,7 @@ export default function AdminPage() {
   const [adminEmail, setAdminEmail] = useState("");
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [invite, setInvite] = useState("");
+  const [inviteNote, setInviteNote] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [users, setUsers] = useState<ActivityUser[]>([]);
   const [activitySummary, setActivitySummary] = useState<ActivitySummary | null>(null);
@@ -320,7 +321,13 @@ export default function AdminPage() {
       body: JSON.stringify({ email }),
     });
     const data = await response.json();
-    setInvite(data.inviteUrl ?? data.error ?? "");
+    if (!response.ok) { setInvite(""); setInviteNote(data.error ?? "Could not create the invite."); return; }
+    setInvite(data.inviteUrl ?? "");
+    setInviteNote(
+      data.emailed
+        ? `Invite emailed to ${data.email}.`
+        : `Email not sent${data.emailReason === "no_api_key" ? " — email isn't configured yet" : ""}. Copy the link below and send it manually.`,
+    );
   }
   async function act(id: string, action: "approve" | "reject") {
     await fetch("/api/admin/consensus", {
@@ -1678,8 +1685,9 @@ export default function AdminPage() {
                   Create invite
                 </button>
               </div>
+              {inviteNote && <p className="muted invite-note">{inviteNote}</p>}
               {invite && (
-                <p className="source">Share this one-time link: {invite}</p>
+                <p className="source">One-time link: {invite}</p>
               )}
             </section>
             <section className="panel compact-panel review-queue">

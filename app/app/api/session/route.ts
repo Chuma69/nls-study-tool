@@ -19,7 +19,12 @@ export async function POST(request: Request) {
   const clientAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     ?? request.headers.get("x-real-ip")
     ?? "unknown";
-  if (!(await allowRequest("session-create", clientAddress, 12, 60 * 60))) {
+  // Fail open: a rate-limiter DB hiccup must never crash the whole endpoint into an
+  // empty 500 (which the client can't parse). Only enforce the limit when it answers.
+  let withinLimit = true;
+  try { withinLimit = await allowRequest("session-create", clientAddress, 12, 60 * 60); }
+  catch (error) { console.error("Rate limiter unavailable; allowing session request", error); }
+  if (!withinLimit) {
     return NextResponse.json({ error: "Too many session requests. Please try again in an hour." }, { status: 429 });
   }
   const username = isGuest ? "Guest" : body.username?.trim();
