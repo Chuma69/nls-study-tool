@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSql } from "@/lib/db";
 import { requireRole } from "@/lib/authorization";
+import { isCourse } from "@/lib/course-topics";
 
 export const runtime = "nodejs";
 
@@ -19,15 +20,33 @@ async function refreshConsensus(questionId: number) {
 export async function GET(request: Request) {
   const auth = await requireRole("expert", "admin");
   if (auth.response) return auth.response;
-  const requestedQuestionId = Number(new URL(request.url).searchParams.get("question")) || 0;
-  const rows = await getSql()`SELECT q.id,q.stem,q.options,q.course,q.exam_years,q.source_locator,
+  const url = new URL(request.url);
+  const requestedQuestionId = Number(url.searchParams.get("question")) || 0;
+  const courseParam = url.searchParams.get("course") ?? "";
+  const course = isCourse(courseParam) ? courseParam : "";
+  const expertId = auth.user.id;
+  const sql = getSql();
+  const rows = await sql`SELECT q.id,q.stem,q.options,q.course,q.exam_years,q.source_locator,
     COALESCE(s.display_name,s.rel_source_path) AS source_name,COALESCE(c.status,'awaiting_reviews') AS consensus_status,COALESCE(c.review_count,0)::int AS review_count
     FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id LEFT JOIN question_consensus c ON c.question_id=q.id
     WHERE q.question_type='mcq' AND q.verification_status NOT IN ('material_supported','staff_corrected')
       AND (${requestedQuestionId}=0 OR q.id=${requestedQuestionId})
+      AND (${course}='' OR q.course=${course})
       AND q.options IS NOT NULL AND COALESCE(s.rel_source_path,'') !~* 'answer'
+      AND NOT EXISTS (SELECT 1 FROM expert_reviews er WHERE er.question_id=q.id AND er.expert_id=${expertId} AND er.status='submitted')
     ORDER BY CASE WHEN c.status='conflicted' THEN 0 ELSE 1 END,q.id LIMIT 20`;
-  return NextResponse.json({ questions: rows });
+  // How many this reviewer has done, and how many still await them, broken down by course.
+  const reviewed = await sql`SELECT count(*)::int AS c FROM expert_reviews WHERE expert_id=${expertId} AND status='submitted'` as { c: number }[];
+  const byCourse = await sql`SELECT q.course, count(*)::int AS c
+    FROM questions q LEFT JOIN source_documents s ON s.id=q.source_document_id
+    WHERE q.question_type='mcq' AND q.verification_status NOT IN ('material_supported','staff_corrected')
+      AND q.options IS NOT NULL AND COALESCE(s.rel_source_path,'') !~* 'answer'
+      AND NOT EXISTS (SELECT 1 FROM expert_reviews er WHERE er.question_id=q.id AND er.expert_id=${expertId} AND er.status='submitted')
+    GROUP BY q.course` as { course: string | null; c: number }[];
+  const pendingByCourse: Record<string, number> = {};
+  let pendingTotal = 0;
+  for (const row of byCourse) { pendingTotal += row.c; if (row.course) pendingByCourse[row.course] = row.c; }
+  return NextResponse.json({ questions: rows, reviewedCount: reviewed[0]?.c ?? 0, pendingTotal, pendingByCourse, course });
 }
 
 export async function POST(request: Request) {

@@ -80,6 +80,7 @@ export function ExpertJoinForm({ invite }: { invite: string }) {
       <p className="eyebrow">Expert review invitation</p>
       <h2>Join the review panel</h2>
       <p className="muted">You&apos;ve been invited to help verify Bar Part II practice questions. Reviews are independent and stay private until you submit them.</p>
+      <p className="dual-account-note">Accepting also creates a <strong>learner study account</strong>, so you can practise Bar Part II questions yourself anytime — just switch to learner mode.</p>
       <form onSubmit={submit}>
         <label htmlFor="expert-email">Email</label>
         <input id="expert-email" type="email" value={email} readOnly aria-readonly="true" />
