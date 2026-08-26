@@ -38,7 +38,7 @@ export default function CopyrightPage() {
       <p>
         We respect intellectual-property rights. If you are a rights holder and believe material on Call Ready infringes your copyright, or
         should not be included, tell us and we will review and, where appropriate, promptly remove it. Please email
-        <a href="mailto:hi@raymondchuma.com"> hi@raymondchuma.com</a> with:
+        <a href="mailto:hi@callready.ng"> hi@callready.ng</a> with:
       </p>
       <ul>
         <li>your name and contact details;</li>

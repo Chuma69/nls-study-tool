@@ -20,7 +20,7 @@ export default function PrivacyPage() {
         written to align with the Nigeria Data Protection Act 2023 (NDPA).
       </p>
       <p>
-        For any privacy question or request, contact <a href="mailto:hi@raymondchuma.com">hi@raymondchuma.com</a>.
+        For any privacy question or request, contact <a href="mailto:hi@callready.ng">hi@callready.ng</a>.
       </p>
 
       <h2>What we collect</h2>
@@ -68,7 +68,7 @@ export default function PrivacyPage() {
         <li><strong>End a session</strong> — sign out at any time from the home screen.</li>
       </ul>
       <p>
-        For corrections or any request you cannot complete in-app, email <a href="mailto:hi@raymondchuma.com">hi@raymondchuma.com</a>. You
+        For corrections or any request you cannot complete in-app, email <a href="mailto:hi@callready.ng">hi@callready.ng</a>. You
         also have the right to lodge a complaint with the Nigeria Data Protection Commission (NDPC).
       </p>
 

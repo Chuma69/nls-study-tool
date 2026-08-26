@@ -83,7 +83,7 @@ export default function TermsPage() {
       </p>
 
       <h2>11. Contact</h2>
-      <p>Questions about these terms: <a href="mailto:hi@raymondchuma.com">hi@raymondchuma.com</a>.</p>
+      <p>Questions about these terms: <a href="mailto:hi@callready.ng">hi@callready.ng</a>.</p>
 
       <p className="legal-disclaimer-note">
         See also our <Link href="/privacy">Privacy Policy</Link>, <Link href="/disclaimer">Disclaimer</Link>, and <Link href="/copyright">Copyright &amp; takedown</Link> pages.
