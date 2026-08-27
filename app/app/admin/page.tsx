@@ -42,6 +42,7 @@ type ActivityUser = {
   accuracy: number;
   active_days: number;
   sessions_count: number;
+  sprints_count: number;
   total_seconds: number;
   courses: ActivityCourse[];
 };
@@ -994,7 +995,8 @@ export default function AdminPage() {
                   <div><strong>{selectedUser.distinct_questions.toLocaleString()}</strong><span>unique questions</span></div>
                   <div><strong className={accuracyTone(selectedUser.accuracy)}>{selectedUser.questions_answered ? `${selectedUser.accuracy}%` : "—"}</strong><span>accuracy</span></div>
                   <div><strong>{timeLabel(selectedUser.total_seconds)}</strong><span>study time</span></div>
-                  <div><strong>{selectedUser.sessions_count}</strong><span>sessions</span></div>
+                  <div><strong>{selectedUser.sessions_count}</strong><span>practice session{selectedUser.sessions_count === 1 ? "" : "s"}</span></div>
+                  <div><strong>{selectedUser.sprints_count}</strong><span>sprint{selectedUser.sprints_count === 1 ? "" : "s"}</span></div>
                   <div><strong>{selectedUser.active_days}</strong><span>active day{selectedUser.active_days === 1 ? "" : "s"}</span></div>
                 </div>
                 <p className="muted user-detail-meta">Joined {new Date(selectedUser.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })} · last active {relativeTime(selectedUser.last_active_at)}{selectedUser.questions_answered ? ` · ${selectedUser.total_seconds && selectedUser.questions_answered ? Math.round(selectedUser.total_seconds / selectedUser.questions_answered) : 0}s per answer` : ""}</p>
