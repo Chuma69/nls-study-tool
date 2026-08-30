@@ -134,6 +134,8 @@ form .primary-button { margin-top: 14px; }
 .option strong { font-family: "IBM Plex Mono", monospace; }
 .option span { line-height: 1.4; }
 .option.locked { cursor: default; }
+.option.locked:not(.selected) { opacity: .65; }
+.sprint-locked-note { font-size: 12.5px; margin: 4px 0 10px; }
 .result { background: oklch(.97 .025 165); border: 1px solid oklch(.8 .08 165); border-radius: 9px; margin-top: 18px; padding: 18px; }
 .result.incorrect { background: oklch(.975 .02 25); border-color: oklch(.83 .09 25); }
 .result strong { font-family: Newsreader, Georgia, serif; font-size: 20px; }
