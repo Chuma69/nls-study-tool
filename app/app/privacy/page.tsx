@@ -12,7 +12,7 @@ export default function PrivacyPage() {
     <main className="narrow legal-page">
       <Link className="back-link" href="/">← Back to home</Link>
       <h1 className="legal-title">Privacy Policy</h1>
-      <p className="legal-updated">Last updated: 11 August 2026</p>
+      <p className="legal-updated">Last updated: 31 August 2026</p>
 
       <p>
         Call Ready is a <strong>free, non-commercial hobby project</strong> built to help candidates prepare for the Nigerian Law School
@@ -37,16 +37,19 @@ export default function PrivacyPage() {
         <li>To provide the service — deliver questions, record your progress, and show your results (performance of the service you request, and your consent).</li>
         <li>To keep the service secure and reliable — authentication and rate-limiting (our legitimate interest).</li>
         <li>To improve question quality — aggregated, de-identified accuracy data helps our reviewers fix weak questions.</li>
+        <li>To communicate with you about Call Ready — for example, asking for feedback to improve it, and sharing study tips and exam-preparation guidance (our legitimate interest in supporting, and hearing from, the people who use this free project). These emails go only to registered users, never guests, and every one includes a one-click unsubscribe so you can opt out at any time.</li>
       </ul>
 
       <h2>How your data is stored and shared</h2>
       <p>
-        Your data is not sold or shared for marketing. It is kept only with the infrastructure providers needed to run the project, who
-        process it on our behalf:
+        We never sell your data, and we never share it with third parties for their own marketing. It is kept only with the infrastructure
+        and email providers needed to run the project and to communicate with you, who process it on our behalf:
       </p>
       <ul>
         <li><strong>Vercel</strong> — application hosting (servers located in the United States).</li>
         <li><strong>Neon</strong> — our PostgreSQL database (located in the United States).</li>
+        <li><strong>Resend</strong> — delivery of essential service emails, such as reviewer invitations (servers in the United States).</li>
+        <li><strong>Zoho Campaigns</strong> — delivery of the feedback requests and study-tip emails described above, sent to registered users (servers in the United States).</li>
       </ul>
       <p>
         Because these providers are based in the United States, your data is transferred and processed outside Nigeria. By creating a
@@ -66,6 +69,7 @@ export default function PrivacyPage() {
         <li><strong>Export</strong> — download everything tied to your profile from your <Link href="/account">account page</Link>.</li>
         <li><strong>Delete</strong> — permanently delete your account and associated data from your <Link href="/account">account page</Link>. This cannot be undone.</li>
         <li><strong>End a session</strong> — sign out at any time from the home screen.</li>
+        <li><strong>Opt out of emails</strong> — unsubscribe from feedback and study-tip emails using the link in any such email, or by emailing <a href="mailto:hi@callready.ng">hi@callready.ng</a>. This never affects essential service messages or your access to the tool.</li>
       </ul>
       <p>
         For corrections or any request you cannot complete in-app, email <a href="mailto:hi@callready.ng">hi@callready.ng</a>. You
