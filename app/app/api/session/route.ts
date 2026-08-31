@@ -1,8 +1,9 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { getSql } from "@/lib/db";
 import { currentUser, guestEmail, hashSessionToken, isAdminEmail, makeSessionToken, SESSION_COOKIE, sessionExpiry } from "@/lib/session";
 import { allowRequest } from "@/lib/rate-limit";
+import { isZohoConfigured, subscribeContact } from "@/lib/zoho-campaigns";
 
 export const runtime = "nodejs";
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -62,6 +63,19 @@ export async function POST(request: Request) {
       await sql`UPDATE users SET username = ${username}, role = ${effectiveRole}, last_seen_at = now() WHERE id = ${users[0].id}`;
     }
     if (invite.length) await sql`UPDATE expert_invites SET accepted_at = now() WHERE id = ${invite[0].id}`;
+    // Sync brand-new registered users onto the Zoho marketing list. Guests are
+    // excluded (their addresses are synthetic), and only first-time inserts are
+    // sent — a resumed profile is already on the list. Runs after the response
+    // is returned, so signup latency and reliability are unaffected; a Zoho
+    // outage can never turn signup into an error.
+    if (!isGuest && !existing.length && isZohoConfigured()) {
+      const newEmail = email;
+      const newName = username;
+      after(async () => {
+        const result = await subscribeContact({ email: newEmail, name: newName });
+        if (!result.ok) console.error("Zoho subscribe failed for new user", result.reason, result.detail);
+      });
+    }
     const token = makeSessionToken();
     const expiresAt = sessionExpiry();
     await sql`INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (${users[0].id}, ${hashSessionToken(token)}, ${expiresAt.toISOString()})`;
