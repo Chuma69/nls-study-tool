@@ -66,8 +66,6 @@ function PracticeContent() {
   const [chosenKey, setChosenKey] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState("");
-  const [attemptedQuestions, setAttemptedQuestions] = useState(0);
-  const [totalQuestions, setTotalQuestions] = useState(0);
   const [practiceSession, setPracticeSession] = useState<PracticeSession | null>(null);
   const [questionStartedAt, setQuestionStartedAt] = useState<number | null>(null);
   const [currentQuestionSeconds, setCurrentQuestionSeconds] = useState(0);
@@ -114,9 +112,6 @@ function PracticeContent() {
     const response = await fetch(`/api/questions/next${params.size ? `?${params}` : ""}`);
     const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not load a question."); setQuestion(null); return; }
-    const nextTotal = data.totalQuestions ?? 0;
-    setTotalQuestions(nextTotal);
-    setAttemptedQuestions(data.attemptedQuestions ?? 0);
     const questionGroup = (data.questionGroup ?? []) as Question[];
     questionGroup.forEach((item) => runSeenIdsRef.current.add(Number(item.id)));
     if (data.question) runSeenIdsRef.current.add(Number(data.question.id));
@@ -129,9 +124,9 @@ function PracticeContent() {
     setCurrentQuestionSeconds(0);
     if (data.question) {
       replaceQuestionInUrl(data.question.id);
-      void fetch(`/api/flags?questionId=${data.question.id}`).then((flagResponse) => flagResponse.ok ? flagResponse.json() : null).then((flag) => {
-        if (flag) { setSaved(Boolean(flag.saved)); setNote(flag.note ?? ""); }
-      });
+      // Saved/flag state now arrives with the question itself (no extra request).
+      setSaved(Boolean(data.saved));
+      setNote(data.note ?? "");
     }
   }, [courseSelectionKey, topicSelectionKey, replaceQuestionInUrl]);
 
@@ -150,7 +145,7 @@ function PracticeContent() {
   useEffect(() => {
     let cancelled = false;
     if (!selectedCourses.length || !selectedTopics.length) { setQuestion(null); setPracticeSession(null); return; }
-    setQuestion(undefined); setAttemptedQuestions(0); setPracticeSession(null); setPreviousQuestions([]); setNextQuestions([]);
+    setQuestion(undefined); setPracticeSession(null); setPreviousQuestions([]); setNextQuestions([]);
     runSeenIdsRef.current = new Set(); runAnsweredIdsRef.current = new Set();
     setAnsweredInRun(0); setRunCorrect(0); setRunComplete(false);
     void fetch("/api/practice-sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ courses: selectedCourses }) })
@@ -242,7 +237,6 @@ function PracticeContent() {
     const data = await response.json();
     if (!response.ok) { setError(data.error ?? "Could not save your answer."); return; }
     setPracticeSession((session) => session ? { ...session, answers_count: session.answers_count + 1, total_seconds: session.total_seconds + secondsSpent, last_question_id: question.id } : session);
-    if (data.firstAttempt) setAttemptedQuestions((count) => Math.min(count + 1, totalQuestions));
     if (!runAnsweredIdsRef.current.has(question.id)) {
       runAnsweredIdsRef.current.add(question.id);
       setAnsweredInRun(runAnsweredIdsRef.current.size);

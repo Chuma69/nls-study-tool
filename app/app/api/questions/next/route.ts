@@ -22,7 +22,6 @@ type QuestionRow = {
   context_position: number | null;
 };
 
-type CountRow = { total: number; attempted: number };
 type SessionRow = { id: number; answers_count: number; last_question_id: number | null };
 
 export async function GET(request: Request) {
@@ -124,28 +123,22 @@ export async function GET(request: Request) {
     }
   }
 
-  const totals = await getSql()`
-    SELECT count(DISTINCT q.id)::int AS total,
-           count(DISTINCT q.id) FILTER (WHERE a.question_id IS NOT NULL)::int AS attempted
-    FROM questions q
-    LEFT JOIN attempts a ON a.question_id = q.id AND a.user_id = ${user.id}
-    WHERE q.question_type = 'mcq'
-      AND q.material_supported_key IS NOT NULL
-      AND q.verification_status IN ('material_supported', 'staff_corrected')
-      AND NOT EXISTS (SELECT 1 FROM question_flags qf WHERE qf.question_id=q.id AND qf.kind='admin_review' AND qf.resolved_at IS NULL)
-      AND NOT EXISTS (SELECT 1 FROM question_reports qr WHERE qr.question_id=q.id AND qr.status='open')
-      AND (cardinality(${selectedCourses}::text[]) = 0 OR q.course = ANY(${selectedCourses}))
-      AND (cardinality(${selectedTopics}::text[]) = 0 OR q.topic = ANY(${selectedTopics}))
-  ` as CountRow[];
+  // The learner's saved/flag state for the question being served, folded into
+  // this response so the client no longer needs a separate /api/flags round
+  // trip per question. (Only the primary question is checked, matching the
+  // prior behaviour where scenario sub-questions reset to unsaved.)
+  const primaryQuestionId = questionGroup[0]?.id ?? 0;
+  const savedRows = primaryQuestionId ? await getSql()`
+    SELECT note FROM question_flags
+    WHERE user_id = ${user.id} AND question_id = ${primaryQuestionId}
+      AND kind = 'saved' AND resolved_at IS NULL
+    LIMIT 1
+  ` as { note: string | null }[] : [];
 
   return NextResponse.json({
     question: questionGroup[0] ?? null,
     questionGroup,
-    // Every MCQ row counts once. A shared scenario is context only, so a
-    // scenario with four linked MCQs contributes four to this total.
-    totalQuestions: totals[0]?.total ?? 0,
-    // Do not use practice_sessions.answers_count here: it includes retries
-    // and can exceed the current live bank after filters or publishing changes.
-    attemptedQuestions: totals[0]?.attempted ?? 0,
+    saved: Boolean(savedRows[0]),
+    note: savedRows[0]?.note ?? "",
   });
 }
